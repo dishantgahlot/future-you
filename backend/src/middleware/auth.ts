@@ -6,7 +6,9 @@ let _supabase: SupabaseClient | null = null
 
 function getSupabase(): SupabaseClient {
   if (!_supabase) {
-    _supabase = createClient(config.supabase.url, config.supabase.serviceRoleKey)
+    const url = config.supabase.url || 'https://dhgxiowaeldrtkwfasgl.supabase.co'
+    const key = config.supabase.serviceRoleKey || config.supabase.anonKey || 'placeholder'
+    _supabase = createClient(url, key)
   }
   return _supabase
 }
