@@ -27,8 +27,10 @@ import type {
   UserHabitProgressSummary,
 } from '../types'
 
-const RAW_API = import.meta.env.VITE_API_URL || 'http://localhost:9000'
-const API_BASE = RAW_API.endsWith('/api') ? RAW_API : `${RAW_API}/api`
+const RAW_API = import.meta.env.VITE_API_URL !== undefined
+  ? import.meta.env.VITE_API_URL
+  : (import.meta.env.PROD ? '' : 'http://localhost:9000')
+const API_BASE = !RAW_API ? '/api' : (RAW_API.endsWith('/api') ? RAW_API : `${RAW_API}/api`)
 
 async function getAuthHeaders(): Promise<HeadersInit> {
   const { data: { session } } = await supabase.auth.getSession()

@@ -38,22 +38,17 @@ export function validateConfig() {
     'SUPABASE_URL',
     'SUPABASE_ANON_KEY',
     'SUPABASE_SERVICE_ROLE_KEY',
-    'GROQ_API_KEY',
     'JWT_SECRET',
   ]
 
-  // Optional - Gemini API key (fallbacks available)
-  const optional = ['GEMINI_API_KEY']
-
+  const hasAIKey = !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY)
   const missing = required.filter(key => !process.env[key])
-  const missingOptional = optional.filter(key => !process.env[key])
+  if (!hasAIKey) {
+    missing.push('GEMINI_API_KEY')
+  }
 
   if (missing.length > 0) {
     console.warn(`⚠️  Missing required environment variables: ${missing.join(', ')}`)
-  }
-
-  if (missingOptional.length > 0) {
-    console.info(`ℹ️  Missing optional environment variables (fallbacks will be used): ${missingOptional.join(', ')}`)
   }
 
   return missing.length === 0

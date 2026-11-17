@@ -26,7 +26,7 @@ app.use(helmet({
 }))
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: process.env.FRONTEND_URL ? [process.env.FRONTEND_URL, 'http://localhost:5173'] : true,
   credentials: true,
 }))
 
@@ -52,8 +52,10 @@ app.use('/api/ai', optionalAuthMiddleware, aiRoutes)
 
 app.use(errorHandler)
 
-app.listen(PORT, () => {
-  console.log(`🚀 Backend server running on http://localhost:${PORT}`)
-})
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Backend server running on http://localhost:${PORT}`)
+  })
+}
 
 export default app
