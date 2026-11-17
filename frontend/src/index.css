@@ -1,0 +1,604 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Clean, modern slate-neutral surfaces in light mode */
+    --background: 210 40% 98%;      /* #F8FAFC */
+    --foreground: 222 47% 11%;      /* #0F172A */
+
+    --card: 0 0% 100%;             /* #FFFFFF */
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* New Emerald Green Accent (#059669) */
+    --primary: 160 84% 39%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 158 64% 52%;   /* #10B981 */
+    --primary-muted: 152 81% 96%;   /* #ECFDF5 */
+
+    --secondary: 210 40% 96%;       /* #F1F5F9 */
+    --secondary-foreground: 222 47% 11%;
+    --peach: 25 85% 65%;
+    --peach-muted: 25 85% 95%;
+
+    --accent: 152 81% 96%;
+    --accent-foreground: 161 94% 24%;
+    --lavender: 260 45% 82%;
+    --lavender-muted: 260 30% 94%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;/* #64748B */
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;          /* #E2E8F0 */
+    --input: 214 32% 91%;
+    --ring: 160 84% 39%;
+
+    --radius: 1.25rem;
+    --radius-sm: 0.75rem;
+    --radius-lg: 1.5rem;
+
+    /* Botanical Semantic Variables (Light) */
+    --botanical-cream: 210 40% 98%;      /* #F8FAFC */
+    --botanical-surface: 210 40% 96%;    /* #F1F5F9 */
+    --botanical-card: 0 0% 100%;         /* #FFFFFF */
+    --botanical-border: 214 32% 91%;     /* #E2E8F0 */
+    --botanical-muted: 215 16% 47%;      /* #64748B */
+    --botanical-header: 222 47% 11%;     /* #0F172A */
+
+    /* Leaf Variables (New Emerald & Mint palette) */
+    --leaf-1: 160 84% 39%;               /* #059669 Emerald 600 */
+    --leaf-2: 158 64% 52%;               /* #10B981 Emerald 500 */
+    --leaf-3: 161 74% 30%;               /* #047857 Emerald 700 */
+    --leaf-4: 162 70% 20%;               /* #065F46 Emerald 800 */
+    --leaf-5: 161 94% 13%;               /* #022c22 Emerald 950 */
+    --leaf-6: 156 73% 74%;               /* #6EE7B7 Emerald 300 */
+    --leaf-7: 152 76% 80%;               /* #A7F3D0 Emerald 200 */
+    --leaf-pill: 152 81% 96%;            /* #ECFDF5 Mint 50 */
+    --leaf-pill-text: 161 94% 24%;       /* #047857 Emerald 700 */
+    --leaf-dark-text: 222 47% 11%;       /* #0F172A Slate 900 */
+  }
+
+  .dark {
+    /* Rich Botanical Forest Night Theme (Consistent with user screenshot) */
+    --background: 168 35% 5%;            /* #091312 - deep botanical forest night */
+    --foreground: 45 25% 95%;            /* #F5F2EB - warm crisp cream */
+
+    --card: 165 25% 8%;                  /* #0E1714 - botanical dark card */
+    --card-foreground: 45 25% 95%;
+
+    --popover: 165 25% 8%;
+    --popover-foreground: 45 25% 95%;
+
+    /* Vivid Botanical Olive & Sage Primary */
+    --primary: 84 45% 42%;               /* #6B8C38 Botanical Green */
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 86 52% 60%;         /* #98C45A */
+    --primary-muted: 160 30% 12%;        /* #14241C */
+
+    --secondary: 165 22% 11%;            /* #131F1B */
+    --secondary-foreground: 45 25% 95%;
+    --peach: 25 70% 60%;
+    --peach-muted: 25 30% 18%;
+
+    --accent: 160 30% 12%;
+    --accent-foreground: 86 52% 60%;
+    --lavender: 260 35% 70%;
+    --lavender-muted: 260 20% 18%;
+
+    --muted: 165 22% 11%;                /* #131F1B */
+    --muted-foreground: 85 15% 65%;      /* #A8BCA0 - readable sage secondary */
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 165 20% 16%;               /* #1E2E27 - subtle hairline border */
+    --input: 165 20% 16%;
+    --ring: 84 45% 42%;
+
+    /* Botanical Semantic Variables (Dark) */
+    --botanical-cream: 168 35% 5%;       /* #091312 */
+    --botanical-surface: 165 22% 11%;    /* #131F1B */
+    --botanical-card: 165 25% 8%;        /* #0E1714 */
+    --botanical-border: 165 20% 16%;     /* #1E2E27 */
+    --botanical-muted: 85 15% 65%;       /* #A8BCA0 - crystal clear readability */
+    --botanical-header: 45 25% 95%;      /* #F5F2EB - crystal clear readability */
+
+    /* Leaf Variables in Dark Mode */
+    --leaf-1: 86 52% 60%;               /* #98C45A */
+    --leaf-2: 84 45% 42%;               /* #6B8C38 */
+    --leaf-3: 82 48% 34%;               /* #547228 */
+    --leaf-4: 80 50% 25%;               /* #3D551A */
+    --leaf-5: 78 52% 18%;               /* #293B0F */
+    --leaf-6: 86 52% 70%;               /* #B5D783 */
+    --leaf-7: 88 54% 82%;               /* #D3E8B2 */
+    --leaf-pill: 160 30% 14%;            /* #16261E */
+    --leaf-pill-text: 86 52% 70%;        /* #B5D783 */
+    --leaf-dark-text: 45 25% 95%;        /* #F5F2EB - warm crisp cream */
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: 'DM Sans', system-ui, sans-serif;
+  }
+
+  /* Elegant serif for headings */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .font-serif {
+    font-family: 'DM Serif Display', Georgia, serif;
+  }
+
+  .font-sans {
+    font-family: 'DM Sans', system-ui, sans-serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.4);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.6);
+  }
+
+  /* Thin clean scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+  }
+
+  /* Focus styles */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background;
+  }
+}
+
+/* Animation keyframes */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.4s ease-out;
+}
+
+/* Chart container */
+.recharts-wrapper {
+  font-family: 'DM Sans', system-ui, sans-serif !important;
+}
+
+/* ========================================================
+   MODERN EMERALD & MIDNIGHT SLATE DARK MODE OVERRIDES
+   Crisp readability, neutral surfaces, vivid emerald accents
+   ======================================================== */
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  background-color: #091312 !important;
+  color: #F5F2EB !important;
+}
+
+/* 1. Botanical Forest Night Surfaces */
+.dark .bg-botanical-cream {
+  background-color: #091312 !important;
+}
+
+.dark .bg-botanical-surface {
+  background-color: #131F1B !important;
+}
+
+.dark .bg-botanical-card,
+.dark .bg-white {
+  background-color: #0E1714 !important;
+  color: #F5F2EB;
+}
+
+.dark .bg-white\/90,
+.dark .bg-white\/95,
+.dark .bg-white\/80 {
+  background-color: rgba(14, 23, 20, 0.95) !important;
+  color: #F5F2EB;
+}
+
+.dark .bg-\[\#FCFAF6\],
+.dark .bg-\[\#FCFAF5\],
+.dark .bg-\[\#FCFAF7\],
+.dark .bg-\[\#FAF8F3\],
+.dark .bg-\[\#FAF7F0\],
+.dark .bg-\[\#FAF7EF\],
+.dark .bg-\[\#FAF6E4\],
+.dark .bg-\[\#FAF5EB\],
+.dark .bg-\[\#FAF5EA\],
+.dark .bg-\[\#F8F6F0\],
+.dark .bg-\[\#F7F4EC\],
+.dark .bg-\[\#F7EFE1\],
+.dark .bg-\[\#F6F3EB\],
+.dark .bg-\[\#F5F2E9\],
+.dark .bg-\[\#F4EFE5\],
+.dark .bg-\[\#F3EDE0\],
+.dark .bg-\[\#F2EDE2\],
+.dark .bg-\[\#F2ECE1\],
+.dark .bg-\[\#F2ECE0\],
+.dark .bg-\[\#F0EAE0\],
+.dark .bg-\[\#EFE9DC\],
+.dark .bg-\[\#EAE3D2\],
+.dark .bg-\[\#E5ECE0\],
+.dark .bg-\[\#E4DDD0\],
+.dark .bg-\[\#DDD5C2\]\/85 {
+  background-color: #0B1411 !important;
+  color: #F5F2EB;
+}
+
+/* Completed and active habit card states in dark mode */
+.dark .bg-\[\#F2F7EC\] {
+  background-color: rgba(37, 58, 29, 0.4) !important;
+  color: #F5F2EB !important;
+}
+
+/* Icon and badge surfaces in dark mode */
+.dark .bg-\[\#EDE8DB\] {
+  background-color: #1A2821 !important;
+  color: #A8BCA0 !important;
+}
+
+.dark .bg-\[\#F6EEDD\] {
+  background-color: rgba(217, 119, 6, 0.2) !important;
+  color: #FBBF24 !important;
+}
+
+.dark .bg-\[\#E3EDD7\] {
+  background-color: rgba(46, 75, 33, 0.45) !important;
+  color: #A8D968 !important;
+}
+
+.dark .bg-\[\#FBF3E4\],
+.dark .bg-\[\#FEF9E7\] {
+  background-color: rgba(120, 53, 15, 0.35) !important;
+  color: #FBBF24 !important;
+}
+
+.dark .bg-\[\#FEF3E2\] {
+  background-color: rgba(217, 119, 6, 0.2) !important;
+}
+
+/* Progress bar background tracks & empty heatmap dots */
+.dark .bg-\[\#E8E2D5\],
+.dark .bg-\[\#ECE7DC\] {
+  background-color: #16241D !important;
+}
+
+.dark .hover\:bg-\[\#DDD8CB\]:hover {
+  background-color: #24382B !important;
+}
+
+.dark .bg-\[\#F5F2EB\],
+.dark .bg-\[\#F5F2EB\]\/60 {
+  background-color: #0A120E !important;
+}
+
+.dark .bg-\[\#EEF4E8\],
+.dark .bg-\[\#DFE7CF\],
+.dark .bg-\[\#D2DEC0\],
+.dark .bg-\[\#BFD7AF\],
+.dark .bg-\[\#D1DFC8\],
+.dark .bg-\[\#EAEFE2\] {
+  background-color: rgba(46, 75, 33, 0.4) !important;
+  color: #B6DB8A !important;
+}
+
+/* 2. Text Visibility in Dark Mode: High-Contrast Crisp Whites */
+.dark .text-\[\#1D2516\],
+.dark .text-\[\#151D10\],
+.dark .text-\[\#141E0F\],
+.dark .text-\[\#151D0E\],
+.dark .text-\[\#1C2613\],
+.dark .text-\[\#18230D\],
+.dark .text-\[\#1B2909\],
+.dark .text-\[\#232819\],
+.dark .text-\[\#232B1C\],
+.dark .text-\[\#243513\],
+.dark .text-\[\#28321F\],
+.dark .text-\[\#2B351F\],
+.dark .text-\[\#2C3E14\],
+.dark .text-\[\#2D3421\],
+.dark .text-\[\#2E3725\],
+.dark .text-\[\#2E3B22\],
+.dark .text-\[\#2E3F1D\],
+.dark .text-\[\#2F3D1F\],
+.dark .text-\[\#2F4418\],
+.dark .text-\[\#33461D\],
+.dark .text-\[\#35451D\],
+.dark .text-\[\#38422E\],
+.dark .text-\[\#384622\],
+.dark .text-\[\#484135\],
+.dark .text-leaf-darkText,
+.dark .text-botanical-headerText {
+  color: #F5F2EB !important;
+}
+
+/* 3. Secondary / Muted Text: High-Contrast Readable Sage (Never dark/black!) */
+.dark .text-\[\#6F6759\],
+.dark .text-\[\#8C8271\],
+.dark .text-\[\#7A7264\],
+.dark .text-\[\#767C6B\],
+.dark .text-\[\#7A7260\],
+.dark .text-\[\#7A856D\],
+.dark .text-\[\#4E5642\],
+.dark .text-\[\#445038\],
+.dark .text-\[\#8A9280\],
+.dark .text-\[\#8A8270\],
+.dark .text-\[\#887F6E\],
+.dark .text-\[\#8C8474\],
+.dark .text-\[\#8D947F\],
+.dark .text-\[\#9A9180\],
+.dark .text-\[\#9A9382\],
+.dark .text-\[\#9BA18F\],
+.dark .text-\[\#B0A795\],
+.dark .text-\[\#3E4933\],
+.dark .text-\[\#556933\],
+.dark .text-\[\#556244\],
+.dark .text-\[\#52633E\],
+.dark .text-\[\#485637\],
+.dark .text-\[\#3D4F23\],
+.dark .text-\[\#635B4E\],
+.dark .text-\[\#6D7B58\],
+.dark .text-\[\#A09888\],
+.dark .text-\[\#6A725D\],
+.dark .text-botanical-mutedText {
+  color: #A8BCA0 !important;
+}
+
+/* Amber / Warning / In-progress numbers & badges */
+.dark .text-\[\#845E1B\],
+.dark .text-\[\#92400E\],
+.dark .text-\[\#C88E3E\],
+.dark .text-\[\#E5B54F\],
+.dark .text-\[\#F3C766\] {
+  color: #FBBF24 !important;
+}
+
+/* 4. Vivid Botanical Olive & Sage Accents */
+.dark .text-\[\#738541\],
+.dark .text-\[\#556B2F\],
+.dark .text-\[\#4A6225\],
+.dark .text-\[\#4E6228\],
+.dark .text-\[\#3D5220\],
+.dark .text-\[\#415525\],
+.dark .text-\[\#43522C\],
+.dark .text-\[\#435824\],
+.dark .text-\[\#526129\],
+.dark .text-\[\#5D703E\],
+.dark .text-\[\#556E2B\],
+.dark .text-\[\#5A732E\],
+.dark .text-\[\#8DA55D\],
+.dark .text-\[\#A9C378\] {
+  color: #A8D968 !important; /* Vivid Botanical Sage */
+}
+
+.dark .bg-\[\#738541\],
+.dark .bg-\[\#556B2F\],
+.dark .bg-\[\#4C6428\] {
+  background-color: #4E6826 !important; /* Deep Botanical Olive Green */
+  color: #FFFFFF !important;
+}
+
+/* 5. Clean Hairline Borders in Dark Mode */
+.dark .border-\[\#E3DDCF\],
+.dark .border-\[\#E8E2D5\],
+.dark .border-\[\#ECE7DC\],
+.dark .border-\[\#EAE4D6\],
+.dark .border-\[\#E8E3D7\],
+.dark .border-\[\#DDD6C5\],
+.dark .border-\[\#DDD5C5\],
+.dark .border-\[\#EAE3D5\],
+.dark .border-\[\#D5CBB6\],
+.dark .border-\[\#D4CBB9\],
+.dark .border-\[\#D0C5B0\],
+.dark .border-\[\#CCC2AB\],
+.dark .border-\[\#CCC3B0\],
+.dark .border-\[\#E5DFD1\],
+.dark .border-\[\#D5E3C4\],
+.dark .border-\[\#CCD8B8\],
+.dark .border-\[\#C7D6BE\],
+.dark .border-\[\#BCD49B\],
+.dark .border-\[\#DFD8C7\],
+.dark .border-botanical-border {
+  border-color: #1E2E27 !important;
+}
+
+/* 6. Form Inputs & Textareas in Dark Mode */
+.dark input[type="text"],
+.dark input[type="number"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark textarea,
+.dark select {
+  background-color: #0A1410 !important;
+  color: #F5F2EB !important;
+  border-color: #22352B !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #6E8268 !important;
+}
+
+/* 6.05 Form Inputs Autofill: Prevent Chrome Blue/Yellow autofill overlay */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #FAF7F0 inset !important;
+  -webkit-text-fill-color: #1D2516 !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover, 
+.dark input:-webkit-autofill:focus, 
+.dark input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #0E1714 inset !important;
+  -webkit-text-fill-color: #F5F2EB !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* 6.1 Global SVG Text & Graphics Dark Mode Rules */
+.dark svg text[fill="#1D2516"],
+.dark svg text[fill="#2C3E14"],
+.dark svg text.fill-\[\#1D2516\],
+.dark svg text.fill-\[\#2C3E14\] {
+  fill: #F5F2EB !important;
+}
+
+.dark svg text[fill="#8C8271"],
+.dark svg text[fill="#767C6B"],
+.dark svg text.fill-\[\#8C8271\],
+.dark svg text.fill-\[\#767C6B\] {
+  fill: #A8BCA0 !important;
+}
+
+.dark svg line[stroke="#E8E3D7"],
+.dark svg line[stroke="#EAE4D6"],
+.dark svg line[stroke="#ECE7DC"],
+.dark svg line[stroke="#E8E2D5"] {
+  stroke: #1E2E27 !important;
+}
+
+.dark svg circle[stroke="#3E4F20"] {
+  stroke: #A8D968 !important;
+}
+
+.dark svg circle[fill="#3E4F20"],
+.dark svg circle[fill="#2C3E14"] {
+  fill: #4E6826 !important;
+}
+
+/* Habit Consistency Empty Squares in Dark Mode (Soft White, Reduced Brightness) */
+.dark .habit-cell-empty,
+.dark button.habit-cell-empty {
+  background-color: #E2E8F0 !important;
+}
+
+/* Recharts Dark Mode Support */
+.dark .recharts-cartesian-grid line {
+  stroke: #1E2E27 !important;
+}
+.dark .recharts-text,
+.dark .recharts-cartesian-axis-tick-value {
+  fill: #A8BCA0 !important;
+  color: #A8BCA0 !important;
+}
+.dark .recharts-default-tooltip {
+  background-color: #0E1714 !important;
+  border-color: #1E2E27 !important;
+  color: #F5F2EB !important;
+}
+
+/* 7. Dark Mode Scrollbars */
+.dark ::-webkit-scrollbar-track {
+  background: #091312;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #1E2E27;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #2E4233;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #1E2E27;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #2E4233;
+}
+
+/* ========================================================
+   LIGHT MODE MODERN EMERALD ACCENTS
+   Replaces pea-soup olive with crisp Emerald & Mint
+   ======================================================== */
+:root .text-\[\#738541\],
+:root .text-\[\#556B2F\],
+:root .text-\[\#4A6225\],
+:root .text-\[\#4E6228\],
+:root .text-\[\#3D5220\],
+:root .text-\[\#415525\] {
+  color: #059669;
+}
+
+:root .bg-\[\#738541\],
+:root .bg-\[\#556B2F\],
+:root .bg-\[\#4C6428\] {
+  background-color: #059669;
+}
+
+:root .bg-\[\#EEF4E8\],
+:root .bg-\[\#EAEFE2\] {
+  background-color: #ECFDF5;
+}
+
+:root .border-\[\#D5E3C4\],
+:root .border-\[\#CCD8B8\] {
+  border-color: #A7F3D0;
+}
