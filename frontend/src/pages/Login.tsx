@@ -20,9 +20,16 @@ export function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    const trimmed = email.trim()
+    if (!trimmed.includes('@')) {
+      setError('Please sign in with your full email address (e.g. dishant.25b01010184@abes.ac.in), not a username.')
+      return
+    }
+
     setLoading(true)
 
-    const { error } = await signIn(email.trim(), password)
+    const { error } = await signIn(trimmed, password)
     if (error) {
       setError(error.message)
       setLoading(false)
@@ -107,7 +114,7 @@ export function Login() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder="e.g. dishant.25b01010184@abes.ac.in"
                   className="w-full pl-11 pr-4 py-3 bg-[#FAF7F0] dark:bg-[#121D18] border border-[#E8E2D5] dark:border-[#22352B] rounded-2xl text-[#1D2516] dark:text-[#F5F2EB] placeholder:text-[#9BA18F] dark:placeholder:text-[#6E8268] text-sm focus:outline-none focus:ring-2 focus:ring-[#738541]/30 focus:border-[#738541] focus:bg-white dark:focus:bg-[#15231C] transition-all"
                   required
                   autoComplete="email"
