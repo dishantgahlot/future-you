@@ -85,15 +85,35 @@ export function Onboarding() {
   const { user, onboardingCompleted, setOnboardingCompleted } = useAuth()
   const [currentStep, setCurrentStep] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({
-    full_name: user?.user_metadata?.full_name || '',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    theme: 'system' as 'light' | 'dark' | 'system',
-    notifications: true,
-    weekly_report: true,
-    selectedCategories: [] as string[],
-    selectedHabits: [] as string[],
+  const [formData, setFormData] = useState(() => {
+    let initialName = user?.user_metadata?.full_name || ''
+    if (!initialName) {
+      const saved = localStorage.getItem('future_you_active_user')
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved)
+          initialName = parsed.user_metadata?.full_name || ''
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return {
+      full_name: initialName,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      theme: 'system' as 'light' | 'dark' | 'system',
+      notifications: true,
+      weekly_report: true,
+      selectedCategories: [] as string[],
+      selectedHabits: [] as string[],
+    }
   })
+
+  useEffect(() => {
+    if (user?.user_metadata?.full_name && !formData.full_name) {
+      setFormData(prev => ({ ...prev, full_name: user.user_metadata.full_name }))
+    }
+  }, [user, formData.full_name])
 
   // Guard: If this user already completed onboarding, skip immediately to dashboard
   useEffect(() => {

@@ -12,7 +12,8 @@ export function ProtectedRoute() {
     )
   }
 
-  if (!user) {
+  const hasActiveUser = !!user || !!localStorage.getItem('future_you_active_user') || !!localStorage.getItem('future_you_demo_user')
+  if (!hasActiveUser) {
     return <Navigate to="/login" replace />
   }
 

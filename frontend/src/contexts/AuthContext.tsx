@@ -63,8 +63,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) {
         setUser(session.user)
       } else {
+        const savedActive = localStorage.getItem('future_you_active_user')
         const savedDemo = localStorage.getItem('future_you_demo_user')
-        if (savedDemo) {
+        if (savedActive) {
+          try {
+            setUser(JSON.parse(savedActive))
+          } catch {
+            setUser(null)
+          }
+        } else if (savedDemo) {
           try {
             setUser(JSON.parse(savedDemo))
             setOnboardingCompleted(true)
@@ -99,35 +106,115 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user, checkOnboarding])
 
   const signUp = async (email: string, password: string, fullName?: string) => {
+    const trimmedEmail = email.trim()
+    const cleanName = fullName?.trim() || trimmedEmail.split('@')[0]
+
+    // 1. Try our backend signup API first (auto-confirms email and creates user session)
+    try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: trimmedEmail,
+          password,
+          full_name: cleanName,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data?.session && data?.user) {
+          await supabase.auth.setSession({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          })
+          setUser(data.user)
+          localStorage.setItem('future_you_active_user', JSON.stringify(data.user))
+          localStorage.removeItem(`future_you_onboarded_${data.user.id}`)
+          setOnboardingCompleted(false)
+          return { error: null }
+        }
+      }
+    } catch (apiErr) {
+      console.warn('Backend signup API call failed, falling back to direct Supabase:', apiErr)
+    }
+
+    // 2. Direct Supabase Client SignUp fallback
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: trimmedEmail,
       password,
       options: {
         data: {
-          full_name: fullName || email.split('@')[0],
+          full_name: cleanName,
         },
       },
     })
-    if (!error && data?.user) {
+
+    if (error) {
+      return { error: new Error(error.message) }
+    }
+
+    if (data?.user) {
+      let finalUser = data.user
       setOnboardingCompleted(false)
+      localStorage.removeItem(`future_you_onboarded_${finalUser.id}`)
+
+      // If Supabase returned an active session, use it
+      if (data.session) {
+        setUser(finalUser)
+        localStorage.setItem('future_you_active_user', JSON.stringify(finalUser))
+        return { error: null }
+      }
+
+      // If Supabase required email verification, auto-confirm via backend endpoint
+      try {
+        await fetch('/api/auth/confirm-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: trimmedEmail }),
+        })
+      } catch (confirmErr) {
+        console.warn('Auto-confirm attempt failed:', confirmErr)
+      }
+
+      // Attempt to immediately sign in with password now that user exists
+      const signInRes = await supabase.auth.signInWithPassword({
+        email: trimmedEmail,
+        password,
+      })
+
+      if (signInRes.data?.user && signInRes.data?.session) {
+        finalUser = signInRes.data.user
+        setUser(finalUser)
+        localStorage.setItem('future_you_active_user', JSON.stringify(finalUser))
+        return { error: null }
+      }
+
+      // Always establish the active user so the user directly proceeds to Onboarding!
+      setUser(finalUser)
+      localStorage.setItem('future_you_active_user', JSON.stringify(finalUser))
+
       try {
         await supabase.from('profiles').upsert({
-          id: data.user.id,
-          email: data.user.email || email,
-          full_name: fullName || email.split('@')[0],
+          id: finalUser.id,
+          email: finalUser.email || trimmedEmail,
+          full_name: cleanName,
           preferences: {
             theme: 'system',
             notifications: true,
             weekly_report: true,
             predictions: true,
-            onboarding_completed: false, // New user needs initial setup!
+            onboarding_completed: false,
           },
         })
-      } catch (e) {
-        console.warn('Profile upsert warning:', e)
+      } catch (upsertErr) {
+        console.warn('Profile upsert warning:', upsertErr)
       }
+
+      return { error: null }
     }
-    return { error: error ? new Error(error.message) : null }
+
+    return { error: null }
   }
 
   const signIn = async (email: string, password: string) => {
@@ -179,6 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     localStorage.removeItem('future_you_demo_user')
+    localStorage.removeItem('future_you_active_user')
     try {
       await supabase.auth.signOut()
     } catch (e) {

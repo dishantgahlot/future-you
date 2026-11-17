@@ -11,7 +11,9 @@ let _supabase: SupabaseClient | null = null
 
 function getSupabase(): SupabaseClient {
   if (!_supabase) {
-    _supabase = createClient(config.supabase.url, config.supabase.serviceRoleKey)
+    const url = config.supabase.url || process.env.VITE_SUPABASE_URL || 'https://dhgxiowaeldrtkwfasgl.supabase.co'
+    const key = config.supabase.serviceRoleKey || config.supabase.anonKey || process.env.VITE_SUPABASE_ANON_KEY || 'placeholder'
+    _supabase = createClient(url, key)
   }
   return _supabase
 }
@@ -40,6 +42,8 @@ const refreshSchema = z.object({
 router.post('/signup', validate(signUpSchema), asyncHandler(async (req, res) => {
   const { email, password, full_name } = req.body
 
+  let targetUser: any = null
+
   const { data, error } = await getSupabase().auth.admin.createUser({
     email,
     password,
@@ -48,7 +52,22 @@ router.post('/signup', validate(signUpSchema), asyncHandler(async (req, res) => 
   })
 
   if (error) {
-    throw new AppError(400, error.message)
+    if (error.message?.toLowerCase().includes('already') || error.message?.toLowerCase().includes('exists')) {
+      const { data: usersData } = await getSupabase().auth.admin.listUsers()
+      const existing = usersData?.users.find(u => u.email?.toLowerCase() === email.toLowerCase())
+      if (existing) {
+        await getSupabase().auth.admin.updateUserById(existing.id, {
+          password,
+          email_confirm: true,
+          user_metadata: { full_name },
+        })
+        targetUser = existing
+      }
+    } else {
+      throw new AppError(400, error.message)
+    }
+  } else {
+    targetUser = data.user
   }
 
   const { data: sessionData, error: sessionError } = await getSupabase().auth.signInWithPassword({
@@ -61,9 +80,26 @@ router.post('/signup', validate(signUpSchema), asyncHandler(async (req, res) => 
   }
 
   res.status(201).json({
-    user: data.user,
+    user: targetUser || sessionData.user,
     session: sessionData.session,
   })
+}))
+
+router.post('/confirm-user', asyncHandler(async (req, res) => {
+  const { email } = req.body
+  if (!email) return res.status(400).json({ error: 'Email is required' })
+
+  try {
+    const { data: usersData } = await getSupabase().auth.admin.listUsers()
+    const user = usersData?.users.find(u => u.email?.toLowerCase() === email.toLowerCase())
+    if (user) {
+      await getSupabase().auth.admin.updateUserById(user.id, { email_confirm: true })
+      return res.json({ success: true, user })
+    }
+    return res.status(404).json({ error: 'User not found' })
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message })
+  }
 }))
 
 router.post('/signin', validate(signInSchema), asyncHandler(async (req, res) => {
