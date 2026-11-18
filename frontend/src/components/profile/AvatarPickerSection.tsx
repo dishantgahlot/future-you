@@ -713,16 +713,16 @@ export function AvatarPickerSection() {
       {/* 4. Bottom Controls: Carousel (Illustrated) OR Custom URL Input (Custom) */}
       {avatarMode === 'illustrated' ? (
         <div className="pt-2 border-t border-[#E8E2D5]/80 space-y-3">
-          {/* Horizontal Thumbnails Row */}
+          {/* Thumbnails Row: Responsive Grid on mobile (zero horizontal scroll), smooth carousel on desktop */}
           <div
             ref={carouselRef}
-            className="flex items-center gap-3 overflow-x-auto pb-3 pt-2 px-1 scroll-smooth select-none"
+            className="grid grid-cols-4 xs:grid-cols-5 sm:flex sm:items-center sm:overflow-x-auto gap-2 sm:gap-3 pb-3 pt-2 px-1 scroll-smooth select-none"
           >
             {/* 1. Currently Applied Profile Avatar (Always Visible & First) */}
             <button
               type="button"
               onClick={() => setSelectedPresetId(null)}
-              className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex-shrink-0 flex items-center justify-center p-1.5 transition-all cursor-pointer relative ${
+              className={`w-full aspect-square sm:w-20 sm:h-20 sm:flex-shrink-0 rounded-2xl flex items-center justify-center p-1.5 transition-all cursor-pointer relative ${
                 selectedPresetId === null
                   ? 'ring-3 ring-[#738541] bg-[#EEF4E8] scale-105 shadow-md border-transparent z-10'
                   : 'border border-[#E8E2D5] bg-[#FAF8F3] hover:bg-[#F2EDE2] hover:scale-102 opacity-80 hover:opacity-100'
@@ -752,7 +752,7 @@ export function AvatarPickerSection() {
                   key={preset.id}
                   type="button"
                   onClick={() => handleSelectPreset(preset)}
-                  className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex-shrink-0 flex items-center justify-center p-1.5 transition-all cursor-pointer relative ${
+                  className={`w-full aspect-square sm:w-20 sm:h-20 sm:flex-shrink-0 rounded-2xl flex items-center justify-center p-1.5 transition-all cursor-pointer relative ${
                     isSelected
                       ? 'ring-3 ring-[#738541] bg-[#EEF4E8] scale-105 shadow-md border-transparent z-10'
                       : 'border border-[#E8E2D5] bg-[#FAF8F3] hover:bg-[#F2EDE2] hover:scale-102 opacity-75 hover:opacity-100'
@@ -768,9 +768,9 @@ export function AvatarPickerSection() {
             })}
           </div>
 
-          {/* Slider Track (Matching Screenshot Pill Slider) */}
+          {/* Slider Track (Hidden on mobile where grid fits all, shown on desktop carousel) */}
           {filteredPresets.length > 0 && (
-            <div className="w-full max-w-sm mx-auto px-4">
+            <div className="hidden sm:block w-full max-w-sm mx-auto px-4">
               <input
                 type="range"
                 min="0"

@@ -502,8 +502,8 @@ export function AICoach() {
         {/* ==================================================================== */}
         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-botanical-cream via-botanical-cream/95 to-transparent pt-6 pb-4 px-4 sm:px-6 z-20">
           <div className="max-w-3xl mx-auto space-y-2">
-            {/* Category Filter Chips Bar */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs select-none scrollbar-none">
+            {/* Category Filter Chips Bar - Wraps cleanly on mobile */}
+            <div className="flex flex-wrap items-center gap-1.5 pb-1 text-xs select-none">
               {CATEGORY_CHIPS.map((chip) => (
                 <button
                   key={chip.id}

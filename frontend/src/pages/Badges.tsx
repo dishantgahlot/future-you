@@ -67,7 +67,7 @@ export function Badges() {
           </div>
 
           {/* Quick Progress Dial / Bar */}
-          <div className="bg-white/90 dark:bg-[#101B16] border border-[#E3DDCF] dark:border-[#1E2E27] rounded-2xl p-4 sm:p-5 flex flex-col gap-2 min-w-[220px] shadow-2xs transition-colors">
+          <div className="bg-white/90 dark:bg-[#101B16] border border-[#E3DDCF] dark:border-[#1E2E27] rounded-2xl p-4 sm:p-5 flex flex-col gap-2 w-full md:w-auto md:min-w-[220px] shadow-2xs transition-colors">
             <div className="flex items-center justify-between text-xs font-bold text-[#1D2516] dark:text-[#F5F2EB]">
               <span>Overall Progress</span>
               <span className="text-[#556E2B] dark:text-[#A8D968] tabular-nums">{completionPct}%</span>

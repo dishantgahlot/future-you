@@ -383,8 +383,8 @@ export function Habits() {
 
       {/* 2. Filter Bar & Search Box */}
       <div className="bg-white/95 dark:bg-[#0E1714] rounded-2xl border border-[#E8E2D5] dark:border-[#203024] p-2.5 sm:p-3 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 transition-colors">
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 touch-pan-x">
+        {/* Category Pills - Wraps naturally on mobile without horizontal scroll */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 py-0.5 w-full">
           {CATEGORY_FILTERS.map((tab) => {
             const isSelected = selectedCategory === tab.value
             return (

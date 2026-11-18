@@ -23,14 +23,15 @@ export function HabitConsistencyCard({
   onSelectDate,
 }: HabitConsistencyCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to current week on mobile on mount / date change
+  // Range mode: '16w' fits mobile screens perfectly without horizontal scrolling; '52w' shows the full year
+  const [weeksRange, setWeeksRange] = useState<'16w' | '52w'>('16w')
+
   useEffect(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth
+    if (typeof window !== 'undefined' && window.innerWidth >= 640) {
+      setWeeksRange('52w')
     }
-  }, [selectedDate])
+  }, [])
 
   // Hover state for bottom information bar
   const [hoveredDay, setHoveredDay] = useState<{
@@ -98,16 +99,37 @@ export function HabitConsistencyCard({
     return weeks
   }, [selectedDate])
 
-  // All 12 months cleanly positioned across the 52 weeks without overlapping
+  // Displayed weeks based on weeksRange (16w for mobile zero-scroll fit; 52w for whole year)
+  const displayedWeeks = useMemo(() => {
+    if (weeksRange === '16w') {
+      return gridWeeks.slice(gridWeeks.length - 16)
+    }
+    return gridWeeks
+  }, [gridWeeks, weeksRange])
+
+  // Month labels cleanly positioned across the displayed weeks
   const monthPositions = useMemo(() => {
     const positions: { monthName: string; weekIndex: number }[] = []
     let lastMonth = -1
     let lastWeekIdx = -10
+    const minGap = weeksRange === '16w' ? 2 : 3
 
-    gridWeeks.forEach((week, wIdx) => {
-      // Find the first occurrence of each month (d.getDate() <= 7) with at least 3 weeks gap
+    displayedWeeks.forEach((week, wIdx) => {
+      // First column gets its month label
+      if (wIdx === 0) {
+        const firstDay = week[0]
+        lastMonth = firstDay.getMonth()
+        lastWeekIdx = 0
+        positions.push({
+          monthName: format(firstDay, 'MMM'),
+          weekIndex: 0,
+        })
+        return
+      }
+
+      // Find the first occurrence of subsequent months with minimum gap
       const firstOfMonth = week.find((d) => d.getDate() <= 7 && d.getMonth() !== lastMonth)
-      if (firstOfMonth && wIdx - lastWeekIdx >= 3) {
+      if (firstOfMonth && wIdx - lastWeekIdx >= minGap) {
         lastMonth = firstOfMonth.getMonth()
         lastWeekIdx = wIdx
         positions.push({
@@ -117,7 +139,7 @@ export function HabitConsistencyCard({
       }
     })
     return positions
-  }, [gridWeeks])
+  }, [displayedWeeks, weeksRange])
 
   // Total active days
   const activeDaysCount = useMemo(() => {
@@ -207,22 +229,43 @@ export function HabitConsistencyCard({
       ref={cardRef}
       className="relative bg-white/95 dark:bg-[#0D1814] border border-[#E8E2D5] dark:border-[#223326] rounded-2xl sm:rounded-3xl px-4 sm:px-6 py-4 sm:py-5 shadow-[0_2px_12px_rgba(29,37,22,0.03)] flex flex-col justify-between w-full transition-colors"
     >
-      {/* 1. Header with Title & Badges (Clean, Minimal, No Fluff, Mobile-optimized) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 sm:pb-3 border-b border-[#E8E3D7] dark:border-[#223326]">
+      {/* 1. Header with Title, Range Toggle & Badges */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 sm:pb-3 border-b border-[#E8E3D7] dark:border-[#223326]">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-2.5">
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] shadow-2xs">
               <FontAwesomeIcon icon={faCalendarDays} className="text-xs sm:text-sm" />
             </div>
-            <h3 className="text-lg sm:text-2xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight">
+            <h3 className="text-base sm:text-2xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight">
               Habit Consistency
             </h3>
           </div>
 
-          {/* Mobile Swipe Hint Badge */}
-          <span className="sm:hidden text-[10px] text-[#556E2B] dark:text-[#A8D968] font-bold bg-[#EEF4E8] dark:bg-[#1D2D23] px-2 py-0.5 rounded-full border border-[#D5E3C4] dark:border-[#2E4334]">
-            52w · Swipe →
-          </span>
+          {/* View Range Toggle (16w Fit for mobile / 52w Full Year) */}
+          <div className="flex items-center p-0.5 bg-[#EEF4E8] dark:bg-[#1D2D23] rounded-lg border border-[#CCD8B8] dark:border-[#2E4334]">
+            <button
+              type="button"
+              onClick={() => setWeeksRange('16w')}
+              className={`px-2 py-0.5 text-[10px] sm:text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                weeksRange === '16w'
+                  ? 'bg-white dark:bg-[#2E4334] text-[#415525] dark:text-[#D5E3C4] shadow-xs'
+                  : 'text-[#6F6759] dark:text-[#9BAF90] hover:text-[#1D2516]'
+              }`}
+            >
+              16w
+            </button>
+            <button
+              type="button"
+              onClick={() => setWeeksRange('52w')}
+              className={`px-2 py-0.5 text-[10px] sm:text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                weeksRange === '52w'
+                  ? 'bg-white dark:bg-[#2E4334] text-[#415525] dark:text-[#D5E3C4] shadow-xs'
+                  : 'text-[#6F6759] dark:text-[#9BAF90] hover:text-[#1D2516]'
+              }`}
+            >
+              52w
+            </button>
+          </div>
         </div>
 
         {/* Badges */}
@@ -238,18 +281,18 @@ export function HabitConsistencyCard({
         </div>
       </div>
 
-      {/* 2. Heatmap Grid with All 7 Days & All 12 Months as Perfect Squircles (Scrollable horizontally on mobile with auto-scroll to latest) */}
-      <div ref={scrollContainerRef} className="pt-3.5 sm:pt-4 w-full overflow-x-auto custom-scrollbar pb-2 -mx-1 px-1 sm:mx-0 sm:px-0 touch-pan-x">
-        <div className="min-w-[640px] sm:min-w-0 w-full">
-          {/* Month Labels Row aligned across the 52 columns with dedicated height to prevent ANY overlap */}
-          <div className="flex items-center gap-2 sm:gap-2.5 w-full mb-3 select-none">
-            {/* Spacer matching Day labels column width exactly */}
-            <div className="w-6 sm:w-7 shrink-0" />
+      {/* 2. Heatmap Grid with All 7 Days - Zero Horizontal Scroll on Any Screen */}
+      <div className="pt-3.5 sm:pt-4 w-full overflow-hidden pb-1">
+        <div className="w-full">
+          {/* Month Labels Row aligned across columns */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 w-full mb-2.5 select-none">
+            {/* Spacer matching Day labels column width */}
+            <div className="w-4 sm:w-7 shrink-0" />
 
-            {/* 52 Columns relative space for month labels with explicit height */}
-            <div className="flex-1 relative h-5 text-[10px] sm:text-[11px] font-bold text-[#6F6759] dark:text-[#9BAF90] uppercase tracking-wider">
+            {/* Columns relative space for month labels */}
+            <div className="flex-1 relative h-4 sm:h-5 text-[9px] sm:text-[11px] font-bold text-[#6F6759] dark:text-[#9BAF90] uppercase tracking-wider">
               {monthPositions.map((pos) => {
-                const leftPercent = (pos.weekIndex / gridWeeks.length) * 100
+                const leftPercent = (pos.weekIndex / displayedWeeks.length) * 100
                 return (
                   <span
                     key={`${pos.monthName}-${pos.weekIndex}`}
@@ -264,17 +307,18 @@ export function HabitConsistencyCard({
           </div>
 
           {/* Grid Body: 7 Day Rows of Squircles with Matching Day Labels */}
-          <div className="flex flex-col gap-1.5 sm:gap-2 w-full">
+          <div className={`flex flex-col w-full ${weeksRange === '52w' ? 'gap-1 sm:gap-1.5' : 'gap-1.5 sm:gap-2'}`}>
             {ALL_DAYS.map((dayName, dayIdx) => (
-              <div key={dayName} className="flex items-center gap-2 sm:gap-2.5 w-full">
-                {/* Day Label on Left */}
-                <div className="w-6 sm:w-7 text-[9px] sm:text-[10px] font-bold uppercase text-[#767C6B] dark:text-[#9BAF90] select-none shrink-0 leading-none">
-                  {dayName}
+              <div key={dayName} className="flex items-center gap-1.5 sm:gap-2.5 w-full">
+                {/* Day Label on Left: Single letter on mobile to save horizontal space */}
+                <div className="w-4 sm:w-7 text-[8px] sm:text-[10px] font-bold uppercase text-[#767C6B] dark:text-[#9BAF90] select-none shrink-0 leading-none">
+                  <span className="sm:hidden">{dayName[0]}</span>
+                  <span className="hidden sm:inline">{dayName}</span>
                 </div>
 
-                {/* 52 Squircles for this day of the week across all 52 weeks */}
-                <div className="flex-1 flex gap-1 sm:gap-1.5 items-center w-full">
-                  {gridWeeks.map((week) => {
+                {/* Squircles for this day of the week across displayed weeks */}
+                <div className={`flex-1 flex items-center w-full min-w-0 ${weeksRange === '52w' ? 'gap-[1.5px] sm:gap-1.5' : 'gap-1 sm:gap-1.5'}`}>
+                  {displayedWeeks.map((week) => {
                     const day = week[dayIdx]
                     if (!day) return null
                     const dateStr = format(day, 'yyyy-MM-dd')
@@ -299,13 +343,17 @@ export function HabitConsistencyCard({
                         onMouseEnter={(e) => handleCellHover(e, day, dayData, total)}
                         onMouseLeave={handleCellLeave}
                         aria-label={`${format(day, 'MMM d')}: ${dayData.completed} completed (${dayData.percent}%)`}
-                        className={`flex-1 aspect-square rounded-[3px] sm:rounded-[3.5px] transition-all duration-75 cursor-pointer relative shadow-2xs ${getCellColor(
+                        className={`flex-1 min-w-0 aspect-square transition-all duration-75 cursor-pointer relative shadow-2xs ${
+                          weeksRange === '52w'
+                            ? 'rounded-[1.5px] sm:rounded-[3.5px]'
+                            : 'rounded-[3px] sm:rounded-[4px]'
+                        } ${getCellColor(
                           dayData.percent,
                           dayData.completed
                         )} ${
                           isSelected
-                            ? 'ring-2 ring-[#1D2516] dark:ring-[#22C55E] ring-offset-2 dark:ring-offset-[#0D1814] scale-115 shadow-md z-10'
-                            : 'hover:scale-130 hover:z-20 hover:shadow-xs'
+                            ? 'ring-2 ring-[#1D2516] dark:ring-[#22C55E] ring-offset-1 sm:ring-offset-2 dark:ring-offset-[#0D1814] scale-110 sm:scale-115 shadow-md z-10'
+                            : 'hover:scale-125 hover:z-20 hover:shadow-xs'
                         }`}
                       />
                     )
@@ -331,7 +379,8 @@ export function HabitConsistencyCard({
             </div>
           ) : (
             <span className="text-[11px] text-[#6F6759] dark:text-[#9BAF90] font-medium">
-              Hover over any day for details · Click to view that date
+              <span className="sm:hidden">Tap any day for details</span>
+              <span className="hidden sm:inline">Hover over any day for details · Click to view that date</span>
             </span>
           )}
 

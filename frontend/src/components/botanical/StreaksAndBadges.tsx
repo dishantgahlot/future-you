@@ -113,15 +113,15 @@ export function BadgesCard() {
       </div>
 
       {/* Badges Row */}
-      <div className="flex items-center justify-between gap-2.5 pt-2.5">
-        <div className="flex items-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar py-0.5">
+      <div className="flex items-center justify-between gap-2 sm:gap-2.5 pt-2.5">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 py-0.5">
           {badges.map((b, i) => (
             <div
               key={i}
-              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full border-2 ${b.border} ${b.bg} ${b.text} flex items-center justify-center shadow-xs hover:scale-105 transition-transform cursor-pointer flex-shrink-0`}
+              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 ${b.border} ${b.bg} ${b.text} flex items-center justify-center shadow-xs hover:scale-105 transition-transform cursor-pointer shrink-0`}
               title={b.title}
             >
-              <b.icon className="w-4 h-4 stroke-[2.2]" />
+              <b.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.2]" />
             </div>
           ))}
         </div>
