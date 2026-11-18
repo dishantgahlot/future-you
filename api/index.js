@@ -53069,7 +53069,7 @@ var init_config = __esm({
       },
       gemini: {
         apiKey: process.env.GEMINI_API_KEY || "",
-        model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite"
+        model: process.env.GEMINI_MODEL || "gemini-2.5-flash"
       },
       jwt: {
         secret: process.env.JWT_SECRET || "your-super-secret-jwt-key-change-in-production",
@@ -54212,20 +54212,20 @@ var init_geminiClient = __esm({
       apiKey: void 0,
       model: config.gemini.model || "gemini-2.5-flash",
       temperature: 0.7,
-      maxOutputTokens: 800,
+      maxOutputTokens: 2048,
       topP: 0.95,
       topK: 40,
-      timeout: 25e3,
-      // 25s timeout for reliable frontier LLM completion
+      timeout: 1e4,
+      // 10s timeout for fast failover
       maxRetries: 0,
       systemInstruction: void 0,
-      noCache: false
+      noCache: false,
+      thinkingBudget: 0
+      // 0 disables lengthy reasoning chains for fast structured answers
     };
     CANDIDATE_MODELS = [
       "gemini-2.5-flash",
-      "gemini-flash-latest",
-      "gemini-2.5-pro",
-      "gemini-flash-lite-latest"
+      "gemini-flash-latest"
     ];
     GeminiError = class extends Error {
       constructor(message, code, retryable = false, statusCode, details) {
@@ -54259,7 +54259,7 @@ var init_geminiClient = __esm({
         }
         this.client = new GoogleGenerativeAI(activeKey);
         const modelParams = {
-          model: this.options.model || "gemini-flash-latest",
+          model: this.options.model || "gemini-2.5-flash",
           generationConfig: {
             temperature: this.options.temperature,
             maxOutputTokens: this.options.maxOutputTokens,
@@ -54267,6 +54267,11 @@ var init_geminiClient = __esm({
             topK: this.options.topK
           }
         };
+        if (this.options.thinkingBudget !== void 0) {
+          modelParams.generationConfig.thinkingConfig = {
+            thinkingBudget: this.options.thinkingBudget
+          };
+        }
         if (this.options.systemInstruction) {
           modelParams.systemInstruction = this.options.systemInstruction;
         }
@@ -54339,6 +54344,11 @@ var init_geminiClient = __esm({
                 topK: this.options.topK
               }
             };
+            if (this.options.thinkingBudget !== void 0) {
+              modelParams.generationConfig.thinkingConfig = {
+                thinkingBudget: this.options.thinkingBudget
+              };
+            }
             if (this.options.systemInstruction) {
               modelParams.systemInstruction = this.options.systemInstruction;
             }
@@ -54364,6 +54374,10 @@ var init_geminiClient = __esm({
             lastError = error;
             const geminiError = this.parseError(error);
             console.warn(`[Gemini] Model ${modelName} failed (${geminiError.code}), trying next candidate...`);
+            if (geminiError.code === "RATE_LIMIT" || geminiError.code === "FORBIDDEN" || geminiError.code === "INVALID_API_KEY") {
+              tripCircuitBreaker(geminiError.code, 6e4);
+              break;
+            }
           }
         }
         const finalGeminiError = this.parseError(lastError);
@@ -54423,6 +54437,11 @@ var init_geminiClient = __esm({
                 responseMimeType: "application/json"
               }
             };
+            if (this.options.thinkingBudget !== void 0) {
+              jsonModelParams.generationConfig.thinkingConfig = {
+                thinkingBudget: this.options.thinkingBudget
+              };
+            }
             if (this.options.systemInstruction) {
               jsonModelParams.systemInstruction = this.options.systemInstruction;
             }
@@ -54449,6 +54468,10 @@ var init_geminiClient = __esm({
             lastError = error;
             const geminiError = this.parseError(error);
             console.warn(`[Gemini] JSON Model ${modelName} failed (${geminiError.code}), trying next candidate...`);
+            if (geminiError.code === "RATE_LIMIT" || geminiError.code === "FORBIDDEN" || geminiError.code === "INVALID_API_KEY") {
+              tripCircuitBreaker(geminiError.code, 6e4);
+              break;
+            }
           }
         }
         const finalGeminiError = this.parseError(lastError);
@@ -54514,9 +54537,9 @@ Return ONLY the JSON object.`;
           try {
             return JSON.parse(repaired);
           } catch {
-            let openBraces = (repaired.match(/{/g) || []).length - (repaired.match(/}/g) || []).length;
-            let openBrackets = (repaired.match(/\[/g) || []).length - (repaired.match(/\]/g) || []).length;
-            let autoClosed = repaired.replace(/,\s*$/, "");
+            let autoClosed = repaired.replace(/,\s*$/, "").replace(/,\s*"[^"]*"\s*:\s*$/, "").replace(/,\s*"[^"]*"\s*$/, "");
+            let openBraces = (autoClosed.match(/{/g) || []).length - (autoClosed.match(/}/g) || []).length;
+            let openBrackets = (autoClosed.match(/\[/g) || []).length - (autoClosed.match(/\]/g) || []).length;
             while (openBrackets > 0) {
               autoClosed += "]";
               openBrackets--;
@@ -54559,6 +54582,9 @@ Return ONLY the JSON object.`;
         }
         if (msg.includes("401") || msg.includes("API key not valid")) {
           return new GeminiError("Invalid Gemini API Key", "INVALID_API_KEY", false, 401);
+        }
+        if (msg.includes("503") || msg.includes("Service Unavailable") || msg.includes("high demand") || msg.includes("UNAVAILABLE")) {
+          return new GeminiError("Gemini model temporarily unavailable or high demand", "SERVICE_UNAVAILABLE", true, 503);
         }
         if (msg.includes("404") || msg.includes("not found")) {
           return new GeminiError("Model not found", "MODEL_NOT_FOUND", false, 404);
@@ -56556,11 +56582,36 @@ async function generateWeeklyInsight(options) {
   prevWeekStart.setDate(prevWeekStart.getDate() - 7);
   const prevWeekEnd = new Date(we);
   prevWeekEnd.setDate(prevWeekEnd.getDate() - 7);
-  const previousWeekSummary = await buildWeekSummary(
-    userId,
-    prevWeekStart.toISOString().split("T")[0],
-    prevWeekEnd.toISOString().split("T")[0]
-  );
+  const prevWs = prevWeekStart.toISOString().split("T")[0];
+  const prevWe = prevWeekEnd.toISOString().split("T")[0];
+  let previousWeekSummary;
+  if (options.habits && options.habits.length > 0 && options.logs) {
+    const prevLogs = (options.logs || []).filter((l) => l.log_date >= prevWs && l.log_date <= prevWe);
+    let prevCompletions = 0;
+    const prevPossible = options.habits.length * 7;
+    options.habits.forEach((h) => {
+      const hLogs = prevLogs.filter((l) => l.habit_id === h.id);
+      const target = Number(h.target_value) || 1;
+      prevCompletions += hLogs.filter((l) => {
+        const val = l.actual_value !== void 0 ? Number(l.actual_value) : l.completion_status ? target : 0;
+        return val >= target;
+      }).length;
+    });
+    previousWeekSummary = {
+      weekStart: prevWs,
+      weekEnd: prevWe,
+      totalCompletions: prevCompletions,
+      totalPossible: prevPossible,
+      completionRate: prevPossible > 0 ? prevCompletions / prevPossible : 0,
+      categoryBreakdown: {},
+      streaks: [],
+      improvements: [],
+      declines: [],
+      comparedToPreviousWeek: { completionRateChange: 0, streaksChanged: [] }
+    };
+  } else {
+    previousWeekSummary = await buildWeekSummary(userId, prevWs, prevWe);
+  }
   const prompt = buildWeeklyInsightPrompt({
     weekSummary,
     habitDetails: habitSummary,
@@ -56576,8 +56627,9 @@ async function generateWeeklyInsight(options) {
   } else {
     const result = await generateJSON(prompt, weeklyInsightResponseSchema, {
       temperature: 0.7,
-      maxOutputTokens: 750,
-      timeout: 25e3
+      maxOutputTokens: 1500,
+      timeout: 1e4,
+      thinkingBudget: 0
     });
     if (result.success && result.data) {
       const validation = validateWeeklyInsightResponse(result.data);
@@ -63116,6 +63168,7 @@ init_aiCoachService();
 // backend/src/services/ai/progressReportService.ts
 init_geminiClient();
 init_config();
+var progressReportCache = /* @__PURE__ */ new Map();
 async function generateProgressReport(options) {
   const { period, habits = [], logs = [], userName = "Friend", apiKey } = options;
   let habitsToProcess = habits;
@@ -63172,6 +63225,17 @@ async function generateProgressReport(options) {
   const overallAdherence = habitStats.length > 0 ? Math.round(habitStats.reduce((acc, cur) => acc + cur.rate, 0) / habitStats.length) : 75;
   const topHabits = [...habitStats].sort((a, b) => b.rate - a.rate).slice(0, 3);
   const laggingHabits = [...habitStats].sort((a, b) => a.rate - b.rate).filter((h) => h.rate < 80);
+  const cacheKey = `${options.userId || "anon"}_${period}_${todayStr}_${habitStats.map((h) => `${h.id}:${h.completedCount}:${h.rate}`).join("|")}`;
+  if (!options.regenerate) {
+    const cached = progressReportCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiry) {
+      return {
+        report: cached.report,
+        usedFallback: cached.usedFallback,
+        model: cached.model
+      };
+    }
+  }
   const activeKey = apiKey || config.gemini.apiKey;
   const canUseGemini = activeKey && activeKey !== "your_gemini_api_key";
   if (canUseGemini) {
@@ -63235,9 +63299,15 @@ Format strictly as JSON matching this schema:
   "motivationalNote": "1 short punchy encouragement."
 }
 `;
-      const targetModel = config.gemini.model || "gemini-3.5-flash-lite";
+      const targetModel = config.gemini.model || "gemini-2.5-flash";
       try {
-        const client = new GeminiClient({ apiKey: activeKey, model: targetModel, maxOutputTokens: 850, timeout: 25e3 });
+        const client = new GeminiClient({
+          apiKey: activeKey,
+          model: targetModel,
+          maxOutputTokens: 2048,
+          timeout: 1e4,
+          thinkingBudget: 0
+        });
         const res = await client.generateJSON(prompt);
         if (res.success && res.data) {
           const shortcomings = res.data.shortcomings && res.data.shortcomings.length > 0 ? res.data.shortcomings : laggingHabits.length > 0 ? laggingHabits.map((lh) => ({
@@ -63253,20 +63323,27 @@ Format strictly as JSON matching this schema:
               rootCauseAnalysis: "Need clearer micro-triggers when busy"
             }
           ];
+          const reportResult = {
+            ...res.data,
+            topPerformingHabits: res.data.topPerformingHabits && res.data.topPerformingHabits.length > 0 ? res.data.topPerformingHabits : topHabits.map((h) => ({
+              name: h.name,
+              category: h.category,
+              streak: Math.max(Math.round(h.rate / 15), 3),
+              rate: h.rate
+            })),
+            shortcomings,
+            adherenceRate: res.data.adherenceRate || overallAdherence,
+            period,
+            periodLabel: res.data.periodLabel || (period === "weekly" ? "Weekly Growth Report" : "Monthly Mastery Assessment")
+          };
+          progressReportCache.set(cacheKey, {
+            report: reportResult,
+            usedFallback: false,
+            model: targetModel,
+            expiry: Date.now() + 15 * 60 * 1e3
+          });
           return {
-            report: {
-              ...res.data,
-              topPerformingHabits: res.data.topPerformingHabits && res.data.topPerformingHabits.length > 0 ? res.data.topPerformingHabits : topHabits.map((h) => ({
-                name: h.name,
-                category: h.category,
-                streak: Math.max(Math.round(h.rate / 15), 3),
-                rate: h.rate
-              })),
-              shortcomings,
-              adherenceRate: res.data.adherenceRate || overallAdherence,
-              period,
-              periodLabel: res.data.periodLabel || (period === "weekly" ? "Weekly Growth Report" : "Monthly Mastery Assessment")
-            },
+            report: reportResult,
             usedFallback: false,
             model: targetModel
           };
@@ -64534,7 +64611,7 @@ router8.get("/coach/history", asyncHandler(async (req, res) => {
 }));
 router8.post("/progress-report", asyncHandler(async (req, res) => {
   const userId = requireAuth(req);
-  const { period = "weekly", habits = [], logs = [], userName = "Friend", apiKey } = req.body;
+  const { period = "weekly", habits = [], logs = [], userName = "Friend", apiKey, regenerate = false } = req.body;
   if (period !== "weekly" && period !== "monthly") {
     throw new AppError(400, "Invalid period: must be weekly or monthly");
   }
@@ -64544,7 +64621,8 @@ router8.post("/progress-report", asyncHandler(async (req, res) => {
     period,
     habits,
     logs,
-    apiKey
+    apiKey,
+    regenerate
   });
   res.json({
     success: true,

@@ -31,6 +31,7 @@ export interface GeminiClientOptions {
   maxRetries?: number
   systemInstruction?: string
   noCache?: boolean
+  thinkingBudget?: number
 }
 
 // Global Circuit Breaker to prevent slow cascading timeouts when quota or service fails
@@ -78,28 +79,28 @@ function setCachedResult(cacheKey: string, data: any, ttlMs: number = 300000): v
   responseCache.set(cacheKey, { data, expiry: Date.now() + ttlMs })
 }
 
-const DEFAULT_OPTIONS: Required<Omit<GeminiClientOptions, 'apiKey' | 'systemInstruction' | 'noCache'>> & {
+const DEFAULT_OPTIONS: Required<Omit<GeminiClientOptions, 'apiKey' | 'systemInstruction' | 'noCache' | 'thinkingBudget'>> & {
   apiKey?: string
   systemInstruction?: string
   noCache?: boolean
+  thinkingBudget?: number
 } = {
   apiKey: undefined,
   model: config.gemini.model || 'gemini-2.5-flash',
   temperature: 0.7,
-  maxOutputTokens: 800,
+  maxOutputTokens: 2048,
   topP: 0.95,
   topK: 40,
-  timeout: 25000, // 25s timeout for reliable frontier LLM completion
+  timeout: 10000, // 10s timeout for fast failover
   maxRetries: 0,
   systemInstruction: undefined,
   noCache: false,
+  thinkingBudget: 0, // 0 disables lengthy reasoning chains for fast structured answers
 }
 
 const CANDIDATE_MODELS = [
   'gemini-2.5-flash',
   'gemini-flash-latest',
-  'gemini-2.5-pro',
-  'gemini-flash-lite-latest',
 ]
 
 /**
@@ -150,13 +151,18 @@ export class GeminiClient {
 
     this.client = new GoogleGenerativeAI(activeKey)
     const modelParams: any = {
-      model: this.options.model || 'gemini-flash-latest',
+      model: this.options.model || 'gemini-2.5-flash',
       generationConfig: {
         temperature: this.options.temperature,
         maxOutputTokens: this.options.maxOutputTokens,
         topP: this.options.topP,
         topK: this.options.topK,
       },
+    }
+    if (this.options.thinkingBudget !== undefined) {
+      modelParams.generationConfig.thinkingConfig = {
+        thinkingBudget: this.options.thinkingBudget,
+      }
     }
     if (this.options.systemInstruction) {
       modelParams.systemInstruction = this.options.systemInstruction
@@ -241,6 +247,11 @@ export class GeminiClient {
             topK: this.options.topK,
           },
         }
+        if (this.options.thinkingBudget !== undefined) {
+          modelParams.generationConfig.thinkingConfig = {
+            thinkingBudget: this.options.thinkingBudget,
+          }
+        }
         if (this.options.systemInstruction) {
           modelParams.systemInstruction = this.options.systemInstruction
         }
@@ -270,6 +281,10 @@ export class GeminiClient {
         lastError = error
         const geminiError = this.parseError(error)
         console.warn(`[Gemini] Model ${modelName} failed (${geminiError.code}), trying next candidate...`)
+        if (geminiError.code === 'RATE_LIMIT' || geminiError.code === 'FORBIDDEN' || geminiError.code === 'INVALID_API_KEY') {
+          tripCircuitBreaker(geminiError.code, 60000)
+          break
+        }
       }
     }
 
@@ -340,6 +355,11 @@ export class GeminiClient {
             responseMimeType: 'application/json',
           },
         }
+        if (this.options.thinkingBudget !== undefined) {
+          jsonModelParams.generationConfig.thinkingConfig = {
+            thinkingBudget: this.options.thinkingBudget,
+          }
+        }
         if (this.options.systemInstruction) {
           jsonModelParams.systemInstruction = this.options.systemInstruction
         }
@@ -370,6 +390,10 @@ export class GeminiClient {
         lastError = error
         const geminiError = this.parseError(error)
         console.warn(`[Gemini] JSON Model ${modelName} failed (${geminiError.code}), trying next candidate...`)
+        if (geminiError.code === 'RATE_LIMIT' || geminiError.code === 'FORBIDDEN' || geminiError.code === 'INVALID_API_KEY') {
+          tripCircuitBreaker(geminiError.code, 60000)
+          break
+        }
       }
     }
 
@@ -440,17 +464,20 @@ export class GeminiClient {
     try {
       return JSON.parse(clean) as T
     } catch {
-      // 1. Repair trailing commas before closing braces/brackets
+      // 1. Repair trailing commas and cleanup dangling incomplete key-values
       const repaired = clean
         .replace(/,\s*([}\]])/g, '$1')
         .replace(/[\u0000-\u001F]+/g, ' ')
       try {
         return JSON.parse(repaired) as T
       } catch {
-        // 2. Auto-close truncated brackets/braces
-        let openBraces = (repaired.match(/{/g) || []).length - (repaired.match(/}/g) || []).length
-        let openBrackets = (repaired.match(/\[/g) || []).length - (repaired.match(/\]/g) || []).length
-        let autoClosed = repaired.replace(/,\s*$/, '')
+        // 2. Auto-close truncated brackets/braces (strip trailing incomplete property before closing)
+        let autoClosed = repaired
+          .replace(/,\s*$/, '')
+          .replace(/,\s*"[^"]*"\s*:\s*$/, '')
+          .replace(/,\s*"[^"]*"\s*$/, '')
+        let openBraces = (autoClosed.match(/{/g) || []).length - (autoClosed.match(/}/g) || []).length
+        let openBrackets = (autoClosed.match(/\[/g) || []).length - (autoClosed.match(/\]/g) || []).length
         while (openBrackets > 0) { autoClosed += ']'; openBrackets-- }
         while (openBraces > 0) { autoClosed += '}'; openBraces-- }
         return JSON.parse(autoClosed) as T
@@ -491,6 +518,9 @@ export class GeminiClient {
     }
     if (msg.includes('401') || msg.includes('API key not valid')) {
       return new GeminiError('Invalid Gemini API Key', 'INVALID_API_KEY', false, 401)
+    }
+    if (msg.includes('503') || msg.includes('Service Unavailable') || msg.includes('high demand') || msg.includes('UNAVAILABLE')) {
+      return new GeminiError('Gemini model temporarily unavailable or high demand', 'SERVICE_UNAVAILABLE', true, 503)
     }
     if (msg.includes('404') || msg.includes('not found')) {
       return new GeminiError('Model not found', 'MODEL_NOT_FOUND', false, 404)

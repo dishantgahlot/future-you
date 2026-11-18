@@ -1526,6 +1526,7 @@ export const aiApi = {
     logs: any[]
     userName?: string
     apiKey?: string
+    regenerate?: boolean
   }): Promise<{ data: any | null; error: string | null }> {
     try {
       const headers = await getAuthHeaders()

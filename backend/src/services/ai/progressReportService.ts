@@ -56,7 +56,11 @@ export interface GenerateProgressReportOptions {
   habits: any[]
   logs: any[]
   apiKey?: string
+  regenerate?: boolean
 }
+
+// In-memory cache for progress reports (15-min TTL)
+const progressReportCache = new Map<string, { report: ProgressReportData; usedFallback: boolean; model: string; expiry: number }>()
 
 /**
  * Generate an AI Progress Report with Google Gemini, including shortcomings, areas of improvement,
@@ -132,6 +136,19 @@ export async function generateProgressReport(
   const topHabits = [...habitStats].sort((a: any, b: any) => b.rate - a.rate).slice(0, 3)
   const laggingHabits = [...habitStats].sort((a: any, b: any) => a.rate - b.rate).filter((h: any) => h.rate < 80)
 
+  // Fast In-Memory Cache Check (instant response for repeat views within 15 mins)
+  const cacheKey = `${options.userId || 'anon'}_${period}_${todayStr}_${habitStats.map((h: any) => `${h.id}:${h.completedCount}:${h.rate}`).join('|')}`
+  if (!options.regenerate) {
+    const cached = progressReportCache.get(cacheKey)
+    if (cached && Date.now() < cached.expiry) {
+      return {
+        report: cached.report,
+        usedFallback: cached.usedFallback,
+        model: cached.model,
+      }
+    }
+  }
+
   // 2. Attempt Google Gemini LLM Generation
   const activeKey = apiKey || config.gemini.apiKey
   const canUseGemini = activeKey && activeKey !== 'your_gemini_api_key'
@@ -197,9 +214,15 @@ Format strictly as JSON matching this schema:
   "motivationalNote": "1 short punchy encouragement."
 }
 `
-      const targetModel = config.gemini.model || 'gemini-3.5-flash-lite'
+      const targetModel = config.gemini.model || 'gemini-2.5-flash'
       try {
-        const client = new GeminiClient({ apiKey: activeKey, model: targetModel, maxOutputTokens: 850, timeout: 25000 })
+        const client = new GeminiClient({
+          apiKey: activeKey,
+          model: targetModel,
+          maxOutputTokens: 2048,
+          timeout: 10000,
+          thinkingBudget: 0,
+        })
         const res = await client.generateJSON<ProgressReportData>(prompt)
 
         if (res.success && res.data) {
@@ -222,22 +245,31 @@ Format strictly as JSON matching this schema:
                   ]
               )
 
+          const reportResult: ProgressReportData = {
+            ...res.data,
+            topPerformingHabits: (res.data.topPerformingHabits && res.data.topPerformingHabits.length > 0)
+              ? res.data.topPerformingHabits
+              : topHabits.map((h: any) => ({
+                  name: h.name,
+                  category: h.category,
+                  streak: Math.max(Math.round(h.rate / 15), 3),
+                  rate: h.rate,
+                })),
+            shortcomings,
+            adherenceRate: res.data.adherenceRate || overallAdherence,
+            period,
+            periodLabel: res.data.periodLabel || (period === 'weekly' ? 'Weekly Growth Report' : 'Monthly Mastery Assessment'),
+          }
+
+          progressReportCache.set(cacheKey, {
+            report: reportResult,
+            usedFallback: false,
+            model: targetModel,
+            expiry: Date.now() + 15 * 60 * 1000,
+          })
+
           return {
-            report: {
-              ...res.data,
-              topPerformingHabits: (res.data.topPerformingHabits && res.data.topPerformingHabits.length > 0)
-                ? res.data.topPerformingHabits
-                : topHabits.map((h: any) => ({
-                    name: h.name,
-                    category: h.category,
-                    streak: Math.max(Math.round(h.rate / 15), 3),
-                    rate: h.rate,
-                  })),
-              shortcomings,
-              adherenceRate: res.data.adherenceRate || overallAdherence,
-              period,
-              periodLabel: res.data.periodLabel || (period === 'weekly' ? 'Weekly Growth Report' : 'Monthly Mastery Assessment'),
-            },
+            report: reportResult,
             usedFallback: false,
             model: targetModel,
           }

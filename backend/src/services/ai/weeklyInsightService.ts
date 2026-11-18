@@ -470,10 +470,37 @@ export async function generateWeeklyInsight(options: GenerateWeeklyInsightOption
   prevWeekStart.setDate(prevWeekStart.getDate() - 7)
   const prevWeekEnd = new Date(we)
   prevWeekEnd.setDate(prevWeekEnd.getDate() - 7)
-  const previousWeekSummary = await buildWeekSummary(userId,
-    prevWeekStart.toISOString().split('T')[0],
-    prevWeekEnd.toISOString().split('T')[0]
-  )
+  const prevWs = prevWeekStart.toISOString().split('T')[0]
+  const prevWe = prevWeekEnd.toISOString().split('T')[0]
+
+  let previousWeekSummary: WeeklySummary
+  if (options.habits && options.habits.length > 0 && options.logs) {
+    const prevLogs = (options.logs || []).filter((l: any) => l.log_date >= prevWs && l.log_date <= prevWe)
+    let prevCompletions = 0
+    const prevPossible = options.habits.length * 7
+    options.habits.forEach((h: any) => {
+      const hLogs = prevLogs.filter((l: any) => l.habit_id === h.id)
+      const target = Number(h.target_value) || 1
+      prevCompletions += hLogs.filter((l: any) => {
+        const val = l.actual_value !== undefined ? Number(l.actual_value) : l.completion_status ? target : 0
+        return val >= target
+      }).length
+    })
+    previousWeekSummary = {
+      weekStart: prevWs,
+      weekEnd: prevWe,
+      totalCompletions: prevCompletions,
+      totalPossible: prevPossible,
+      completionRate: prevPossible > 0 ? prevCompletions / prevPossible : 0,
+      categoryBreakdown: {},
+      streaks: [],
+      improvements: [],
+      declines: [],
+      comparedToPreviousWeek: { completionRateChange: 0, streaksChanged: [] },
+    }
+  } else {
+    previousWeekSummary = await buildWeekSummary(userId, prevWs, prevWe)
+  }
 
   // Build prompt
   const prompt = buildWeeklyInsightPrompt({
@@ -494,8 +521,9 @@ export async function generateWeeklyInsight(options: GenerateWeeklyInsightOption
   } else {
     const result = await generateJSON(prompt, weeklyInsightResponseSchema, {
       temperature: 0.7,
-      maxOutputTokens: 750,
-      timeout: 25000,
+      maxOutputTokens: 1500,
+      timeout: 10000,
+      thinkingBudget: 0,
     })
 
     if (result.success && result.data) {

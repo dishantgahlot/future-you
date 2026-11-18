@@ -385,7 +385,7 @@ router.get('/coach/history', asyncHandler(async (req: AuthenticatedRequest, res:
  */
 router.post('/progress-report', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = requireAuth(req)
-  const { period = 'weekly', habits = [], logs = [], userName = 'Friend', apiKey } = req.body
+  const { period = 'weekly', habits = [], logs = [], userName = 'Friend', apiKey, regenerate = false } = req.body
 
   if (period !== 'weekly' && period !== 'monthly') {
     throw new AppError(400, 'Invalid period: must be weekly or monthly')
@@ -398,6 +398,7 @@ router.post('/progress-report', asyncHandler(async (req: AuthenticatedRequest, r
     habits,
     logs,
     apiKey,
+    regenerate,
   })
 
   res.json({
