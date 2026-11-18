@@ -468,13 +468,25 @@ export async function fetchHabitLogs(habitId: string, startDate?: string, endDat
   }
 }
 
-export async function upsertHabitLog(habitId: string, logDate: string, actualValue: number, notes?: string): Promise<{ data: HabitLog | null; error: string | null }> {
+export async function upsertHabitLog(
+  habitId: string,
+  logDate: string,
+  actualValue: number,
+  notes?: string,
+  targetValue?: number
+): Promise<{ data: HabitLog | null; error: string | null }> {
   try {
     const headers = await getAuthHeaders()
     const response = await fetch(`${API_BASE}/habits/${habitId}/logs`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ date: logDate, value: actualValue, actual_value: actualValue, notes }),
+      body: JSON.stringify({
+        date: logDate,
+        value: actualValue,
+        actual_value: actualValue,
+        target_value: targetValue,
+        notes,
+      }),
     })
     return handleResponse<HabitLog>(response)
   } catch (err) {

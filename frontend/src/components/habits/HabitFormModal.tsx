@@ -35,6 +35,8 @@ const CATEGORY_OPTIONS: { value: HabitCategory; label: string; icon: IconDefinit
   { value: 'nutrition', label: 'Nutrition', icon: faAppleWhole },
 ]
 
+const COMMON_UNITS = ['steps', 'hours', 'mins', 'glasses', 'ml', 'km', 'pages', 'times']
+
 function getCategoryStickyTheme(cat: HabitCategory): string {
   if (cat === 'sleep') return 'lavender'
   if (cat === 'learning') return 'kraft'
@@ -54,18 +56,93 @@ export function HabitFormModal({
 }: HabitFormModalProps) {
   const [name, setName] = useState('')
   const [category, setCategory] = useState<HabitCategory>('health')
+  const [targetValue, setTargetValue] = useState('10000')
+  const [unit, setUnit] = useState('steps')
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (editingHabit) {
       setName(editingHabit.name || '')
       setCategory(editingHabit.category || 'health')
+      setTargetValue(String(editingHabit.target_value ?? 1))
+      setUnit(editingHabit.unit || 'times')
     } else {
       setName('')
-      setCategory('health')
+      setCategory('fitness')
+      setTargetValue('10000')
+      setUnit('steps')
     }
     setError('')
   }, [editingHabit, isOpen])
+
+  const handleNameChange = (val: string) => {
+    setName(val)
+    setError('')
+
+    // Smart autofill for common habits if user is creating a new habit
+    if (!editingHabit) {
+      const lower = val.toLowerCase()
+      if (lower.includes('step') || lower.includes('walk')) {
+        setTargetValue('10000')
+        setUnit('steps')
+        setCategory('fitness')
+      } else if (lower.includes('sleep') || lower.includes('rest')) {
+        setTargetValue('8')
+        setUnit('hours')
+        setCategory('sleep')
+      } else if (lower.includes('hydrat') || lower.includes('water')) {
+        setTargetValue('2000')
+        setUnit('ml')
+        setCategory('health')
+      } else if (lower.includes('page') || lower.includes('read') || lower.includes('book')) {
+        setTargetValue('20')
+        setUnit('pages')
+        setCategory('learning')
+      } else if (lower.includes('workout') || lower.includes('gym') || lower.includes('exercise')) {
+        setTargetValue('30')
+        setUnit('mins')
+        setCategory('fitness')
+      } else if (lower.includes('screen') || lower.includes('phone')) {
+        setTargetValue('3')
+        setUnit('hours')
+        setCategory('productivity')
+      } else if (lower.includes('glass')) {
+        setTargetValue('8')
+        setUnit('glasses')
+        setCategory('health')
+      }
+    }
+  }
+
+  const handleSelectCategory = (cat: HabitCategory) => {
+    setCategory(cat)
+    setError('')
+
+    if (!editingHabit && (!name || name.trim() === '')) {
+      if (cat === 'sleep') {
+        setTargetValue('8')
+        setUnit('hours')
+      } else if (cat === 'learning') {
+        setTargetValue('2')
+        setUnit('hours')
+      } else if (cat === 'fitness') {
+        setTargetValue('10000')
+        setUnit('steps')
+      } else if (cat === 'health') {
+        setTargetValue('2000')
+        setUnit('ml')
+      } else if (cat === 'productivity') {
+        setTargetValue('3')
+        setUnit('hours')
+      } else if (cat === 'nutrition') {
+        setTargetValue('3')
+        setUnit('meals')
+      } else if (cat === 'mental_health') {
+        setTargetValue('15')
+        setUnit('mins')
+      }
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -75,36 +152,20 @@ export function HabitFormModal({
       return
     }
 
+    const parsedTarget = Math.max(1, Math.round(Number(targetValue) * 10) / 10 || 1)
+    const parsedUnit = unit.trim() || 'times'
+
     if (editingHabit) {
       onSave({
         ...editingHabit,
         name: trimmed,
         category,
+        target_value: parsedTarget,
+        unit: parsedUnit,
         color_theme: editingHabit.color_theme || getCategoryStickyTheme(category),
         updated_at: new Date().toISOString(),
       })
     } else {
-      // Sensible defaults inferred from category
-      let defaultTarget = 1
-      let defaultUnit = 'times'
-
-      if (category === 'sleep') {
-        defaultTarget = 8
-        defaultUnit = 'h'
-      } else if (category === 'learning') {
-        defaultTarget = 2
-        defaultUnit = 'h'
-      } else if (category === 'fitness') {
-        defaultTarget = 30
-        defaultUnit = 'm'
-      } else if (category === 'health' && trimmed.toLowerCase().includes('hydrat')) {
-        defaultTarget = 2000
-        defaultUnit = 'ml'
-      } else if (category === 'productivity') {
-        defaultTarget = 3
-        defaultUnit = 'h'
-      }
-
       onSave({
         id: crypto.randomUUID(),
         user_id: getActiveUserId(),
@@ -112,8 +173,8 @@ export function HabitFormModal({
         description: null,
         category,
         frequency: 'daily',
-        target_value: defaultTarget,
-        unit: defaultUnit,
+        target_value: parsedTarget,
+        unit: parsedUnit,
         color: '#738541',
         color_theme: getCategoryStickyTheme(category),
         icon: 'leaf',
@@ -173,8 +234,8 @@ export function HabitFormModal({
               </button>
             </div>
 
-            {/* Minimal Form: Only Category & Task Name */}
-            <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4.5">
+            {/* Form: Category, Name, and Daily Target & Unit */}
+            <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-4">
               {error && (
                 <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-300 text-xs rounded-xl font-medium">
                   {error}
@@ -193,10 +254,7 @@ export function HabitFormModal({
                       <button
                         key={cat.value}
                         type="button"
-                        onClick={() => {
-                          setCategory(cat.value)
-                          setError('')
-                        }}
+                        onClick={() => handleSelectCategory(cat.value)}
                         className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs transition-all cursor-pointer ${
                           isSelected
                             ? 'bg-[#DFEACF] dark:bg-[#203625] text-[#3D5220] dark:text-[#A8D968] border border-[#CCD8B8] dark:border-[#3C5D41] font-bold shadow-2xs ring-1 ring-[#738541]/30 dark:ring-[#A8D968]/30'
@@ -219,14 +277,76 @@ export function HabitFormModal({
                 <input
                   type="text"
                   value={name}
-                  onChange={(e) => {
-                    setName(e.target.value)
-                    setError('')
-                  }}
-                  placeholder="e.g. Read 20 Pages, Morning Walk, Hydration..."
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  placeholder="e.g. Daily Steps, Restorative Sleep, Drink Water..."
                   className="w-full px-3.5 sm:px-4 py-2 sm:py-2.5 bg-[#F6F3EB]/80 dark:bg-[#132219] border border-[#E0D7C6] dark:border-[#223326] rounded-xl sm:rounded-2xl text-xs sm:text-sm font-medium text-[#1D2516] dark:text-[#F5F2EB] placeholder:text-[#8A9280] dark:placeholder-[#5D705C] focus:outline-none focus:border-[#738541] dark:focus:border-[#4A6225] focus:bg-white dark:focus:bg-[#16271D] focus:ring-2 focus:ring-[#738541]/20 dark:focus:ring-[#4A6225]/20 transition-all"
                   autoFocus
                 />
+              </div>
+
+              {/* 3. Daily Target Amount & Unit (User can enter steps, hours, etc.) */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6F6759] dark:text-[#8FA387] mb-1.5">
+                  Daily Target & Measurement Unit
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <span className="block text-[10px] font-medium text-[#6F6759] dark:text-[#8FA387] mb-1">
+                      Daily Goal (Amount)
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="any"
+                      value={targetValue}
+                      onChange={(e) => setTargetValue(e.target.value)}
+                      placeholder="e.g. 10000"
+                      className="w-full px-3.5 py-2 bg-[#F6F3EB]/80 dark:bg-[#132219] border border-[#E0D7C6] dark:border-[#223326] rounded-xl text-xs sm:text-sm font-semibold text-[#1D2516] dark:text-[#F5F2EB] focus:outline-none focus:border-[#738541] dark:focus:border-[#4A6225] focus:bg-white dark:focus:bg-[#16271D] transition-all"
+                    />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] font-medium text-[#6F6759] dark:text-[#8FA387] mb-1">
+                      Unit (e.g. steps, hours)
+                    </span>
+                    <input
+                      type="text"
+                      value={unit}
+                      onChange={(e) => setUnit(e.target.value)}
+                      placeholder="steps, hours, mins..."
+                      className="w-full px-3.5 py-2 bg-[#F6F3EB]/80 dark:bg-[#132219] border border-[#E0D7C6] dark:border-[#223326] rounded-xl text-xs sm:text-sm font-semibold text-[#1D2516] dark:text-[#F5F2EB] focus:outline-none focus:border-[#738541] dark:focus:border-[#4A6225] focus:bg-white dark:focus:bg-[#16271D] transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Unit Pills */}
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  <span className="text-[10px] text-[#8A9280] dark:text-[#6E8268] font-medium mr-0.5">Quick units:</span>
+                  {COMMON_UNITS.map((u) => {
+                    const isCurrent = unit.toLowerCase() === u.toLowerCase()
+                    return (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => {
+                          setUnit(u)
+                          if (u === 'steps' && (Number(targetValue) <= 50 || !targetValue)) setTargetValue('10000')
+                          if (u === 'hours' && (Number(targetValue) > 24 || !targetValue)) setTargetValue('8')
+                          if (u === 'mins' && (Number(targetValue) > 180 || !targetValue)) setTargetValue('30')
+                          if (u === 'ml' && (Number(targetValue) < 200 || !targetValue)) setTargetValue('2000')
+                          if (u === 'glasses' && (Number(targetValue) > 20 || !targetValue)) setTargetValue('8')
+                          if (u === 'pages' && (Number(targetValue) > 200 || !targetValue)) setTargetValue('20')
+                        }}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all cursor-pointer ${
+                          isCurrent
+                            ? 'bg-[#4A6225] text-white shadow-2xs font-bold'
+                            : 'bg-[#FAF8F3] dark:bg-[#16271D] text-[#556244] dark:text-[#CBD8BF] hover:bg-[#EAE2D2] dark:hover:bg-[#1F3526] border border-[#E0D7C6] dark:border-[#223326]'
+                        }`}
+                      >
+                        {u}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Action Buttons */}

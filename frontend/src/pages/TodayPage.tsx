@@ -149,7 +149,7 @@ export function TodayPage() {
 
     habits.forEach((h) => {
       const log = todayLogs.find((l) => l.habit_id === h.id)
-      const target = h.target_value || 1
+      const target = log?.target_value || h.target_value || 1
       const actual = log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
       const ratio = Math.min(actual / target, 1)
       progressSum += ratio

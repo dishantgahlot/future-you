@@ -115,7 +115,7 @@ export function createDefaultHabitsForUser(userId: string): Habit[] {
       category: 'fitness',
       frequency: 'daily',
       target_value: 30,
-      unit: 'm',
+      unit: 'mins',
       color: '#6B8E4E',
       color_theme: 'sage',
       icon: 'dumbbell',
@@ -256,6 +256,7 @@ export function saveLocalLog(
       ...all[existingIndex],
       user_id: uid,
       actual_value: actualValue,
+      target_value: targetValue > 0 ? targetValue : all[existingIndex].target_value,
       completion_status: isCompleted,
       notes: notes !== undefined ? notes : all[existingIndex].notes,
       updated_at: new Date().toISOString(),
@@ -268,6 +269,7 @@ export function saveLocalLog(
       user_id: uid,
       log_date: dateStr,
       actual_value: actualValue,
+      target_value: targetValue,
       completion_status: isCompleted,
       notes: notes || null,
       created_at: new Date().toISOString(),
@@ -285,6 +287,135 @@ export function saveLocalLog(
   }
 
   return updatedLog
+}
+
+export function getDayTargetsStorageKey(userId?: string): string {
+  const uid = userId || getActiveUserId()
+  return `future-you-day-targets-v3_${uid}`
+}
+
+export function getDayTarget(
+  habitId: string,
+  dateStr: string,
+  defaultTarget: number,
+  userId?: string
+): number {
+  try {
+    const uid = userId || getActiveUserId()
+    // 1. Check existing local log
+    const logs = getAllLocalLogs(uid)
+    const log = logs.find((l) => l.habit_id === habitId && l.log_date === dateStr)
+    if (log && typeof log.target_value === 'number' && log.target_value > 0) {
+      return log.target_value
+    }
+
+    // 2. Check dedicated day targets map
+    const key = getDayTargetsStorageKey(uid)
+    const raw = localStorage.getItem(key)
+    if (raw) {
+      const parsed: Record<string, number> = JSON.parse(raw)
+      const specific = parsed[`${habitId}_${dateStr}`]
+      if (typeof specific === 'number' && specific > 0) {
+        return specific
+      }
+    }
+  } catch {}
+  return defaultTarget > 0 ? defaultTarget : 1
+}
+
+export function setDayTarget(
+  habitId: string,
+  dateStr: string,
+  targetValue: number,
+  userId?: string
+): void {
+  try {
+    const uid = userId || getActiveUserId()
+    const target = Math.max(1, Math.round(targetValue * 10) / 10)
+
+    // Save in dedicated day-targets map
+    const key = getDayTargetsStorageKey(uid)
+    let map: Record<string, number> = {}
+    try {
+      const raw = localStorage.getItem(key)
+      if (raw) map = JSON.parse(raw)
+    } catch {}
+    map[`${habitId}_${dateStr}`] = target
+    localStorage.setItem(key, JSON.stringify(map))
+
+    // Sync with existing log or initialize log for today
+    const all = getAllLocalLogs(uid)
+    const existingIndex = all.findIndex((l) => l.habit_id === habitId && l.log_date === dateStr)
+    if (existingIndex >= 0) {
+      const existing = all[existingIndex]
+      const isCompleted = existing.actual_value >= target
+      all[existingIndex] = {
+        ...existing,
+        target_value: target,
+        completion_status: isCompleted,
+        updated_at: new Date().toISOString(),
+      }
+    } else {
+      all.push({
+        id: crypto.randomUUID(),
+        habit_id: habitId,
+        user_id: uid,
+        log_date: dateStr,
+        actual_value: 0,
+        target_value: target,
+        completion_status: false,
+        notes: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+    }
+    const logsKey = getLogsStorageKey(uid)
+    localStorage.setItem(logsKey, JSON.stringify(all))
+
+    window.dispatchEvent(new CustomEvent('future-you-storage-updated'))
+  } catch (e) {
+    console.error('Error saving day target:', e)
+  }
+}
+
+export function resetDayTarget(
+  habitId: string,
+  dateStr: string,
+  defaultTarget: number,
+  userId?: string
+): void {
+  try {
+    const uid = userId || getActiveUserId()
+    const key = getDayTargetsStorageKey(uid)
+    try {
+      const raw = localStorage.getItem(key)
+      if (raw) {
+        const map: Record<string, number> = JSON.parse(raw)
+        delete map[`${habitId}_${dateStr}`]
+        localStorage.setItem(key, JSON.stringify(map))
+      }
+    } catch {}
+
+    const all = getAllLocalLogs(uid)
+    const existingIndex = all.findIndex((l) => l.habit_id === habitId && l.log_date === dateStr)
+    if (existingIndex >= 0) {
+      const existing = all[existingIndex]
+      const fallback = defaultTarget > 0 ? defaultTarget : 1
+      const isCompleted = existing.actual_value >= fallback
+      all[existingIndex] = {
+        ...existing,
+        target_value: fallback,
+        completion_status: isCompleted,
+        updated_at: new Date().toISOString(),
+      }
+      const logsKey = getLogsStorageKey(uid)
+      localStorage.setItem(logsKey, JSON.stringify(all))
+    }
+
+    window.dispatchEvent(new CustomEvent('future-you-storage-updated'))
+  } catch (e) {
+    console.error('Error resetting day target:', e)
+  }
 }
 
 export function calculateHabitStreak(habitId: string, allLogs: HabitLog[]): number {

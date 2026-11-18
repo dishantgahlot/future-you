@@ -35,6 +35,9 @@ import {
   getAllLocalLogs,
   saveLocalLog,
   getActiveUserId,
+  getDayTarget,
+  setDayTarget,
+  resetDayTarget,
 } from '../utils/habitStorage'
 import { deleteHabit, updateHabit, upsertHabitLog, createHabit } from '../services/api'
 import { HabitFormModal } from '../components/habits/HabitFormModal'
@@ -96,12 +99,13 @@ function getHabitIconDef(habit: Habit): IconDefinition {
   return faSeedling
 }
 
-function getHabitStep(habit: Habit): number {
-  const target = habit.target_value || 1
-  const unit = (habit.unit || '').toLowerCase()
+function getHabitStep(habit: Habit, dayTarget?: number): number {
+  const target = dayTarget || habit.target_value || 1
+  const unit = (habit.unit || '').toLowerCase().trim()
 
+  if (unit === 'steps' || unit === 'step' || target >= 5000) return 500
   if (unit === 'ml' || target >= 1000) return 250
-  if (unit === 'min' || unit === 'm' || (target >= 30 && target <= 120)) return 15
+  if (unit === 'min' || unit === 'mins' || unit === 'm' || (target >= 30 && target <= 120)) return 15
   if (unit === 'pages' || target >= 20) return 5
   if (target <= 5) return 0.5
   if (target <= 12) return 1
@@ -110,9 +114,10 @@ function getHabitStep(habit: Habit): number {
 
 function formatUnit(unit?: string): string {
   if (!unit) return ''
-  const u = unit.toLowerCase()
-  if (u === 'min' || u === 'minutes' || u === 'mins') return 'm'
-  if (u === 'hours' || u === 'hr' || u === 'hrs') return 'h'
+  const u = unit.toLowerCase().trim()
+  if (u === 'm' || u === 'min' || u === 'minutes' || u === 'mins') return 'mins'
+  if (u === 'hours' || u === 'hr' || u === 'hrs' || u === 'hour') return 'h'
+  if (u === 's' || u === 'sec' || u === 'secs') return 'secs'
   return unit
 }
 
@@ -124,6 +129,10 @@ export function Habits() {
   const [showModal, setShowModal] = useState(false)
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null)
   const [deletingConfirmId, setDeletingConfirmId] = useState<string | null>(null)
+
+  // Day-specific target customizer state
+  const [adjustingDayTargetHabit, setAdjustingDayTargetHabit] = useState<Habit | null>(null)
+  const [customDayTargetInput, setCustomDayTargetInput] = useState<string>('')
 
   const [todayStr, setTodayStr] = useState(() => format(new Date(), 'yyyy-MM-dd'))
 
@@ -191,10 +200,10 @@ export function Habits() {
     return log?.completion_status
   }).length
 
-  // Update progress value for today
+  // Update progress value for today (respects day-specific goal)
   const handleUpdateProgress = async (habit: Habit, nextVal: number) => {
+    const target = getDayTarget(habit.id, todayStr, habit.target_value || 1)
     const clampedVal = Math.max(0, Math.round(nextVal * 10) / 10)
-    const target = habit.target_value || 1
 
     const updatedLog = saveLocalLog(habit.id, todayStr, clampedVal, target)
     setLogs((prev) => {
@@ -203,7 +212,7 @@ export function Habits() {
     })
 
     try {
-      await upsertHabitLog(habit.id, todayStr, clampedVal)
+      await upsertHabitLog(habit.id, todayStr, clampedVal, undefined, target)
     } catch {
       // Local copy saved safely
     }
@@ -211,24 +220,73 @@ export function Habits() {
 
   // Plus / Minus step handlers
   const handleStep = (habit: Habit, deltaMultiplier: number) => {
+    const targetVal = getDayTarget(habit.id, todayStr, habit.target_value || 1)
     const log = logs.find((l) => l.habit_id === habit.id && l.log_date === todayStr)
     const actualVal =
       log?.actual_value !== undefined
         ? log.actual_value
         : log?.completion_status
-        ? habit.target_value
+        ? targetVal
         : 0
-    const step = getHabitStep(habit)
+    const step = getHabitStep(habit, targetVal)
     const nextVal = Math.max(0, actualVal + step * deltaMultiplier)
     handleUpdateProgress(habit, nextVal)
   }
 
   // Toggle Mark as Done (0 <-> 100%)
   const handleToggleDone = (habit: Habit) => {
+    const targetVal = getDayTarget(habit.id, todayStr, habit.target_value || 1)
     const log = logs.find((l) => l.habit_id === habit.id && l.log_date === todayStr)
     const isDone = log?.completion_status || false
-    const nextVal = isDone ? 0 : habit.target_value || 1
+    const nextVal = isDone ? 0 : targetVal
     handleUpdateProgress(habit, nextVal)
+  }
+
+  // Open Day-Specific Target customizer modal
+  const handleOpenDayTarget = (habit: Habit) => {
+    const currentTarget = getDayTarget(habit.id, todayStr, habit.target_value || 1)
+    setAdjustingDayTargetHabit(habit)
+    setCustomDayTargetInput(String(currentTarget))
+  }
+
+  // Save Day-Specific Target for today
+  const handleSaveDayTarget = async () => {
+    if (!adjustingDayTargetHabit) return
+    const habit = adjustingDayTargetHabit
+    const newTarget = Math.max(1, Math.round(Number(customDayTargetInput) * 10) / 10 || 1)
+
+    setDayTarget(habit.id, todayStr, newTarget)
+
+    const log = logs.find((l) => l.habit_id === habit.id && l.log_date === todayStr)
+    const actualVal = log?.actual_value !== undefined ? log.actual_value : 0
+    saveLocalLog(habit.id, todayStr, actualVal, newTarget)
+    setLogs(getAllLocalLogs())
+
+    try {
+      await upsertHabitLog(habit.id, todayStr, actualVal, undefined, newTarget)
+    } catch {}
+
+    setAdjustingDayTargetHabit(null)
+  }
+
+  // Reset Day-Specific Target back to default habit baseline
+  const handleResetDayTarget = async () => {
+    if (!adjustingDayTargetHabit) return
+    const habit = adjustingDayTargetHabit
+    const baseTarget = habit.target_value || 1
+
+    resetDayTarget(habit.id, todayStr, baseTarget)
+
+    const log = logs.find((l) => l.habit_id === habit.id && l.log_date === todayStr)
+    const actualVal = log?.actual_value !== undefined ? log.actual_value : 0
+    saveLocalLog(habit.id, todayStr, actualVal, baseTarget)
+    setLogs(getAllLocalLogs())
+
+    try {
+      await upsertHabitLog(habit.id, todayStr, actualVal, undefined, baseTarget)
+    } catch {}
+
+    setAdjustingDayTargetHabit(null)
   }
 
   // Toggle Active / Paused
@@ -464,10 +522,11 @@ export function Habits() {
                 : isDone
                 ? habit.target_value
                 : 0
-            const targetVal = habit.target_value || 1
+            const targetVal = getDayTarget(habit.id, todayStr, habit.target_value || 1)
             const percent = Math.min(Math.round((actualVal / targetVal) * 100), 100)
             const unitDisplay = formatUnit(habit.unit)
             const theme = getHabitTheme(habit, index)
+            const hasCustomDayTarget = targetVal !== habit.target_value
 
             return (
               <motion.div
@@ -537,9 +596,24 @@ export function Habits() {
                 <div className="relative z-10 mt-2.5 sm:my-2 pt-2 border-t border-[#1D2516]/10 dark:border-white/10">
                   {/* Numbers row */}
                   <div className="flex items-center justify-between text-xs mb-1.5 tabular-nums">
-                    <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-bold text-sm text-[#1D2516] dark:text-[#F5F2EB]">{actualVal}</span>
-                      <span className="text-[#556244] dark:text-[#CBD8BF] font-medium"> / {targetVal} {unitDisplay}</span>
+                      <span className="text-[#556244] dark:text-[#CBD8BF] font-medium">/ {targetVal} {unitDisplay}</span>
+
+                      {/* Today's Custom Goal Pill / Trigger */}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDayTarget(habit)}
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] transition-all cursor-pointer ${
+                          hasCustomDayTarget
+                            ? 'bg-[#4A6225] text-white font-bold shadow-2xs'
+                            : 'bg-black/6 hover:bg-black/12 dark:bg-white/10 dark:hover:bg-white/20 text-[#43522C] dark:text-[#CBD8BF] font-semibold'
+                        }`}
+                        title="Set or adjust how much you have to do today"
+                      >
+                        <FontAwesomeIcon icon={faBullseye} className="text-[9px]" />
+                        <span>{hasCustomDayTarget ? `Today: ${targetVal}` : "Today's Goal"}</span>
+                      </button>
                     </div>
                     <span className="text-xs font-bold text-[#1D2516] dark:text-[#F5F2EB]">
                       {percent}%
@@ -679,6 +753,131 @@ export function Habits() {
         onSave={handleSaveModalHabit}
         editingHabit={editingHabit}
       />
+
+      {/* Day Target Adjustment Modal (e.g. 10 hours of sleep today instead of 8) */}
+      {adjustingDayTargetHabit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#1B2314]/50 dark:bg-black/75 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            className="w-full max-w-md bg-[#FDFBF7] dark:bg-[#0D1814] rounded-2xl sm:rounded-3xl border border-[#E9E1D2] dark:border-[#223326] shadow-xl p-5 sm:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#DFEACF] dark:bg-[#1C2C1D] text-[#435824] dark:text-[#A8D968] text-[10px] font-bold uppercase tracking-wider mb-1">
+                  <FontAwesomeIcon icon={faBullseye} className="w-2.5 h-2.5" />
+                  <span>Day-Specific Goal</span>
+                </div>
+                <h3 className="font-serif font-bold text-xl text-[#1D2516] dark:text-[#F5F2EB]">
+                  Adjust Today's Goal
+                </h3>
+                <p className="text-xs text-[#6F6759] dark:text-[#8FA387] mt-0.5">
+                  Set how much you need to achieve for {adjustingDayTargetHabit.name} today ({todayStr}).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdjustingDayTargetHabit(null)}
+                className="w-8 h-8 rounded-full bg-[#FAF5EB] hover:bg-[#EAE0CF] dark:bg-[#132219] dark:hover:bg-[#1E3326] text-[#6F6759] dark:text-[#8FA387] flex items-center justify-center cursor-pointer"
+              >
+                <FontAwesomeIcon icon={faXmark} className="text-xs" />
+              </button>
+            </div>
+
+            {/* Current Baseline Info Box */}
+            <div className="p-3 rounded-xl bg-[#FAF8F3] dark:bg-[#132219] border border-[#E8E2D5] dark:border-[#223326] mb-4 flex items-center justify-between text-xs">
+              <span className="text-[#6F6759] dark:text-[#8FA387]">Default Baseline Target:</span>
+              <span className="font-bold text-[#1D2516] dark:text-[#F5F2EB]">
+                {adjustingDayTargetHabit.target_value} {formatUnit(adjustingDayTargetHabit.unit)}
+              </span>
+            </div>
+
+            {/* Today's Target Input */}
+            <div className="mb-4">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6F6759] dark:text-[#8FA387] mb-1.5">
+                Target For Today ({formatUnit(adjustingDayTargetHabit.unit)})
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="1"
+                  step="any"
+                  value={customDayTargetInput}
+                  onChange={(e) => setCustomDayTargetInput(e.target.value)}
+                  className="w-full pl-4 pr-16 py-2.5 bg-[#F6F3EB]/80 dark:bg-[#132219] border border-[#E0D7C6] dark:border-[#223326] rounded-xl text-base font-bold text-[#1D2516] dark:text-[#F5F2EB] focus:outline-none focus:border-[#738541] dark:focus:border-[#4A6225]"
+                  autoFocus
+                />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#6F6759] dark:text-[#8FA387]">
+                  {formatUnit(adjustingDayTargetHabit.unit)}
+                </span>
+              </div>
+
+              {/* Quick increment / decrement pills */}
+              <div className="flex flex-wrap gap-1.5 mt-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cur = Number(customDayTargetInput) || 0
+                    const step = getHabitStep(adjustingDayTargetHabit, cur)
+                    setCustomDayTargetInput(String(Math.max(1, cur - step)))
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium bg-[#FAF8F3] dark:bg-[#16271D] text-[#556244] dark:text-[#CBD8BF] hover:bg-[#EAE2D2] dark:hover:bg-[#1F3526] border border-[#E0D7C6] dark:border-[#223326] cursor-pointer"
+                >
+                  - {getHabitStep(adjustingDayTargetHabit, Number(customDayTargetInput) || 0)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cur = Number(customDayTargetInput) || 0
+                    const step = getHabitStep(adjustingDayTargetHabit, cur)
+                    setCustomDayTargetInput(String(cur + step))
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium bg-[#FAF8F3] dark:bg-[#16271D] text-[#556244] dark:text-[#CBD8BF] hover:bg-[#EAE2D2] dark:hover:bg-[#1F3526] border border-[#E0D7C6] dark:border-[#223326] cursor-pointer"
+                >
+                  + {getHabitStep(adjustingDayTargetHabit, Number(customDayTargetInput) || 0)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomDayTargetInput(String(adjustingDayTargetHabit.target_value))}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium bg-[#FAF8F3] dark:bg-[#16271D] text-[#556244] dark:text-[#CBD8BF] hover:bg-[#EAE2D2] dark:hover:bg-[#1F3526] border border-[#E0D7C6] dark:border-[#223326] cursor-pointer"
+                >
+                  Reset ({adjustingDayTargetHabit.target_value})
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-[#ECE5D8]/80 dark:border-[#223326]">
+              <button
+                type="button"
+                onClick={handleResetDayTarget}
+                className="px-3 py-2 rounded-xl text-xs font-medium text-[#6F6759] dark:text-[#8FA387] hover:text-[#1D2516] dark:hover:text-white cursor-pointer"
+              >
+                Reset to Default
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAdjustingDayTargetHabit(null)}
+                  className="px-3.5 py-2 rounded-full text-xs font-semibold text-[#6F6759] dark:text-[#8FA387] hover:bg-[#F2ECE0] dark:hover:bg-[#132219] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveDayTarget}
+                  className="px-4 py-2 rounded-full bg-[#4A6225] hover:bg-[#3D521E] text-white text-xs font-bold shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <FontAwesomeIcon icon={faCheck} className="text-[10px]" />
+                  <span>Set Goal for Today</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }

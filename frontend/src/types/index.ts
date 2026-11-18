@@ -36,6 +36,7 @@ export interface HabitLog {
   log_date: string
   actual_value: number
   value?: number
+  target_value?: number
   progress_percentage?: number
   completion_status: boolean
   notes: string | null

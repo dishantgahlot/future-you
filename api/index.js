@@ -59801,10 +59801,11 @@ router2.get("/:id/logs", asyncHandler(async (req, res) => {
 }));
 router2.post("/:id/logs", asyncHandler(async (req, res) => {
   const habitId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const { date, log_date, value, actual_value, notes } = req.body;
+  const { date, log_date, value, actual_value, target_value, notes } = req.body;
   const dateValue = date || log_date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const numericValue = typeof actual_value === "number" ? actual_value : typeof value === "number" ? value : 1;
-  const target = await getHabitTarget(habitId);
+  const baseTarget = await getHabitTarget(habitId);
+  const target = typeof target_value === "number" && target_value > 0 ? target_value : baseTarget;
   const progressPercentage = target > 0 ? Math.round(numericValue / target * 100 * 10) / 10 : 0;
   const isComplete = numericValue >= target;
   const { data, error } = await getSupabase4().from("habit_logs").upsert({
@@ -59813,6 +59814,7 @@ router2.post("/:id/logs", asyncHandler(async (req, res) => {
     log_date: dateValue,
     actual_value: numericValue,
     value: numericValue,
+    target_value: target,
     progress_percentage: progressPercentage,
     completion_status: isComplete,
     notes: notes || null,
@@ -59823,10 +59825,11 @@ router2.post("/:id/logs", asyncHandler(async (req, res) => {
   res.status(201).json({ data });
 }));
 router2.post("/logs", asyncHandler(async (req, res) => {
-  const { habit_id, date, log_date, logged_at, value, actual_value, notes } = req.body;
+  const { habit_id, date, log_date, logged_at, value, actual_value, target_value, notes } = req.body;
   const dateValue = date || log_date || (logged_at ? logged_at.split("T")[0] : (/* @__PURE__ */ new Date()).toISOString().split("T")[0]);
   const numericValue = typeof actual_value === "number" ? actual_value : typeof value === "number" ? value : 1;
-  const target = await getHabitTarget(habit_id);
+  const baseTarget = await getHabitTarget(habit_id);
+  const target = typeof target_value === "number" && target_value > 0 ? target_value : baseTarget;
   const progressPercentage = target > 0 ? Math.round(numericValue / target * 100 * 10) / 10 : 0;
   const isComplete = numericValue >= target;
   const { data, error } = await getSupabase4().from("habit_logs").upsert({
@@ -59836,6 +59839,7 @@ router2.post("/logs", asyncHandler(async (req, res) => {
     logged_at: logged_at || (/* @__PURE__ */ new Date()).toISOString(),
     actual_value: numericValue,
     value: numericValue,
+    target_value: target,
     progress_percentage: progressPercentage,
     completion_status: isComplete,
     notes: notes || null,

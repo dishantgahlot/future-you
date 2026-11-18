@@ -146,7 +146,7 @@ export function InsightsModal({
 
       habits.forEach((h) => {
         const log = allLogs.find((l) => l.habit_id === h.id && l.log_date === dayStr)
-        const target = h.target_value || 1
+        const target = log?.target_value || h.target_value || 1
         const actual =
           log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
         progressSum += Math.min(actual / target, 1)
@@ -219,7 +219,7 @@ export function InsightsModal({
           let dayHasLogs = false
           habits.forEach((h) => {
             const log = allLogs.find((l) => l.habit_id === h.id && l.log_date === dateStr)
-            const target = h.target_value || 1
+            const target = log?.target_value || h.target_value || 1
             const actual =
               log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
             daySum += Math.min(actual / target, 1)
@@ -265,18 +265,19 @@ export function InsightsModal({
   const detailedHabitProgress = useMemo(() => {
     return habits.map((h) => {
       const log = allLogs.find((l) => l.habit_id === h.id && l.log_date === selectedDateStr)
-      const target = h.target_value || 1
+      const target = log?.target_value || h.target_value || 1
       const actual =
         log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
       const percent = Math.min(Math.round((actual / target) * 100), 100)
       const isCompleted = actual >= target && target > 0
       const isInProgress = actual > 0 && actual < target
+      const unit = h.unit === 'm' ? 'mins' : h.unit
       return {
         id: h.id,
         name: h.name,
         actual,
         target,
-        unit: h.unit,
+        unit,
         percent,
         isCompleted,
         isInProgress,

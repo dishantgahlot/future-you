@@ -72,7 +72,7 @@ export function HabitConsistencyCard({
 
       habits.forEach((h) => {
         const log = dayLogs.find((l) => l.habit_id === h.id)
-        const target = h.target_value || 1
+        const target = log?.target_value || h.target_value || 1
         const actual =
           log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
         progressSum += Math.min(actual / target, 1)

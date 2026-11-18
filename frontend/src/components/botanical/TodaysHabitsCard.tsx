@@ -175,11 +175,12 @@ export function TodaysHabitsCard({
             {displayHabits.map((habit) => {
               const log = logs.find((l) => l.habit_id === habit.id)
               const isCompleted = log?.completion_status || false
+              const targetVal = log?.target_value || habit.target_value || 1
               const actualVal =
-                log?.actual_value !== undefined ? log.actual_value : isCompleted ? habit.target_value : 0
-              const targetVal = habit.target_value || 1
+                log?.actual_value !== undefined ? log.actual_value : isCompleted ? targetVal : 0
               const percent = Math.min(Math.round((actualVal / targetVal) * 100), 100)
               const isInProgress = actualVal > 0 && actualVal < targetVal
+              const unitDisplay = habit.unit === 'm' ? 'mins' : habit.unit
 
               const { icon } = getHabitIconDef(habit)
 
@@ -248,7 +249,7 @@ export function TodaysHabitsCard({
                     <div className="flex items-center justify-between text-xs mb-1.5">
                       <div className="font-semibold text-[#1D2516] dark:text-[#F5F2EB] tabular-nums">
                         <span className="font-bold text-sm">{actualVal}</span>
-                        <span className="text-[#6F6759] dark:text-[#A8BCA0] font-normal"> / {targetVal} {habit.unit}</span>
+                        <span className="text-[#6F6759] dark:text-[#A8BCA0] font-normal"> / {targetVal} {unitDisplay}</span>
                       </div>
                       <div className="text-[11px] font-medium text-[#738541] dark:text-[#A8D968] group-hover:underline inline-flex items-center gap-1">
                         <span>Manage</span>
