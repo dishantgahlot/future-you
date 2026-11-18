@@ -801,6 +801,62 @@ ${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.weeklyRate}% 7-da
   return fallbackResponse
 }
 
+/**
+ * Safe, accurate mathematical expression parser and evaluator for offline & instant responses.
+ * Handles arithmetic (+, -, *, /, %, ^, parentheses), percentages, and functions like sqrt.
+ */
+function tryEvaluateMathExpression(input: string): { expr: string; result: number } | null {
+  if (!input) return null
+  let cleaned = input.toLowerCase()
+    .replace(/compute|calculate|evaluate|solve|mathe|math|what\s+is|how\s+much\s+is|the\s+result\s+of|result\s+of|value\s+of|\?|!/gi, ' ')
+    .trim()
+
+  // Handle square root phrases
+  cleaned = cleaned.replace(/square\s+root\s+of\s+(\d+(?:\.\d+)?)/gi, 'Math.sqrt($1)')
+  cleaned = cleaned.replace(/sqrt\((\d+(?:\.\d+)?)\)/gi, 'Math.sqrt($1)')
+
+  // Replace multiplication and division symbols
+  cleaned = cleaned.replace(/×/g, '*').replace(/÷/g, '/')
+  // Handle percentage calculations like '20% of 100' or '15% * 200'
+  cleaned = cleaned.replace(/(\d+(?:\.\d+)?)\s*%\s*of\s*(\d+(?:\.\d+)?)/gi, '($1/100)*$2')
+  cleaned = cleaned.replace(/(\d+(?:\.\d+)?)\s*%\s*\*\s*(\d+(?:\.\d+)?)/gi, '($1/100)*$2')
+  // Handle 'x' between numbers (e.g. 2 x 3, 2x3)
+  cleaned = cleaned.replace(/(\d+)\s*[xX]\s*(\d+)/g, '$1 * $2')
+  // Handle power operator ^
+  cleaned = cleaned.replace(/\^/g, '**')
+
+  // Check if sanitized contains only safe mathematical characters and Math.sqrt
+  const safeTokens = cleaned
+    .replace(/Math\.sqrt\([\d.]+\)/g, '0')
+    .trim()
+
+  if (!/^[\d\s+\-*/().%]+$/.test(safeTokens)) {
+    return null
+  }
+  // Must contain at least one digit and an operator or Math.sqrt
+  if (!/\d/.test(cleaned) || (!/[+\-*/%]/.test(cleaned) && !/Math\.sqrt/.test(cleaned))) return null
+
+  try {
+    const fn = new Function('return (' + cleaned + ')')
+    const val = fn()
+    if (typeof val === 'number' && !isNaN(val) && isFinite(val)) {
+      const rounded = Math.round(val * 1000000) / 1000000
+      let displayExpr = input.trim()
+        .replace(/^(compute|calculate|evaluate|solve|what is|how much is|the result of|result of)\s+/i, '')
+        .replace(/^(mathe|math)\s+/i, '')
+        .replace(/[?!]/g, '')
+        .trim()
+      if (!displayExpr || displayExpr.length > 60) {
+        displayExpr = cleaned.replace(/\*\*/g, '^').replace(/Math\.sqrt\((\d+)\)/g, '√$1')
+      }
+      return { expr: displayExpr, result: rounded }
+    }
+  } catch (e) {
+    return null
+  }
+  return null
+}
+
 function generateDatabaseAwareFallback(
   message: string,
   userName: string,
@@ -836,8 +892,26 @@ function generateDatabaseAwareFallback(
     'What if I stay disciplined for 6 months?',
   ]
 
+  // DOMAIN MATH: MATHEMATICAL EVALUATION & ARITHMETIC
+  const mathResult = tryEvaluateMathExpression(message)
+  if (mathResult) {
+    reply = `The result of **${mathResult.expr}** is **${mathResult.result}**.
+
+• **Calculation**:
+  $$\\mathbf{${mathResult.expr.replace(/\*/g, ' \\times ')} = ${mathResult.result}}$$
+
+• **Summary**:
+  - **Expression**: \`${mathResult.expr}\`
+  - **Answer**: **${mathResult.result}**`
+    suggestedFollowUps = [
+      'Can you compute another equation?',
+      'How does this relate to my daily habit targets?',
+      'What is my habit progress today?',
+    ]
+  }
+
   // DOMAIN 0: TODAY'S ACCURATE PROGRESS
-  if (q.includes('today') || (q.includes('progress') && !q.includes('week') && !q.includes('month') && !q.includes('report') && !q.includes('70%'))) {
+  else if (q.includes('today') || (q.includes('progress') && !q.includes('week') && !q.includes('month') && !q.includes('report') && !q.includes('70%'))) {
     reply = `• **Today's Live Habit Progress (${todayStr})**:
   - **Overall Day Execution**: **${todayOverallProgress}%**
   - **Summary**: **${todayCompletedCount}** completed, **${todayInProgressCount}** in progress, **${todayPendingCount}** pending out of **${allHabits.length}** tracked habits.
@@ -1174,19 +1248,31 @@ And remember: 70% of a habit is like pushing code that's 70% complete—at least
 
   // DOMAIN 14: DYNAMIC CONVERSATIONAL CHATBOT FALLBACK (FOR ANY OPEN QUESTION)
   else {
-    reply = `Great question, **${userName}**! Let's break down **${message}** clearly:
+    const cleanPrompt = message.trim().replace(/[?!.]+$/, '')
+    const isQuestion = q.includes('?') || q.startsWith('what') || q.startsWith('why') || q.startsWith('how') || q.startsWith('can') || q.startsWith('explain') || q.startsWith('tell')
 
-• **Core Overview**:
-  - Looking at this from first principles, the key is understanding the underlying mechanics rather than just memorizing rules.
-  - Focusing on foundational inputs creates 80% of the practical outcomes with the least friction.
+    if (isQuestion) {
+      reply = `Here is a clear breakdown regarding **"${cleanPrompt}"**:
 
-• **Practical Steps to Apply**:
-  1. **Define the Target Clearly**: Clarify the specific outcome or problem you want to solve first.
-  2. **Break into Actionable Blocks**: Deconstruct complex elements into manageable 15–30 minute tasks.
-  3. **Build Compounding Momentum**: Consistent small daily actions compound significantly faster than irregular high-intensity sprints.
+• **Core Insight**:
+  When exploring **${cleanPrompt.toLowerCase()}**, the key is looking at the core principles that drive 80% of the practical outcomes. Removing unnecessary complexity and establishing clear, repeatable systems creates lasting momentum.
 
-• **How can I help you dive deeper into this?**
-  - Would you like a detailed breakdown, practical examples, or actionable steps tailored to your schedule?`
+• **Practical Principles**:
+  1. **Focus on High-Leverage Inputs**: Identify the single highest-impact action that creates the most leverage before optimizing minor details.
+  2. **Short Feedback Cycles**: Test ideas and routines in small, rapid increments so you can adapt quickly based on real data.
+  3. **Compounding Consistency**: Regular daily execution—even partial progress—always outpaces irregular high-intensity efforts over time.
+
+• **Next Steps**:
+  Would you like a deeper breakdown, real-world examples, or actionable advice tailored to your goals?`
+    } else {
+      reply = `Thanks for sharing that, **${userName}**!
+
+• **Perspective on "${cleanPrompt}"**:
+  Whether in personal development, learning new disciplines, or executing ambitious goals, steady incremental progress compounds dramatically over 6 to 12 months.
+
+• **How can I assist you further?**
+  Feel free to ask follow-up questions, explore a what-if scenario, or check in on your habits and daily routines whenever you're ready!`
+    }
     suggestedFollowUps = [
       'Can you give me a specific real-world example of this?',
       'How can I break this down into a step-by-step plan?',

@@ -86,7 +86,7 @@ const DEFAULT_OPTIONS: Required<Omit<GeminiClientOptions, 'apiKey' | 'systemInst
   thinkingBudget?: number
 } = {
   apiKey: undefined,
-  model: config.gemini.model || 'gemini-2.5-flash',
+  model: config.gemini.model || 'gemini-3.5-flash-lite',
   temperature: 0.7,
   maxOutputTokens: 2048,
   topP: 0.95,
@@ -99,6 +99,9 @@ const DEFAULT_OPTIONS: Required<Omit<GeminiClientOptions, 'apiKey' | 'systemInst
 }
 
 const CANDIDATE_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.8-flash',
+  'gemini-3.5-flash',
   'gemini-2.5-flash',
   'gemini-flash-latest',
 ]
