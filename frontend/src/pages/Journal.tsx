@@ -373,27 +373,15 @@ export function Journal() {
                     {entry.content}
                   </p>
 
-                  {/* Card Action Footer with high-visibility Edit button */}
-                  <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 mt-3.5 border-t border-[#ECE7DC]/80 dark:border-[#1E2E27]">
-                    <div className="flex items-center gap-2 text-[11px] text-[#7A8C74] dark:text-[#8FA387]">
-                      <span>{entry.content.split(/\s+/).filter(Boolean).length} words</span>
-                      {entry.updatedAt && (
-                        <>
-                          <span>·</span>
-                          <span className="text-emerald-700 dark:text-emerald-400 font-medium">Edited</span>
-                        </>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 ml-auto">
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(entry)}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#738541] hover:bg-[#5E6D34] dark:bg-[#4E6826] dark:hover:bg-[#41581F] text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
-                      >
-                        <FontAwesomeIcon icon={faPenToSquare} className="w-3 h-3" />
-                        <span>Edit Reflection</span>
-                      </button>
-                    </div>
+                  {/* Card Footer Metadata */}
+                  <div className="flex items-center gap-2 pt-3 mt-3.5 border-t border-[#ECE7DC]/80 dark:border-[#1E2E27] text-[11px] text-[#7A8C74] dark:text-[#8FA387]">
+                    <span>{entry.content.split(/\s+/).filter(Boolean).length} words</span>
+                    {entry.updatedAt && (
+                      <>
+                        <span>·</span>
+                        <span className="text-emerald-700 dark:text-emerald-400 font-medium">Edited</span>
+                      </>
+                    )}
                   </div>
                 </>
               )}
