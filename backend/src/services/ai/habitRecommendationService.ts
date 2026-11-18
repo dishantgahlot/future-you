@@ -39,8 +39,8 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
   if (error || !data) {
     return {
       id: userId,
-      fullName: 'Dishant',
-      email: 'dishant@futureyou.app',
+      fullName: 'Friend',
+      email: 'user@futureyou.app',
       dateOfBirth: '2004-05-15',
       preferences: { tone: 'encouraging', theme: 'botanical' },
     }
@@ -48,8 +48,8 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
 
   return {
     id: data.id,
-    fullName: data.full_name || 'Dishant',
-    email: data.email || 'dishant@futureyou.app',
+    fullName: data.full_name || 'Friend',
+    email: data.email || 'user@futureyou.app',
     dateOfBirth: data.date_of_birth || '2004-05-15',
     preferences: data.preferences,
   }

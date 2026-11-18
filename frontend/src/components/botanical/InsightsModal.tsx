@@ -62,7 +62,7 @@ export function InsightsModal({
   allLogs = [],
   habits = [],
   selectedDate,
-  userName = 'Dishant',
+  userName = 'Friend',
 }: InsightsModalProps) {
   const [activeTab, setActiveTab] = useState<'analytics' | 'report'>(initialTab)
   const [viewType, setViewType] = useState<'weekly' | 'monthly'>(selectedType)

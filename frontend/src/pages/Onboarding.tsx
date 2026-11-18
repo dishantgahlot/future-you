@@ -30,6 +30,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../services/supabase'
+import { saveLocalHabits, saveAllLocalLogs, getLocalHabits } from '../utils/habitStorage'
 
 const STEPS = [
   { id: 'welcome', title: 'Welcome', icon: faBullseye },
@@ -178,24 +179,54 @@ export function Onboarding() {
         }))
 
       if (habitsToCreate.length > 0) {
-        const { error: habitsError } = await supabase
-          .from('habits')
-          .insert(habitsToCreate)
-
-        if (habitsError) throw habitsError
+        try {
+          await supabase.from('habits').insert(habitsToCreate)
+        } catch (habitsError) {
+          console.warn('Supabase habits insert note:', habitsError)
+        }
       }
 
       if (user?.id) {
+        localStorage.setItem('future_you_active_user_id', user.id)
         localStorage.setItem(`future_you_onboarded_${user.id}`, 'true')
+
+        if (habitsToCreate.length > 0) {
+          const localHabits = habitsToCreate.map((h, idx) => ({
+            id: `habit-${idx}-${user.id.slice(0, 8)}`,
+            user_id: user.id,
+            name: h.name,
+            description: null,
+            category: h.category as any,
+            frequency: h.frequency,
+            target_value: h.target_value,
+            unit: h.unit,
+            icon: h.icon,
+            color: h.color,
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }))
+          saveLocalHabits(localHabits as any, user.id)
+        } else {
+          getLocalHabits(user.id)
+        }
+
+        // New account strictly starts with 0 logs (no fake past data)
+        saveAllLocalLogs([], user.id)
       }
       setOnboardingCompleted(true)
+      window.dispatchEvent(new CustomEvent('future-you-storage-updated'))
       navigate('/dashboard', { replace: true })
     } catch (error) {
       console.error('Onboarding error:', error)
       if (user?.id) {
+        localStorage.setItem('future_you_active_user_id', user.id)
         localStorage.setItem(`future_you_onboarded_${user.id}`, 'true')
+        getLocalHabits(user.id)
+        saveAllLocalLogs([], user.id)
       }
       setOnboardingCompleted(true)
+      window.dispatchEvent(new CustomEvent('future-you-storage-updated'))
       navigate('/dashboard', { replace: true })
     } finally {
       setLoading(false)
@@ -204,7 +235,10 @@ export function Onboarding() {
 
   const skipOnboarding = async () => {
     if (user?.id) {
+      localStorage.setItem('future_you_active_user_id', user.id)
       localStorage.setItem(`future_you_onboarded_${user.id}`, 'true')
+      getLocalHabits(user.id)
+      saveAllLocalLogs([], user.id)
       try {
         await supabase
           .from('profiles')
@@ -219,6 +253,7 @@ export function Onboarding() {
       }
     }
     setOnboardingCompleted(true)
+    window.dispatchEvent(new CustomEvent('future-you-storage-updated'))
     navigate('/dashboard', { replace: true })
   }
 

@@ -28,7 +28,7 @@ export function QuickStatsBar({
     ).sort()
 
     if (activeDates.length === 0) {
-      return { currentStreak: 3, bestStreak: 14 } // Realistic default
+      return { currentStreak: 0, bestStreak: 0 }
     }
 
     let maxStreak = 1
@@ -53,19 +53,19 @@ export function QuickStatsBar({
     const curr = daysSinceLast <= 1 ? tempStreak : 0
 
     return {
-      currentStreak: curr > 0 ? curr : Math.max(tempStreak, 3),
-      bestStreak: Math.max(maxStreak, 14),
+      currentStreak: curr,
+      bestStreak: maxStreak,
     }
   }, [allLogs])
 
   // 2. All-time completed habit checkmarks
   const totalCompletions = useMemo(() => {
-    return allLogs.filter((l) => l.completion_status).length || 14
+    return allLogs.filter((l) => l.completion_status).length
   }, [allLogs])
 
   // 3. Weekly average completion rate across 7 days
   const weeklyAvg = useMemo(() => {
-    if (habits.length === 0) return 85
+    if (habits.length === 0 || allLogs.length === 0) return 0
 
     let progressSum = 0
     for (let i = 0; i < 7; i++) {
@@ -81,8 +81,7 @@ export function QuickStatsBar({
       progressSum += daySum / habits.length
     }
 
-    const rate = Math.round((progressSum / 7) * 100)
-    return rate > 0 ? rate : 85 // High quality default
+    return Math.round((progressSum / 7) * 100)
   }, [allLogs, selectedDate, habits])
 
   // 4. Dynamic Badges calculation based on user progress
@@ -173,7 +172,7 @@ export function QuickStatsBar({
               {unlockedCount} {unlockedCount === 1 ? 'Badge' : 'Badges'}
             </h4>
             <p className="text-[11px] sm:text-xs text-[#52633E] dark:text-[#8FA387] font-semibold mt-1 truncate">
-              {latestBadge ? latestBadge.title : 'Badges'}
+              {unlockedCount > 0 && latestBadge ? latestBadge.title : 'Start Tracking'}
             </p>
           </div>
         </div>

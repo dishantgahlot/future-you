@@ -385,7 +385,7 @@ router.get('/coach/history', asyncHandler(async (req: AuthenticatedRequest, res:
  */
 router.post('/progress-report', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = requireAuth(req)
-  const { period = 'weekly', habits = [], logs = [], userName = 'Dishant', apiKey } = req.body
+  const { period = 'weekly', habits = [], logs = [], userName = 'Friend', apiKey } = req.body
 
   if (period !== 'weekly' && period !== 'monthly') {
     throw new AppError(400, 'Invalid period: must be weekly or monthly')
@@ -422,7 +422,7 @@ router.post('/progress-report', asyncHandler(async (req: AuthenticatedRequest, r
  */
 router.post('/what-if-chat', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = requireAuth(req)
-  const { message, sessionId, sessionTitle, conversationHistory = [], habits = [], logs = [], userName = 'Dishant', apiKey } = req.body
+  const { message, sessionId, sessionTitle, conversationHistory = [], habits = [], logs = [], userName = 'Friend', apiKey } = req.body
 
   if (!message || typeof message !== 'string' || !message.trim()) {
     throw new AppError(400, 'Message is required for what-if simulation')

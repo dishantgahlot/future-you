@@ -16,6 +16,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import type { Habit, HabitCategory } from '../../types'
+import { getActiveUserId } from '../../utils/habitStorage'
 
 interface HabitFormModalProps {
   isOpen: boolean
@@ -106,7 +107,7 @@ export function HabitFormModal({
 
       onSave({
         id: crypto.randomUUID(),
-        user_id: 'dishant-user',
+        user_id: getActiveUserId(),
         name: trimmed,
         description: null,
         category,

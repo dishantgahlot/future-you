@@ -136,7 +136,7 @@ export function Simulator() {
   const { fullName, avatarUrl } = useUserProfile()
   const { user } = useAuth()
 
-  const userName = fullName || user?.user_metadata?.full_name || 'Dishant'
+  const userName = fullName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Friend'
 
   const welcomeMessage: ChatMessage = useMemo(() => ({
     id: 'welcome',

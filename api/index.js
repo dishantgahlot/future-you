@@ -55810,8 +55810,8 @@ async function fetchUserProfile(userId) {
     if (!error && data) {
       const profile = {
         id: data.id,
-        fullName: data.full_name || "Dishant",
-        email: data.email || "dishant@futureyou.app",
+        fullName: data.full_name || "Friend",
+        email: data.email || "user@futureyou.app",
         dateOfBirth: data.date_of_birth || "2004-05-15",
         preferences: data.preferences
       };
@@ -55822,8 +55822,8 @@ async function fetchUserProfile(userId) {
   }
   const defaultProfile = {
     id: userId,
-    fullName: "Dishant",
-    email: "dishant@futureyou.app",
+    fullName: "Friend",
+    email: "user@futureyou.app",
     dateOfBirth: "2004-05-15",
     preferences: { tone: "encouraging", theme: "botanical" }
   };
@@ -56081,8 +56081,8 @@ async function generateFutureLetter(options) {
   ]);
   const userProfile = {
     id: userId,
-    fullName: options.userName || profile?.fullName || "Dishant",
-    email: profile?.email || "dishant@futureyou.app",
+    fullName: options.userName || profile?.fullName || "Friend",
+    email: profile?.email || "user@futureyou.app",
     dateOfBirth: profile?.dateOfBirth || "2004-05-15",
     preferences: profile?.preferences || { tone: "encouraging", theme: "botanical" }
   };
@@ -56141,7 +56141,7 @@ async function generateFutureLetter(options) {
       completionRate: h.completionRate
     }));
     const fallbackContext = {
-      userName: userProfile.fullName || "Dishant",
+      userName: userProfile.fullName || "Friend",
       letterType,
       currentScore: Math.round(currentPath.overallScore),
       improvedScore: Math.round(improvedPath.overallScore),
@@ -56265,8 +56265,8 @@ async function fetchUserProfile2(userId) {
     if (!error && data) {
       return {
         id: data.id,
-        fullName: data.full_name || "Dishant",
-        email: data.email || "dishant@futureyou.app",
+        fullName: data.full_name || "Friend",
+        email: data.email || "user@futureyou.app",
         dateOfBirth: data.date_of_birth || "2004-05-15",
         preferences: data.preferences
       };
@@ -56275,8 +56275,8 @@ async function fetchUserProfile2(userId) {
   }
   return {
     id: userId,
-    fullName: "Dishant",
-    email: "dishant@futureyou.app",
+    fullName: "Friend",
+    email: "user@futureyou.app",
     dateOfBirth: "2004-05-15",
     preferences: {
       tone: "encouraging",
@@ -56481,8 +56481,8 @@ async function generateWeeklyInsight(options) {
     fullName: options.userName || fetchedProfile.fullName
   } : {
     id: userId,
-    fullName: options.userName || "Dishant",
-    email: "dishant@futureyou.app",
+    fullName: options.userName || "Friend",
+    email: "user@futureyou.app",
     dateOfBirth: "2004-05-15",
     preferences: { tone: "encouraging", theme: "botanical" }
   };
@@ -56661,16 +56661,16 @@ async function fetchUserProfile3(userId) {
   if (error || !data) {
     return {
       id: userId,
-      fullName: "Dishant",
-      email: "dishant@futureyou.app",
+      fullName: "Friend",
+      email: "user@futureyou.app",
       dateOfBirth: "2004-05-15",
       preferences: { tone: "encouraging", theme: "botanical" }
     };
   }
   return {
     id: data.id,
-    fullName: data.full_name || "Dishant",
-    email: data.email || "dishant@futureyou.app",
+    fullName: data.full_name || "Friend",
+    email: data.email || "user@futureyou.app",
     dateOfBirth: data.date_of_birth || "2004-05-15",
     preferences: data.preferences
   };
@@ -57000,8 +57000,8 @@ async function fetchUserProfile4(userId) {
   if (error || !data) {
     return {
       id: userId,
-      fullName: "Dishant",
-      email: "dishant@futureyou.app",
+      fullName: "Friend",
+      email: "user@futureyou.app",
       dateOfBirth: "2004-05-15",
       preferences: { tone: "encouraging", theme: "botanical" }
     };
@@ -57266,8 +57266,8 @@ async function fetchUserProfile5(userId) {
     if (!error && data) {
       return {
         id: data.id,
-        fullName: data.full_name || "Dishant",
-        email: data.email || "dishant@futureyou.app",
+        fullName: data.full_name || "Friend",
+        email: data.email || "user@futureyou.app",
         dateOfBirth: data.date_of_birth || "2004-05-15",
         preferences: data.preferences
       };
@@ -57276,8 +57276,8 @@ async function fetchUserProfile5(userId) {
   }
   return {
     id: userId,
-    fullName: "Dishant",
-    email: "dishant@futureyou.app",
+    fullName: "Friend",
+    email: "user@futureyou.app",
     dateOfBirth: "2004-05-15",
     preferences: {
       tone: "encouraging",
@@ -63117,7 +63117,7 @@ init_aiCoachService();
 init_geminiClient();
 init_config();
 async function generateProgressReport(options) {
-  const { period, habits = [], logs = [], userName = "Dishant", apiKey } = options;
+  const { period, habits = [], logs = [], userName = "Friend", apiKey } = options;
   let habitsToProcess = habits;
   let logsToProcess = logs;
   if (habitsToProcess.length === 0) {
@@ -63605,7 +63605,7 @@ async function simulateWhatIfScenario(options) {
     conversationHistory = [],
     habits = [],
     logs = [],
-    userName = "Dishant",
+    userName = "Friend",
     apiKey
   } = options;
   if (!sessionId) {
@@ -63804,7 +63804,7 @@ You possess the complete knowledge, intellect, and conversational reasoning of a
 1. ANSWER THE USER'S ACTUAL QUESTION DIRECTLY AND FIRST (LIKE CHATGPT):
    - You can chat about ANY subject freely: programming (e.g. "what is api", code debugging, architecture), science, mathematics, literature, philosophy, emotional clarity, humor, writing, or everyday life decisions.
    - When the user asks a question, answer THAT QUESTION directly, thoroughly, clearly, and brilliantly.
-   - NEVER start your response with a canned greeting reciting habit statistics (e.g. DO NOT say "Hi Dishant! Right now you are operating at a 74% overall average...").
+   - NEVER start your response with a canned greeting reciting habit statistics (e.g. DO NOT say "Hi ${userName}! Right now you are operating at a 74% overall average...").
    - NEVER inject unprompted habit percentages or productivity lectures into general knowledge, technical, or casual questions.
 
 2. ON-DEMAND LIVE DATABASE ACCESS (ACCURATE & ZERO GUESSWORK):
@@ -64534,7 +64534,7 @@ router8.get("/coach/history", asyncHandler(async (req, res) => {
 }));
 router8.post("/progress-report", asyncHandler(async (req, res) => {
   const userId = requireAuth(req);
-  const { period = "weekly", habits = [], logs = [], userName = "Dishant", apiKey } = req.body;
+  const { period = "weekly", habits = [], logs = [], userName = "Friend", apiKey } = req.body;
   if (period !== "weekly" && period !== "monthly") {
     throw new AppError(400, "Invalid period: must be weekly or monthly");
   }
@@ -64559,7 +64559,7 @@ router8.post("/progress-report", asyncHandler(async (req, res) => {
 }));
 router8.post("/what-if-chat", asyncHandler(async (req, res) => {
   const userId = requireAuth(req);
-  const { message, sessionId, sessionTitle, conversationHistory = [], habits = [], logs = [], userName = "Dishant", apiKey } = req.body;
+  const { message, sessionId, sessionTitle, conversationHistory = [], habits = [], logs = [], userName = "Friend", apiKey } = req.body;
   if (!message || typeof message !== "string" || !message.trim()) {
     throw new AppError(400, "Message is required for what-if simulation");
   }

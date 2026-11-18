@@ -297,7 +297,7 @@ export function InsightsPage() {
         period: viewPeriod,
         habits,
         logs: allLogs,
-        userName: fullName || 'Dishant',
+        userName: fullName || 'Friend',
       })
 
       if (res.data) {

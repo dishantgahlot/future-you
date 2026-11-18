@@ -357,7 +357,7 @@ export async function simulateWhatIfScenario(
     conversationHistory = [],
     habits = [],
     logs = [],
-    userName = 'Dishant',
+    userName = 'Friend',
     apiKey,
   } = options
 
@@ -623,7 +623,7 @@ You possess the complete knowledge, intellect, and conversational reasoning of a
 1. ANSWER THE USER'S ACTUAL QUESTION DIRECTLY AND FIRST (LIKE CHATGPT):
    - You can chat about ANY subject freely: programming (e.g. "what is api", code debugging, architecture), science, mathematics, literature, philosophy, emotional clarity, humor, writing, or everyday life decisions.
    - When the user asks a question, answer THAT QUESTION directly, thoroughly, clearly, and brilliantly.
-   - NEVER start your response with a canned greeting reciting habit statistics (e.g. DO NOT say "Hi Dishant! Right now you are operating at a 74% overall average...").
+   - NEVER start your response with a canned greeting reciting habit statistics (e.g. DO NOT say "Hi ${userName}! Right now you are operating at a 74% overall average...").
    - NEVER inject unprompted habit percentages or productivity lectures into general knowledge, technical, or casual questions.
 
 2. ON-DEMAND LIVE DATABASE ACCESS (ACCURATE & ZERO GUESSWORK):

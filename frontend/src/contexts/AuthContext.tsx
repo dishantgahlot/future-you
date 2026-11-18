@@ -63,19 +63,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
+        localStorage.setItem('future_you_active_user_id', session.user.id)
         setUser(session.user)
       } else {
         const savedActive = localStorage.getItem('future_you_active_user')
         const savedDemo = localStorage.getItem('future_you_demo_user')
         if (savedActive) {
           try {
-            setUser(JSON.parse(savedActive))
+            const parsed = JSON.parse(savedActive)
+            if (parsed?.id) localStorage.setItem('future_you_active_user_id', parsed.id)
+            setUser(parsed)
           } catch {
             setUser(null)
           }
         } else if (savedDemo) {
           try {
-            setUser(JSON.parse(savedDemo))
+            const parsed = JSON.parse(savedDemo)
+            if (parsed?.id) localStorage.setItem('future_you_active_user_id', parsed.id)
+            setUser(parsed)
             setOnboardingCompleted(true)
           } catch {
             setUser(null)
@@ -90,8 +95,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
+        localStorage.setItem('future_you_active_user_id', session.user.id)
         setUser(session.user)
+      } else {
+        localStorage.removeItem('future_you_active_user_id')
+        setUser(null)
       }
+      window.dispatchEvent(new CustomEvent('future-you-storage-updated'))
       setLoading(false)
     })
 
@@ -288,13 +298,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: 'alex@futureyou.app',
     } as unknown as User
     localStorage.setItem('future_you_demo_user', JSON.stringify(demoUser))
+    localStorage.setItem('future_you_active_user_id', demoUser.id)
     setUser(demoUser)
     setOnboardingCompleted(true)
+    window.dispatchEvent(new CustomEvent('future-you-storage-updated'))
   }
 
   const signOut = async () => {
     localStorage.removeItem('future_you_demo_user')
     localStorage.removeItem('future_you_active_user')
+    localStorage.removeItem('future_you_active_user_id')
     try {
       await supabase.auth.signOut()
     } catch (e) {
@@ -302,6 +315,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(null)
     setOnboardingCompleted(false)
+    window.dispatchEvent(new CustomEvent('future-you-storage-updated'))
   }
 
   const resetPassword = async (email: string) => {

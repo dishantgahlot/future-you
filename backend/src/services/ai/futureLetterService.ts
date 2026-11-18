@@ -74,8 +74,8 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
     if (!error && data) {
       const profile = {
         id: data.id,
-        fullName: data.full_name || 'Dishant',
-        email: data.email || 'dishant@futureyou.app',
+        fullName: data.full_name || 'Friend',
+        email: data.email || 'user@futureyou.app',
         dateOfBirth: data.date_of_birth || '2004-05-15',
         preferences: data.preferences,
       }
@@ -88,8 +88,8 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
 
   const defaultProfile = {
     id: userId,
-    fullName: 'Dishant',
-    email: 'dishant@futureyou.app',
+    fullName: 'Friend',
+    email: 'user@futureyou.app',
     dateOfBirth: '2004-05-15',
     preferences: { tone: 'encouraging', theme: 'botanical' },
   }
@@ -443,8 +443,8 @@ export async function generateFutureLetter(options: GenerateFutureLetterOptions)
 
   const userProfile: UserProfile = {
     id: userId,
-    fullName: options.userName || profile?.fullName || 'Dishant',
-    email: profile?.email || 'dishant@futureyou.app',
+    fullName: options.userName || profile?.fullName || 'Friend',
+    email: profile?.email || 'user@futureyou.app',
     dateOfBirth: profile?.dateOfBirth || '2004-05-15',
     preferences: profile?.preferences || { tone: 'encouraging', theme: 'botanical' },
   }
@@ -520,7 +520,7 @@ export async function generateFutureLetter(options: GenerateFutureLetterOptions)
       }))
 
     const fallbackContext = {
-      userName: userProfile.fullName || 'Dishant',
+      userName: userProfile.fullName || 'Friend',
       letterType,
       currentScore: Math.round(currentPath.overallScore),
       improvedScore: Math.round(improvedPath.overallScore),

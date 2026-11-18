@@ -117,7 +117,7 @@ const WEEK_DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export function BotanicalHero({
   selectedDate,
   onSelectDate,
-  userName = 'Dishant',
+  userName = 'Friend',
 }: BotanicalHeroProps) {
   const { avatarUrl, fullName } = useUserProfile()
   const { unreadCount, toggleOpen } = useNotifications()

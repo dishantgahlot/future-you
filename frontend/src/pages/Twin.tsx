@@ -38,7 +38,7 @@ export function Twin() {
   const allLogs = useMemo(() => getAllLocalLogs(), [])
 
   const is5Year = horizon === '5_years'
-  const displayName = fullName || 'Dishant'
+  const displayName = fullName || 'Friend'
 
   // Projected trajectory data
   const trajectoryPoints = is5Year

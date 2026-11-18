@@ -34,6 +34,7 @@ import {
   deleteLocalHabit,
   getAllLocalLogs,
   saveLocalLog,
+  getActiveUserId,
 } from '../utils/habitStorage'
 import { deleteHabit, updateHabit, upsertHabitLog, createHabit } from '../services/api'
 import { HabitFormModal } from '../components/habits/HabitFormModal'
@@ -263,7 +264,7 @@ export function Habits() {
 
       const newHabit: Habit = {
         id: crypto.randomUUID(),
-        user_id: 'dishant-user',
+        user_id: getActiveUserId(),
         name: data.name || 'New Habit',
         description: data.description || null,
         category: data.category || 'health',

@@ -136,7 +136,7 @@ export function calculateUserBadges(
       isUnlocked: totalCompleted >= 1,
       progress: Math.min(totalCompleted, 1),
       maxProgress: 1,
-      unlockedDate: 'Nov 7, 2026',
+      unlockedDate: totalCompleted >= 1 ? 'Nov 7, 2026' : undefined,
       colors: TIER_COLORS.bronze,
     },
     // 2. Streak Shark (Consistency Streak)

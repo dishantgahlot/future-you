@@ -5,6 +5,7 @@ import {
   getLocalHabits,
   saveLocalHabits,
   getAllLocalLogs,
+  getActiveUserId,
 } from '../utils/habitStorage'
 import {
   fetchHabits,
@@ -31,8 +32,8 @@ export function TodayPage() {
 
   // Selected date defaults to current live date
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date())
-  const [habits, setHabits] = useState<Habit[]>(() => getLocalHabits())
-  const [allLogs, setAllLogs] = useState<HabitLog[]>(() => getAllLocalLogs())
+  const [habits, setHabits] = useState<Habit[]>(() => getLocalHabits(user?.id))
+  const [allLogs, setAllLogs] = useState<HabitLog[]>(() => getAllLocalLogs(user?.id))
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null)
   const [selectedModalGraph, setSelectedModalGraph] = useState<'weekly' | 'monthly' | null>(null)
@@ -40,16 +41,17 @@ export function TodayPage() {
 
   // Load habits from backend / Supabase when available
   const loadRemoteHabits = useCallback(async () => {
+    if (!user) return
     try {
       const res = await fetchHabits()
       if (res.data && Array.isArray(res.data) && res.data.length > 0) {
         setHabits(res.data)
-        saveLocalHabits(res.data)
+        saveLocalHabits(res.data, user.id)
       }
     } catch {
       // Graceful fallback to local habits
     }
-  }, [])
+  }, [user])
 
   useEffect(() => {
     loadRemoteHabits()
@@ -65,12 +67,13 @@ export function TodayPage() {
     return () => window.removeEventListener('open-add-habit-modal', handleQuickAdd)
   }, [])
 
-  // Synchronize state when storage changes in dedicated Habits section
+  // Synchronize state when storage changes or user changes
   useEffect(() => {
     const handleSync = () => {
-      setHabits(getLocalHabits())
-      setAllLogs(getAllLocalLogs())
+      setHabits(getLocalHabits(user?.id))
+      setAllLogs(getAllLocalLogs(user?.id))
     }
+    handleSync()
     window.addEventListener('future-you-storage-updated', handleSync)
     window.addEventListener('storage', handleSync)
     window.addEventListener('focus', handleSync)
@@ -79,7 +82,7 @@ export function TodayPage() {
       window.removeEventListener('storage', handleSync)
       window.removeEventListener('focus', handleSync)
     }
-  }, [])
+  }, [user?.id])
 
   // Persist habits to local storage whenever they change
   useEffect(() => {
@@ -155,7 +158,7 @@ export function TodayPage() {
       // Create new habit
       const newHabit: Habit = {
         id: crypto.randomUUID(),
-        user_id: user?.id || 'dishant-user',
+        user_id: user?.id || getActiveUserId(),
         name: habitData.name || 'New Habit',
         description: habitData.description || null,
         category: habitData.category || 'health',
@@ -190,7 +193,7 @@ export function TodayPage() {
     setShowAddModal(false)
   }
 
-  const displayName = fullName || user?.user_metadata?.full_name || 'Dishant'
+  const displayName = fullName || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Friend'
 
   return (
     <div className="space-y-3.5 sm:space-y-4">

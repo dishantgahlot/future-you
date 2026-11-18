@@ -32,8 +32,8 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
   if (error || !data) {
     return {
       id: userId,
-      fullName: 'Dishant',
-      email: 'dishant@futureyou.app',
+      fullName: 'Friend',
+      email: 'user@futureyou.app',
       dateOfBirth: '2004-05-15',
       preferences: { tone: 'encouraging', theme: 'botanical' },
     }

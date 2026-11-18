@@ -40,17 +40,17 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   const [fullName, setFullName] = useState<string>(() => {
     try {
       const saved = localStorage.getItem(PROFILE_KEY)
-      if (saved) return JSON.parse(saved).fullName || 'Dishant'
+      if (saved) return JSON.parse(saved).fullName || 'Friend'
     } catch {}
-    return 'Dishant'
+    return 'Friend'
   })
 
   const [email, setEmail] = useState<string>(() => {
     try {
       const saved = localStorage.getItem(PROFILE_KEY)
-      if (saved) return JSON.parse(saved).email || 'dishant@futureyou.ai'
+      if (saved) return JSON.parse(saved).email || 'user@futureyou.ai'
     } catch {}
-    return 'dishant@futureyou.ai'
+    return 'user@futureyou.ai'
   })
 
   const [avatarUrl, setAvatarUrl] = useState<string>(() => {
@@ -63,7 +63,7 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
   })
 
   const [avatarSeed, setAvatarSeed] = useState<string>(() => {
-    return localStorage.getItem(AVATAR_SEED_KEY) || 'Dishant'
+    return localStorage.getItem(AVATAR_SEED_KEY) || 'Nature'
   })
 
   const [loginHistory, setLoginHistory] = useState<LoginRecord[]>(() => {
@@ -136,8 +136,8 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
     if (!user) return
 
     if (user.id === 'demo-user-1') {
-      setFullName('Dishant Gahlot')
-      setEmail('dishant@futureyou.ai')
+      setFullName('Alex Rivera')
+      setEmail('alex@futureyou.app')
       return
     }
 

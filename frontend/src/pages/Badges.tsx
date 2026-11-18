@@ -25,7 +25,7 @@ export function Badges() {
     const activeDates = Array.from(
       new Set(logs.filter((l) => l.completion_status).map((l) => l.log_date))
     ).sort()
-    return activeDates.length > 0 ? Math.max(activeDates.length, 3) : 3
+    return activeDates.length
   }, [logs])
 
   const { badges, unlockedCount, totalCount } = useMemo(() => {

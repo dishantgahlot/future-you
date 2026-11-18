@@ -65,7 +65,7 @@ export interface GenerateProgressReportOptions {
 export async function generateProgressReport(
   options: GenerateProgressReportOptions
 ): Promise<{ report: ProgressReportData; usedFallback: boolean; model: string }> {
-  const { period, habits = [], logs = [], userName = 'Dishant', apiKey } = options
+  const { period, habits = [], logs = [], userName = 'Friend', apiKey } = options
 
   // Provide realistic habits if empty so the LLM always has rich data to evaluate
   let habitsToProcess = habits

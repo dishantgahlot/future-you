@@ -237,7 +237,7 @@ export function Sidebar() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-slate-900 dark:text-white truncate leading-tight">
-                    {fullName || 'Dishant'}
+                    {fullName || 'Member'}
                   </p>
                   <p className="text-[10px] text-slate-500 dark:text-[#A8BCA0] truncate leading-tight">
                     {email || 'Member'}
