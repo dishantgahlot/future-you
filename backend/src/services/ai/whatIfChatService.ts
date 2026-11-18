@@ -368,48 +368,57 @@ export async function simulateWhatIfScenario(
     sessionTitle = message.length > 36 ? `${message.slice(0, 36).trim()}...` : message.trim()
   }
 
-  // Load recent conversation history for this session if not provided
-  if ((!conversationHistory || conversationHistory.length === 0) && userId) {
-    try {
-      const pastMessages = sessionId
-        ? await getWhatIfSessionMessages(userId, sessionId)
-        : await getWhatIfChatHistory(userId, 8)
-      if (pastMessages && pastMessages.length > 0) {
-        conversationHistory = pastMessages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        }))
-      }
-    } catch (e) {
-      // Non-blocking
-    }
-  }
+  // Parallel fast retrieval of conversation history and habit database if not provided
+  const uid = userId
+  const needsHistory = (!conversationHistory || conversationHistory.length === 0) && Boolean(uid)
+  const needsHabits = (!habits || habits.length === 0) && Boolean(uid)
 
-  // Fast retrieval from indexed & cached habit progress service if habits/logs not passed
-  if ((!habits || habits.length === 0) && userId) {
-    try {
-      const progressSummary = await getUserHabitProgress(userId)
-      if (progressSummary && progressSummary.habits.length > 0) {
-        habits = progressSummary.habits.map((h) => ({
-          id: h.id,
-          name: h.name,
-          category: h.category,
-          target_value: h.targetValue,
-          unit: h.unit,
-          frequency: h.frequency,
-        }))
-        logs = progressSummary.recentLogs.map((l) => ({
-          habit_id: l.habitId,
-          log_date: l.date,
-          actual_value: l.actualValue,
-          value: l.actualValue,
-          progress_percentage: l.progressPercentage,
-          completion_status: l.progressPercentage >= 100,
-        }))
-      }
-    } catch (e) {
-      // Non-blocking fallback
+  if (uid && (needsHistory || needsHabits)) {
+    const promises: Promise<any>[] = []
+
+    if (needsHistory) {
+      promises.push(
+        (sessionId ? getWhatIfSessionMessages(uid, sessionId) : getWhatIfChatHistory(uid, 8))
+          .then((past) => {
+            if (past && past.length > 0) {
+              conversationHistory = past.map((m) => ({
+                role: m.role,
+                content: m.content,
+              }))
+            }
+          })
+          .catch(() => {})
+      )
     }
+
+    if (needsHabits) {
+      promises.push(
+        getUserHabitProgress(uid)
+          .then((progressSummary) => {
+            if (progressSummary && progressSummary.habits.length > 0) {
+              habits = progressSummary.habits.map((h) => ({
+                id: h.id,
+                name: h.name,
+                category: h.category,
+                target_value: h.targetValue,
+                unit: h.unit,
+                frequency: h.frequency,
+              }))
+              logs = progressSummary.recentLogs.map((l) => ({
+                habit_id: l.habitId,
+                log_date: l.date,
+                actual_value: l.actualValue,
+                value: l.actualValue,
+                progress_percentage: l.progressPercentage,
+                completion_status: l.progressPercentage >= 100,
+              }))
+            }
+          })
+          .catch(() => {})
+      )
+    }
+
+    await Promise.all(promises)
   }
 
   // 1. Deep Database Data Processing & Continuous Percentage Analytics
@@ -614,7 +623,7 @@ export async function simulateWhatIfScenario(
   const canUseGemini = activeKey && activeKey !== 'your_gemini_api_key'
 
   if (canUseGemini) {
-    const targetModel = config.gemini.model || 'gemini-3.5-flash-lite'
+    const targetModel = config.gemini.model || 'gemini-3.1-flash-lite'
 
     const systemInstruction = `You are "Future You" — the embodiment, wise counsel, and living representation of ${userName}'s future self (5 years from now), observing and guiding the daily habits, mindset, and choices that determine who ${userName} becomes.
 
@@ -689,8 +698,8 @@ ${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.weeklyRate}% 7-da
         model: targetModel,
         systemInstruction,
         noCache: true, // Interactive chat must always generate fresh real-time responses
-        maxOutputTokens: 850,
-        timeout: 25000,
+        maxOutputTokens: 600,
+        timeout: 7000,
       })
       const res = await client.generateContent(promptText)
 

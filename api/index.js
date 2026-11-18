@@ -53069,7 +53069,7 @@ var init_config = __esm({
       },
       gemini: {
         apiKey: process.env.GEMINI_API_KEY || "",
-        model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite"
+        model: process.env.GEMINI_MODEL || "gemini-3.1-flash-lite"
       },
       jwt: {
         secret: process.env.JWT_SECRET || "your-super-secret-jwt-key-change-in-production",
@@ -54210,23 +54210,23 @@ var init_geminiClient = __esm({
     responseCache = /* @__PURE__ */ new Map();
     DEFAULT_OPTIONS = {
       apiKey: void 0,
-      model: config.gemini.model || "gemini-3.5-flash-lite",
+      model: config.gemini.model || "gemini-3.1-flash-lite",
       temperature: 0.7,
       maxOutputTokens: 2048,
       topP: 0.95,
       topK: 40,
-      timeout: 1e4,
-      // 10s timeout for fast failover
+      timeout: 7e3,
+      // 7s timeout for fast failover
       maxRetries: 0,
       systemInstruction: void 0,
       noCache: false,
-      thinkingBudget: 0
-      // 0 disables lengthy reasoning chains for fast structured answers
+      thinkingBudget: void 0
+      // Leave undefined so flash-lite models don't fail with 400 Bad Request
     };
     CANDIDATE_MODELS = [
+      "gemini-3.1-flash-lite",
+      "gemini-flash-lite-latest",
       "gemini-3.5-flash-lite",
-      "gemini-3.8-flash",
-      "gemini-3.5-flash",
       "gemini-2.5-flash",
       "gemini-flash-latest"
     ];
@@ -54334,7 +54334,7 @@ var init_geminiClient = __esm({
         let lastError = null;
         const overallStart = Date.now();
         for (const modelName of modelsToTry) {
-          if (Date.now() - overallStart > 3e4) break;
+          if (Date.now() - overallStart > 12e3) break;
           try {
             this.requestCount++;
             const startTime = Date.now();
@@ -54347,7 +54347,7 @@ var init_geminiClient = __esm({
                 topK: this.options.topK
               }
             };
-            if (this.options.thinkingBudget !== void 0) {
+            if (this.options.thinkingBudget !== void 0 && this.options.thinkingBudget > 0) {
               modelParams.generationConfig.thinkingConfig = {
                 thinkingBudget: this.options.thinkingBudget
               };
@@ -54426,7 +54426,7 @@ var init_geminiClient = __esm({
         let lastError = null;
         const overallStart = Date.now();
         for (const modelName of modelsToTry) {
-          if (Date.now() - overallStart > 3e4) break;
+          if (Date.now() - overallStart > 12e3) break;
           try {
             this.requestCount++;
             const startTime = Date.now();
@@ -54440,7 +54440,7 @@ var init_geminiClient = __esm({
                 responseMimeType: "application/json"
               }
             };
-            if (this.options.thinkingBudget !== void 0) {
+            if (this.options.thinkingBudget !== void 0 && this.options.thinkingBudget > 0) {
               jsonModelParams.generationConfig.thinkingConfig = {
                 thinkingBudget: this.options.thinkingBudget
               };
@@ -63707,41 +63707,50 @@ async function simulateWhatIfScenario(options) {
   if (!sessionTitle) {
     sessionTitle = message.length > 36 ? `${message.slice(0, 36).trim()}...` : message.trim();
   }
-  if ((!conversationHistory || conversationHistory.length === 0) && userId) {
-    try {
-      const pastMessages = sessionId ? await getWhatIfSessionMessages(userId, sessionId) : await getWhatIfChatHistory(userId, 8);
-      if (pastMessages && pastMessages.length > 0) {
-        conversationHistory = pastMessages.map((m) => ({
-          role: m.role,
-          content: m.content
-        }));
-      }
-    } catch (e) {
+  const uid = userId;
+  const needsHistory = (!conversationHistory || conversationHistory.length === 0) && Boolean(uid);
+  const needsHabits = (!habits || habits.length === 0) && Boolean(uid);
+  if (uid && (needsHistory || needsHabits)) {
+    const promises = [];
+    if (needsHistory) {
+      promises.push(
+        (sessionId ? getWhatIfSessionMessages(uid, sessionId) : getWhatIfChatHistory(uid, 8)).then((past) => {
+          if (past && past.length > 0) {
+            conversationHistory = past.map((m) => ({
+              role: m.role,
+              content: m.content
+            }));
+          }
+        }).catch(() => {
+        })
+      );
     }
-  }
-  if ((!habits || habits.length === 0) && userId) {
-    try {
-      const progressSummary = await getUserHabitProgress(userId);
-      if (progressSummary && progressSummary.habits.length > 0) {
-        habits = progressSummary.habits.map((h) => ({
-          id: h.id,
-          name: h.name,
-          category: h.category,
-          target_value: h.targetValue,
-          unit: h.unit,
-          frequency: h.frequency
-        }));
-        logs = progressSummary.recentLogs.map((l) => ({
-          habit_id: l.habitId,
-          log_date: l.date,
-          actual_value: l.actualValue,
-          value: l.actualValue,
-          progress_percentage: l.progressPercentage,
-          completion_status: l.progressPercentage >= 100
-        }));
-      }
-    } catch (e) {
+    if (needsHabits) {
+      promises.push(
+        getUserHabitProgress(uid).then((progressSummary) => {
+          if (progressSummary && progressSummary.habits.length > 0) {
+            habits = progressSummary.habits.map((h) => ({
+              id: h.id,
+              name: h.name,
+              category: h.category,
+              target_value: h.targetValue,
+              unit: h.unit,
+              frequency: h.frequency
+            }));
+            logs = progressSummary.recentLogs.map((l) => ({
+              habit_id: l.habitId,
+              log_date: l.date,
+              actual_value: l.actualValue,
+              value: l.actualValue,
+              progress_percentage: l.progressPercentage,
+              completion_status: l.progressPercentage >= 100
+            }));
+          }
+        }).catch(() => {
+        })
+      );
     }
+    await Promise.all(promises);
   }
   const now = /* @__PURE__ */ new Date();
   const todayStr = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
@@ -63889,7 +63898,7 @@ async function simulateWhatIfScenario(options) {
   const activeKey = apiKey || config.gemini.apiKey;
   const canUseGemini = activeKey && activeKey !== "your_gemini_api_key";
   if (canUseGemini) {
-    const targetModel = config.gemini.model || "gemini-3.5-flash-lite";
+    const targetModel = config.gemini.model || "gemini-3.1-flash-lite";
     const systemInstruction = `You are "Future You" \u2014 the embodiment, wise counsel, and living representation of ${userName}'s future self (5 years from now), observing and guiding the daily habits, mindset, and choices that determine who ${userName} becomes.
 
 === CORE PERSONA & IDENTITY (STRICT) ===
@@ -63964,8 +63973,8 @@ Assistant:`;
         systemInstruction,
         noCache: true,
         // Interactive chat must always generate fresh real-time responses
-        maxOutputTokens: 850,
-        timeout: 25e3
+        maxOutputTokens: 600,
+        timeout: 7e3
       });
       const res = await client.generateContent(promptText);
       if (res.success && res.data) {

@@ -86,22 +86,22 @@ const DEFAULT_OPTIONS: Required<Omit<GeminiClientOptions, 'apiKey' | 'systemInst
   thinkingBudget?: number
 } = {
   apiKey: undefined,
-  model: config.gemini.model || 'gemini-3.5-flash-lite',
+  model: config.gemini.model || 'gemini-3.1-flash-lite',
   temperature: 0.7,
   maxOutputTokens: 2048,
   topP: 0.95,
   topK: 40,
-  timeout: 10000, // 10s timeout for fast failover
+  timeout: 7000, // 7s timeout for fast failover
   maxRetries: 0,
   systemInstruction: undefined,
   noCache: false,
-  thinkingBudget: 0, // 0 disables lengthy reasoning chains for fast structured answers
+  thinkingBudget: undefined, // Leave undefined so flash-lite models don't fail with 400 Bad Request
 }
 
 const CANDIDATE_MODELS = [
+  'gemini-3.1-flash-lite',
+  'gemini-flash-lite-latest',
   'gemini-3.5-flash-lite',
-  'gemini-3.8-flash',
-  'gemini-3.5-flash',
   'gemini-2.5-flash',
   'gemini-flash-latest',
 ]
@@ -236,7 +236,7 @@ export class GeminiClient {
     const overallStart = Date.now()
 
     for (const modelName of modelsToTry) {
-      if (Date.now() - overallStart > 30000) break
+      if (Date.now() - overallStart > 12000) break
       try {
         this.requestCount++
         const startTime = Date.now()
@@ -250,7 +250,7 @@ export class GeminiClient {
             topK: this.options.topK,
           },
         }
-        if (this.options.thinkingBudget !== undefined) {
+        if (this.options.thinkingBudget !== undefined && this.options.thinkingBudget > 0) {
           modelParams.generationConfig.thinkingConfig = {
             thinkingBudget: this.options.thinkingBudget,
           }
@@ -343,7 +343,7 @@ export class GeminiClient {
     const overallStart = Date.now()
 
     for (const modelName of modelsToTry) {
-      if (Date.now() - overallStart > 30000) break
+      if (Date.now() - overallStart > 12000) break
       try {
         this.requestCount++
         const startTime = Date.now()
@@ -358,7 +358,7 @@ export class GeminiClient {
             responseMimeType: 'application/json',
           },
         }
-        if (this.options.thinkingBudget !== undefined) {
+        if (this.options.thinkingBudget !== undefined && this.options.thinkingBudget > 0) {
           jsonModelParams.generationConfig.thinkingConfig = {
             thinkingBudget: this.options.thinkingBudget,
           }
