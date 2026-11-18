@@ -42,6 +42,8 @@ import {
 import { deleteHabit, updateHabit, upsertHabitLog, createHabit } from '../services/api'
 import { HabitFormModal } from '../components/habits/HabitFormModal'
 import { format } from 'date-fns'
+import { useNotifications } from '../contexts/NotificationContext'
+import { DesktopNotificationBanner } from '../components/notifications/DesktopNotificationBanner'
 
 const CATEGORY_FILTERS: { value: HabitCategory | 'all'; label: string; icon: IconDefinition }[] = [
   { value: 'all', label: 'All', icon: faLeaf },
@@ -122,6 +124,7 @@ function formatUnit(unit?: string): string {
 }
 
 export function Habits() {
+  const { notifyHabitMilestone } = useNotifications()
   const [habits, setHabits] = useState<Habit[]>(() => getLocalHabits())
   const [logs, setLogs] = useState<HabitLog[]>(() => getAllLocalLogs())
   const [searchQuery, setSearchQuery] = useState('')
@@ -204,6 +207,21 @@ export function Habits() {
   const handleUpdateProgress = async (habit: Habit, nextVal: number) => {
     const target = getDayTarget(habit.id, todayStr, habit.target_value || 1)
     const clampedVal = Math.max(0, Math.round(nextVal * 10) / 10)
+
+    const prevLog = logs.find((l) => l.habit_id === habit.id && l.log_date === todayStr)
+    const prevVal =
+      prevLog?.actual_value !== undefined
+        ? prevLog.actual_value
+        : prevLog?.completion_status
+        ? target
+        : 0
+
+    // Trigger celebratory desktop alert (WhatsApp-style) upon reaching 100% or 70% threshold
+    if (clampedVal >= target && prevVal < target) {
+      notifyHabitMilestone(habit.name, clampedVal, target, habit.unit)
+    } else if (clampedVal >= target * 0.7 && prevVal < target * 0.7) {
+      notifyHabitMilestone(habit.name, clampedVal, target, habit.unit)
+    }
 
     const updatedLog = saveLocalLog(habit.id, todayStr, clampedVal, target)
     setLogs((prev) => {
@@ -381,6 +399,9 @@ export function Habits() {
 
   return (
     <div className="space-y-4 sm:space-y-5 max-w-7xl mx-auto pb-8 sm:pb-0">
+      {/* WhatsApp-Style Desktop Notification Permission Banner */}
+      <DesktopNotificationBanner />
+
       {/* 1. Header Banner ("Habit Studio" with watercolor botanical landscape & quote) */}
       <div className="bg-[#FAF7F0] dark:bg-[#0D1814] rounded-3xl border border-[#E9E1D2] dark:border-[#223326] p-4 sm:p-6 md:p-7 shadow-[0_2px_12px_rgba(29,37,22,0.03)] relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors">
         {/* Watercolor botanical background on right */}

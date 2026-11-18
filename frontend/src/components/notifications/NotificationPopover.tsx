@@ -8,6 +8,9 @@ import {
   faTrashCan,
   faXmark,
   faClock,
+  faDesktop,
+  faPaperPlane,
+  faTriangleExclamation,
 } from '@fortawesome/free-solid-svg-icons'
 import { useNotifications } from '../../contexts/NotificationContext'
 import { formatDistanceToNow } from 'date-fns'
@@ -22,6 +25,9 @@ export function NotificationPopover() {
     markAllAsRead,
     clearNotification,
     clearAll,
+    browserPermission,
+    requestBrowserPermission,
+    testDesktopNotification,
   } = useNotifications()
 
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -108,6 +114,59 @@ export function NotificationPopover() {
               </button>
             </div>
           </div>
+
+          {/* WhatsApp-Style Desktop Notification Control Banner */}
+          {browserPermission === 'default' && (
+            <div className="mx-3.5 mt-3 p-3 rounded-2xl bg-gradient-to-r from-[#EEF4E8] to-[#FAF8F3] dark:from-[#1A2E22] dark:to-[#132219] border border-[#CCD8B8] dark:border-[#2C4434] shadow-2xs flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-[#4A6225] dark:bg-[#A8D968] text-white dark:text-[#0D1814] flex items-center justify-center text-xs flex-shrink-0 shadow-2xs">
+                  <FontAwesomeIcon icon={faDesktop} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight">
+                    Desktop Notifications
+                  </p>
+                  <p className="text-[10px] text-[#556933] dark:text-[#A8BCA0] leading-tight mt-0.5 truncate">
+                    Get alerts on your desktop like WhatsApp
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={requestBrowserPermission}
+                className="px-3 py-1.5 rounded-xl bg-[#4A6225] hover:bg-[#3D521E] text-white text-xs font-semibold shadow-xs flex-shrink-0 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+              >
+                Turn on
+              </button>
+            </div>
+          )}
+
+          {browserPermission === 'granted' && (
+            <div className="mx-3.5 mt-3 px-3 py-2 rounded-2xl bg-[#EEF4E8]/80 dark:bg-[#16271D] border border-[#CCD8B8]/60 dark:border-[#22352B] flex items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+                <span className="text-[11px] font-bold text-[#2E4218] dark:text-[#A8D968] truncate">
+                  Desktop alerts active (WhatsApp-style)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={testDesktopNotification}
+                className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#1D2F24] hover:bg-[#FAF8F3] text-[#415525] dark:text-[#D5E8C8] text-[10px] font-bold border border-[#CCD8B8] dark:border-[#2C4434] shadow-2xs transition-all cursor-pointer flex items-center gap-1 active:scale-95 flex-shrink-0"
+                title="Send a sample WhatsApp-style desktop notification"
+              >
+                <FontAwesomeIcon icon={faPaperPlane} className="text-[9px]" />
+                <span>Test alert</span>
+              </button>
+            </div>
+          )}
+
+          {browserPermission === 'denied' && (
+            <div className="mx-3.5 mt-3 px-3 py-2 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 flex items-center gap-2 text-[11px] text-amber-800 dark:text-amber-200 shadow-2xs">
+              <FontAwesomeIcon icon={faTriangleExclamation} className="text-amber-600 flex-shrink-0 text-xs" />
+              <span className="leading-tight">Desktop alerts blocked in browser. Enable in site permissions.</span>
+            </div>
+          )}
 
           {/* Clean Notifications List */}
           <div className="overflow-y-auto divide-y divide-[#EAE3D5]/60 dark:divide-[#223326] flex-1 overscroll-contain">

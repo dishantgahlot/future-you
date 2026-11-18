@@ -1,6 +1,11 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { format } from 'date-fns'
 import { getLocalHabits, getAllLocalLogs } from '../utils/habitStorage'
+import {
+  isNotificationSupported,
+  getNotificationPermission,
+  showDesktopNotification,
+} from '../utils/desktopNotification'
 
 export interface AppNotification {
   id: string
@@ -22,6 +27,8 @@ interface NotificationContextType {
   unreadCount: number
   isOpen: boolean
   isBrowserPermissionGranted: boolean
+  browserPermission: NotificationPermission
+  isBrowserSupported: boolean
   setIsOpen: (open: boolean) => void
   toggleOpen: () => void
   markAsRead: (id: string) => void
@@ -29,6 +36,8 @@ interface NotificationContextType {
   clearNotification: (id: string) => void
   clearAll: () => void
   requestBrowserPermission: () => Promise<boolean>
+  testDesktopNotification: () => void
+  notifyHabitMilestone: (habitName: string, actual: number, target: number, unit?: string) => void
   triggerCadenceNotification: (cadence?: '1h') => void
 }
 
@@ -127,9 +136,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   })
 
   const [isOpen, setIsOpen] = useState(false)
-  const [isBrowserPermissionGranted, setIsBrowserPermissionGranted] = useState(() => {
-    return typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+  const isBrowserSupported = isNotificationSupported()
+  const [browserPermission, setBrowserPermission] = useState<NotificationPermission>(() => {
+    return getNotificationPermission()
   })
+
+  const isBrowserPermissionGranted = browserPermission === 'granted'
 
   const lastCadenceFired = useRef<{ [key: string]: number }>({})
 
@@ -142,31 +154,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
   }, [notifications])
 
-  // Request browser Notification permission
-  const requestBrowserPermission = useCallback(async (): Promise<boolean> => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return false
-    try {
-      const permission = await Notification.requestPermission()
-      const granted = permission === 'granted'
-      setIsBrowserPermissionGranted(granted)
-      return granted
-    } catch {
-      return false
+  // Synchronize browser permission status on window focus
+  useEffect(() => {
+    const handleSyncPerm = () => {
+      setBrowserPermission(getNotificationPermission())
     }
+    window.addEventListener('focus', handleSyncPerm)
+    return () => window.removeEventListener('focus', handleSyncPerm)
   }, [])
 
-  // Send desktop alert if permitted
+  // Send native desktop alert if permitted
   const sendDesktopAlert = useCallback((item: AppNotification) => {
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification(item.title, {
-          body: item.message,
-          icon: '/favicon.ico',
-        })
-      } catch {
-        // Desktop notification failed silently
-      }
-    }
+    showDesktopNotification({
+      title: item.title,
+      body: item.message,
+      tag: item.id || `future-you-${Date.now()}`,
+    })
   }, [])
 
   // Add notification helper
@@ -174,6 +177,81 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setNotifications((prev) => [item, ...prev.slice(0, 49)]) // Keep last 50
     sendDesktopAlert(item)
   }, [sendDesktopAlert])
+
+  // Request browser Notification permission (with immediate welcome toast upon granting)
+  const requestBrowserPermission = useCallback(async (): Promise<boolean> => {
+    if (!isNotificationSupported()) return false
+    try {
+      const permission = await Notification.requestPermission()
+      setBrowserPermission(permission)
+      const granted = permission === 'granted'
+      if (granted) {
+        showDesktopNotification({
+          title: 'Future You · Desktop Notifications Active',
+          body: "You'll now receive habit check-ins and completion alerts directly on your desktop, just like WhatsApp!",
+          tag: 'welcome-desktop-alert',
+        })
+      }
+      return granted
+    } catch {
+      return false
+    }
+  }, [])
+
+  // Trigger test desktop notification immediately
+  const testDesktopNotification = useCallback(async () => {
+    if (!isNotificationSupported()) {
+      alert('Desktop notifications are not supported in this browser.')
+      return
+    }
+
+    if (Notification.permission !== 'granted') {
+      const granted = await requestBrowserPermission()
+      if (!granted) return
+    }
+
+    const testItem: AppNotification = {
+      id: crypto.randomUUID(),
+      title: 'Future You · Desktop Alert Test',
+      message: 'WhatsApp-style desktop notifications are working! You will receive routine updates and habit celebrations right here on your desktop.',
+      timestamp: new Date().toISOString(),
+      cadence: 'custom',
+      read: false,
+      stats: computeTodayHabitStats(),
+    }
+
+    addNotification(testItem)
+  }, [requestBrowserPermission, addNotification])
+
+  // Trigger habit completion or milestone celebration notification
+  const notifyHabitMilestone = useCallback((habitName: string, actual: number, target: number, unit?: string) => {
+    const safeTarget = target > 0 ? target : 1
+    const percent = Math.min(Math.round((actual / safeTarget) * 100), 100)
+
+    if (percent >= 100) {
+      const item: AppNotification = {
+        id: crypto.randomUUID(),
+        title: `🎯 Habit Completed · ${habitName}`,
+        message: `Outstanding discipline! You completed ${habitName} (${actual}/${safeTarget} ${unit || ''}). Identity compounded!`,
+        timestamp: new Date().toISOString(),
+        cadence: 'custom',
+        read: false,
+        stats: computeTodayHabitStats(),
+      }
+      addNotification(item)
+    } else if (percent >= 70) {
+      const item: AppNotification = {
+        id: crypto.randomUUID(),
+        title: `⚡ 70% Milestone Achieved · ${habitName}`,
+        message: `Great momentum! You conquered 70% of ${habitName} today (${actual}/${safeTarget} ${unit || ''}). Activation inertia defeated!`,
+        timestamp: new Date().toISOString(),
+        cadence: 'custom',
+        read: false,
+        stats: computeTodayHabitStats(),
+      }
+      addNotification(item)
+    }
+  }, [addNotification])
 
   // Trigger manual or programmatic cadence notification (restricted to hourly updates)
   const triggerCadenceNotification = useCallback((cadence: '1h' = '1h') => {
@@ -262,6 +340,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         unreadCount,
         isOpen,
         isBrowserPermissionGranted,
+        browserPermission,
+        isBrowserSupported,
         setIsOpen,
         toggleOpen,
         markAsRead,
@@ -269,6 +349,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         clearNotification,
         clearAll,
         requestBrowserPermission,
+        testDesktopNotification,
+        notifyHabitMilestone,
         triggerCadenceNotification,
       }}
     >
