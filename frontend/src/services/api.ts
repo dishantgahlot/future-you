@@ -1405,13 +1405,28 @@ export const aiApi = {
   },
 
   // Weekly Insights
-  async generateWeeklyInsight(weekStart?: string, regenerate = false): Promise<{ data: WeeklyInsightResponse | null; error: string | null }> {
+  async generateWeeklyInsight(
+    params?: {
+      weekStart?: string
+      regenerate?: boolean
+      habits?: any[]
+      logs?: any[]
+      userName?: string
+    } | string,
+    regenerate = false
+  ): Promise<{ data: WeeklyInsightResponse | null; error: string | null }> {
     try {
       const headers = await getAuthHeaders()
+      let bodyPayload: any
+      if (params && typeof params === 'object') {
+        bodyPayload = params
+      } else {
+        bodyPayload = { weekStart: params, regenerate }
+      }
       const response = await fetch(`${API_BASE}/ai/weekly-insight`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ weekStart, regenerate }),
+        body: JSON.stringify(bodyPayload),
       })
       return handleResponse<WeeklyInsightResponse>(response)
     } catch (err) {

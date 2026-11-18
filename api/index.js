@@ -56475,11 +56475,80 @@ async function generateWeeklyInsight(options) {
       return { insight: cached, cached: true, usedFallback: false };
     }
   }
-  const [userProfile, habitSummary, weekSummary] = await Promise.all([
-    fetchUserProfile2(userId),
-    fetchHabitSummaries2(userId),
-    buildWeekSummary(userId, ws, we)
-  ]);
+  const fetchedProfile = await fetchUserProfile2(userId);
+  const userProfile = fetchedProfile ? {
+    ...fetchedProfile,
+    fullName: options.userName || fetchedProfile.fullName
+  } : {
+    id: userId,
+    fullName: options.userName || "Dishant",
+    email: "dishant@futureyou.app",
+    dateOfBirth: "2004-05-15",
+    preferences: { tone: "encouraging", theme: "botanical" }
+  };
+  let habitSummary = [];
+  let weekSummary;
+  if (options.habits && options.habits.length > 0) {
+    const localLogs = options.logs || [];
+    habitSummary = options.habits.map((h) => {
+      const hLogs = localLogs.filter((l) => l.habit_id === h.id);
+      const target = Number(h.target_value) || 1;
+      const completed = hLogs.filter((l) => {
+        const val = l.actual_value !== void 0 ? Number(l.actual_value) : l.completion_status ? target : 0;
+        return val >= target;
+      }).length;
+      const completionRate2 = hLogs.length > 0 ? completed / hLogs.length : 0;
+      return {
+        id: h.id,
+        name: h.name,
+        category: h.category || "General",
+        frequency: h.frequency || "daily",
+        targetValue: target,
+        unit: h.unit || "times",
+        completionRate: completionRate2,
+        currentStreak: Math.max(1, Math.round(completionRate2 * 7)),
+        longestStreak: Math.max(3, Math.round(completionRate2 * 14)),
+        totalLogs: hLogs.length,
+        trend: "stable",
+        averageValue: target
+      };
+    });
+    const weekLogs = localLogs.filter((l) => l.log_date >= ws && l.log_date <= we);
+    let totalCompletions = 0;
+    const totalPossible = options.habits.length * 7;
+    options.habits.forEach((h) => {
+      const hLogs = weekLogs.filter((l) => l.habit_id === h.id);
+      const target = Number(h.target_value) || 1;
+      const comp = hLogs.filter((l) => {
+        const val = l.actual_value !== void 0 ? Number(l.actual_value) : l.completion_status ? target : 0;
+        return val >= target;
+      }).length;
+      totalCompletions += comp;
+    });
+    const completionRate = totalPossible > 0 ? totalCompletions / totalPossible : 0;
+    weekSummary = {
+      weekStart: ws,
+      weekEnd: we,
+      totalCompletions,
+      totalPossible,
+      completionRate,
+      categoryBreakdown: {},
+      streaks: habitSummary.map((h) => ({ habitName: h.name, streak: h.currentStreak })),
+      improvements: [],
+      declines: [],
+      comparedToPreviousWeek: {
+        completionRateChange: 0.05,
+        streaksChanged: []
+      }
+    };
+  } else {
+    const [hSummary, wSummary] = await Promise.all([
+      fetchHabitSummaries2(userId),
+      buildWeekSummary(userId, ws, we)
+    ]);
+    habitSummary = hSummary;
+    weekSummary = wSummary;
+  }
   if (!userProfile) {
     throw new Error("User profile not found");
   }
@@ -63059,9 +63128,9 @@ async function generateProgressReport(options) {
       { id: "h4", name: "Limit Evening Screen Time", category: "digital", target_value: 1, unit: "hours" },
       { id: "h5", name: "Hydration Anchor", category: "health", target_value: 3, unit: "liters" }
     ];
-    const totalDays = period === "weekly" ? 7 : 30;
+    const totalDays2 = period === "weekly" ? 7 : 30;
     logsToProcess = [];
-    for (let day = 0; day < totalDays; day++) {
+    for (let day = 0; day < totalDays2; day++) {
       logsToProcess.push(
         { habit_id: "h1", actual_value: day % 4 === 0 ? 1 : 2 },
         { habit_id: "h2", actual_value: day % 3 === 0 ? 6 : 8 },
@@ -63071,14 +63140,22 @@ async function generateProgressReport(options) {
       );
     }
   }
+  const now = /* @__PURE__ */ new Date();
+  const todayStr = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
+  const totalDays = period === "weekly" ? 7 : 30;
+  const cutoffDate = new Date(now.getTime() - (totalDays - 1) * 864e5);
+  const cutoffDateStr = [cutoffDate.getFullYear(), String(cutoffDate.getMonth() + 1).padStart(2, "0"), String(cutoffDate.getDate()).padStart(2, "0")].join("-");
+  const periodFilteredLogs = logsToProcess.filter((l) => {
+    if (!l.log_date) return true;
+    return l.log_date >= cutoffDateStr && l.log_date <= todayStr;
+  });
   const habitStats = habitsToProcess.map((h) => {
-    const habitLogs = logsToProcess.filter((l) => l.habit_id === h.id);
+    const habitLogs = periodFilteredLogs.filter((l) => l.habit_id === h.id);
     const target = Number(h.target_value) || 1;
     const completedLogs = habitLogs.filter((l) => {
       const val = l.actual_value !== void 0 ? Number(l.actual_value) : l.completion_status ? target : 0;
       return val >= target;
     });
-    const totalDays = period === "weekly" ? 7 : 30;
     const count = completedLogs.length;
     const rate = Math.min(Math.round(count / totalDays * 100), 100);
     return {
@@ -63210,37 +63287,48 @@ Format strictly as JSON matching this schema:
 }
 function generateContextualFallbackReport(period, userName, adherenceRate, allHabits, topHabits, laggingHabits) {
   const isWeekly = period === "weekly";
-  const primaryLagger = laggingHabits.length > 0 ? laggingHabits[0] : allHabits[0] || { name: "Focus Study", category: "Focus", rate: 60, completedCount: 3, totalExpected: isWeekly ? 7 : 30 };
-  const secondLagger = laggingHabits.length > 1 ? laggingHabits[1] : allHabits[1] || { name: "Sleep", category: "Rest", rate: 70, completedCount: 5, totalExpected: isWeekly ? 7 : 30 };
+  const hasLagging = laggingHabits.length > 0;
+  const primaryLagger = hasLagging ? laggingHabits[0] : allHabits[0] || { name: "Study", category: "Focus", rate: 100, completedCount: isWeekly ? 7 : 30, totalExpected: isWeekly ? 7 : 30 };
+  const secondLagger = laggingHabits.length > 1 ? laggingHabits[1] : allHabits[1] || allHabits[0] || { name: "Sleep", category: "Rest", rate: 100, completedCount: isWeekly ? 7 : 30, totalExpected: isWeekly ? 7 : 30 };
   const primaryName = (primaryLagger.name || "").toLowerCase();
   const primaryCat = (primaryLagger.category || "").toLowerCase();
   const isSleepHabit = primaryName.includes("sleep") || primaryCat.includes("sleep");
   const isScreenTime = primaryName.includes("screen") || primaryName.includes("phone") || primaryCat.includes("productivity");
+  const shortcomings = hasLagging ? [
+    {
+      habitName: primaryLagger.name,
+      issue: `Completed ${primaryLagger.completedCount}/${primaryLagger.totalExpected} days (${primaryLagger.rate}% adherence).`,
+      missedCountOrTarget: `${Math.max(0, primaryLagger.totalExpected - primaryLagger.completedCount)} missed sessions`,
+      rootCauseAnalysis: `High activation friction during busy or unstructured days.`
+    },
+    ...laggingHabits.length > 1 ? [
+      {
+        habitName: secondLagger.name,
+        issue: `Completed ${secondLagger.completedCount}/${secondLagger.totalExpected} days (${secondLagger.rate}% adherence).`,
+        missedCountOrTarget: `${Math.max(0, secondLagger.totalExpected - secondLagger.completedCount)} missed sessions`,
+        rootCauseAnalysis: `Schedule inconsistency and late-day cognitive fatigue.`
+      }
+    ] : []
+  ] : [
+    {
+      habitName: `**${topHabits[0]?.name || "Consistency"}**`,
+      issue: `All active targets maintained with ${adherenceRate}% adherence across ${isWeekly ? 7 : 30} days.`,
+      missedCountOrTarget: "0 missed sessions",
+      rootCauseAnalysis: "Solid daily routine anchors and strong execution momentum."
+    }
+  ];
   return {
     period,
     periodLabel: isWeekly ? "Weekly Growth Report" : "Monthly Mastery Review",
     adherenceRate,
-    executiveSummary: `Overall adherence is at ${adherenceRate}%; core morning anchors are solid, while ${primaryLagger.name} remains the main bottleneck.`,
+    executiveSummary: hasLagging ? `Overall adherence is at ${adherenceRate}%; core habits are active while ${primaryLagger.name} is the primary focus area for consistency.` : `Outstanding discipline! Overall adherence is at ${adherenceRate}% across the last ${isWeekly ? "7" : "30"} days with all habits meeting targets.`,
     topPerformingHabits: topHabits.map((h) => ({
       name: h.name,
       category: h.category,
       streak: Math.max(Math.round(h.rate / 15), 3),
       rate: h.rate
     })),
-    shortcomings: [
-      {
-        habitName: primaryLagger.name,
-        issue: `Completed ${primaryLagger.completedCount}/${primaryLagger.totalExpected} days (${primaryLagger.rate}% adherence).`,
-        missedCountOrTarget: `${primaryLagger.totalExpected - primaryLagger.completedCount} missed sessions`,
-        rootCauseAnalysis: `High late-afternoon activation friction without a fixed start cue.`
-      },
-      {
-        habitName: secondLagger.name,
-        issue: `Completed ${secondLagger.completedCount}/${secondLagger.totalExpected} days (${secondLagger.rate}% adherence).`,
-        missedCountOrTarget: `${secondLagger.totalExpected - secondLagger.completedCount} missed sessions`,
-        rootCauseAnalysis: `Evening screen time delays sleep timing and increases next-day friction.`
-      }
-    ],
+    shortcomings,
     areasOfImprovement: [
       {
         domain: isSleepHabit ? `Circadian Alignment` : isScreenTime ? `Digital Boundaries` : `${primaryLagger.category} Initiation`,
@@ -63562,6 +63650,12 @@ async function simulateWhatIfScenario(options) {
     } catch (e) {
     }
   }
+  const now = /* @__PURE__ */ new Date();
+  const todayStr = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
+  const sevenDaysAgo = new Date(now.getTime() - 6 * 864e5);
+  const sevenDaysAgoStr = [sevenDaysAgo.getFullYear(), String(sevenDaysAgo.getMonth() + 1).padStart(2, "0"), String(sevenDaysAgo.getDate()).padStart(2, "0")].join("-");
+  const thirtyDaysAgo = new Date(now.getTime() - 29 * 864e5);
+  const thirtyDaysAgoStr = [thirtyDaysAgo.getFullYear(), String(thirtyDaysAgo.getMonth() + 1).padStart(2, "0"), String(thirtyDaysAgo.getDate()).padStart(2, "0")].join("-");
   const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const dayStats = {
     Sunday: { total: 0, completed: 0, totalPct: 0 },
@@ -63614,9 +63708,32 @@ async function simulateWhatIfScenario(options) {
     const fullAdherenceRate = Math.min(Math.round(completedCount / totalLogs * 100), 100);
     const averageProgressPct = habitLogs.length > 0 ? Math.round(totalProgressSum / habitLogs.length * 10) / 10 : 70;
     const avgVal = habitLogs.length > 0 ? (totalActual / habitLogs.length).toFixed(1) : target;
-    const latestLog = habitLogs[0];
+    const sortedLogs = [...habitLogs].sort((a, b) => {
+      const dateA = a.log_date || "";
+      const dateB = b.log_date || "";
+      return dateB.localeCompare(dateA);
+    });
+    const latestLog = sortedLogs[0];
     const latestVal = latestLog ? latestLog.actual_value !== void 0 ? Number(latestLog.actual_value) : Number(latestLog.value) || 0 : 0;
     const latestProgressPct = latestLog ? latestLog.progress_percentage !== void 0 && latestLog.progress_percentage !== null ? Number(latestLog.progress_percentage) : target > 0 ? Math.min(Math.round(latestVal / target * 100 * 10) / 10, 100) : 0 : averageProgressPct || 70;
+    const todayLog = habitLogs.find((l) => l.log_date === todayStr);
+    const todayActual = todayLog ? todayLog.actual_value !== void 0 ? Number(todayLog.actual_value) : Number(todayLog.value) || 0 : 0;
+    const todayProgressPct = target > 0 ? Math.min(Math.round(todayActual / target * 100 * 10) / 10, 100) : 0;
+    const todayCompleted = todayActual >= target && target > 0;
+    const todayInProgress = todayActual > 0 && todayActual < target;
+    const todayPending = todayActual === 0;
+    const last7DaysLogs = habitLogs.filter((l) => l.log_date >= sevenDaysAgoStr && l.log_date <= todayStr);
+    const weeklyCompletedDays = last7DaysLogs.filter((l) => {
+      const val = l.actual_value !== void 0 ? Number(l.actual_value) : l.completion_status ? target : 0;
+      return val >= target;
+    }).length;
+    const weeklyRate = Math.min(Math.round(weeklyCompletedDays / 7 * 100), 100);
+    const last30DaysLogs = habitLogs.filter((l) => l.log_date >= thirtyDaysAgoStr && l.log_date <= todayStr);
+    const monthlyCompletedDays = last30DaysLogs.filter((l) => {
+      const val = l.actual_value !== void 0 ? Number(l.actual_value) : l.completion_status ? target : 0;
+      return val >= target;
+    }).length;
+    const monthlyRate = Math.min(Math.round(monthlyCompletedDays / 30 * 100), 100);
     let progressTier;
     if (latestProgressPct >= 100) progressTier = "full";
     else if (latestProgressPct >= 70) progressTier = "high_partial";
@@ -63640,11 +63757,27 @@ async function simulateWhatIfScenario(options) {
       averageProgressPercentage: averageProgressPct,
       latestProgressPercentage: latestProgressPct,
       latestActual: latestVal,
+      todayLog,
+      todayActual,
+      todayProgressPct,
+      todayCompleted,
+      todayInProgress,
+      todayPending,
+      weeklyCompletedDays,
+      weeklyRate,
+      monthlyCompletedDays,
+      monthlyRate,
       progressTier,
       averageActual: avgVal,
       isLagging: fullAdherenceRate < 75 && averageProgressPct < 70
     };
   });
+  const todayOverallProgress = habitAnalytics.length > 0 ? Math.round(habitAnalytics.reduce((a, b) => a + b.todayProgressPct, 0) / habitAnalytics.length) : 0;
+  const todayCompletedCount = habitAnalytics.filter((h) => h.todayCompleted).length;
+  const todayInProgressCount = habitAnalytics.filter((h) => h.todayInProgress).length;
+  const todayPendingCount = habitAnalytics.filter((h) => h.todayPending).length;
+  const overallWeeklyRate = habitAnalytics.length > 0 ? Math.round(habitAnalytics.reduce((a, b) => a + b.weeklyRate, 0) / habitAnalytics.length) : 0;
+  const overallMonthlyRate = habitAnalytics.length > 0 ? Math.round(habitAnalytics.reduce((a, b) => a + b.monthlyRate, 0) / habitAnalytics.length) : 0;
   const laggingHabits = [...habitAnalytics].filter((h) => h.isLagging).sort((a, b) => a.averageProgressPercentage - b.averageProgressPercentage);
   const highPartialHabits = [...habitAnalytics].filter((h) => h.latestProgressPercentage >= 70 && h.latestProgressPercentage < 100);
   const leadingHabits = [...habitAnalytics].sort((a, b) => b.averageProgressPercentage - a.averageProgressPercentage);
@@ -63674,25 +63807,37 @@ You possess the complete knowledge, intellect, and conversational reasoning of a
    - NEVER start your response with a canned greeting reciting habit statistics (e.g. DO NOT say "Hi Dishant! Right now you are operating at a 74% overall average...").
    - NEVER inject unprompted habit percentages or productivity lectures into general knowledge, technical, or casual questions.
 
-2. ON-DEMAND LIVE DATABASE ACCESS:
-   - When the user asks about their habits, routines, streaks, progress, shortcomings, or "what if" simulations (e.g. "how are my habits doing?", "where am I lagging?", "how is my study?", "what if I run daily for 6 months?"):
-     * Draw directly upon their exact live database metrics below.
-     * Recognize and validate partial completions (like 70% progress) as real wins that conquered activation energy, not failures.
-     * Cite actual habit names, streaks, adherence rates, and percentages.
-   - If the user asks for personal growth advice, you may naturally and gently ground your recommendations in their relevant tracked habits without being robotic.
+2. ON-DEMAND LIVE DATABASE ACCESS (ACCURATE & ZERO GUESSWORK):
+   - When the user asks about "today", "today's data", "today's progress", "how am I doing today", or asks what they did or didn't do today:
+     * You MUST cite the exact live figures from [TODAY'S STATUS (${todayStr})] below.
+     * State clearly which habits are COMPLETED (${todayCompletedCount}), IN PROGRESS (${todayInProgressCount}), and PENDING (${todayPendingCount}).
+     * Use their real tracked habit names (${habits.map((h) => h.name).join(", ")}), actual logged numbers, and targets.
+     * Do NOT report historical averages as today's numbers.
+   - When the user asks about weekly progress, monthly progress, or insights:
+     * Cite the exact 7-day (${overallWeeklyRate}%) and 30-day (${overallMonthlyRate}%) metrics from [WEEKLY & MONTHLY PERFORMANCE].
+   - Recognize partial completions (like 70% progress) as real wins that conquered activation energy, not failures.
 
 === LIVE DATABASE CONTEXT FOR ${userName.toUpperCase()} ===
-- Overall Average Progress: ${overallRate}%
-- Full 100% Completion Rate: ${overallFullRate}%
+[TODAY'S LIVE STATUS - ${todayStr}]:
+- Overall Today Progress: ${todayOverallProgress}%
+- Habits Completed Today: ${todayCompletedCount} of ${habits.length}
+- Habits In Progress Today: ${todayInProgressCount}
+- Habits Pending / Not Started: ${todayPendingCount}
+- Detailed Today Status By Habit:
+${habitAnalytics.map((h) => `  * **${h.name}**: Today's Progress: **${h.todayProgressPct}%** (${h.todayActual}/${h.target} ${h.unit}) | Status: ${h.todayCompleted ? "COMPLETED" : h.todayInProgress ? "IN PROGRESS" : "NOT STARTED / PENDING"}`).join("\n")}
+
+[WEEKLY & MONTHLY ADHERENCE (REAL LOGGED DATA)]:
+- Last 7-Day Adherence: ${overallWeeklyRate}% (${habitAnalytics.map((h) => `${h.name}: ${h.weeklyCompletedDays}/7 days [${h.weeklyRate}%]`).join(", ")})
+- Last 30-Day Adherence: ${overallMonthlyRate}% (${habitAnalytics.map((h) => `${h.name}: ${h.monthlyCompletedDays}/30 days [${h.monthlyRate}%]`).join(", ")})
 - Weekday Adherence: ${weekdayRate}% | Weekend Adherence: ${weekendRate}%
-- Active Habits (With Exact Percentages & Tiers):
-${habitAnalytics.map((h) => `  * **${h.name}** (${h.category}): Latest progress: **${h.latestProgressPercentage}%** (${h.latestActual}/${h.target} ${h.unit}) | 7-day avg: ${h.averageProgressPercentage}% | Tier: ${h.progressTier.toUpperCase()} | Full 100% days: ${h.completedCount}, Partial (70-99%) days: ${h.highPartialCount}`).join("\n")}
+- Active Habits Overall Consistency:
+${habitAnalytics.map((h) => `  * **${h.name}** (${h.category}): 7-day adherence: ${h.weeklyRate}% | 30-day adherence: ${h.monthlyRate}% | Overall full completion: ${h.adherenceRate}%`).join("\n")}
 ${highPartialHabits.length > 0 ? `- Habits in Partial Progress (70-99% completed):
 ${highPartialHabits.map((h) => `  * **${h.name}**: Achieved **${h.latestProgressPercentage}%** progress! Only ${Math.max(0, 100 - h.latestProgressPercentage)}% remaining to reach 100%.`).join("\n")}` : ""}
 - Current Lagging Areas / Shortcomings:
-${laggingHabits.length > 0 ? laggingHabits.map((h) => `  * **${h.name}**: ${h.averageProgressPercentage}% avg progress (${h.adherenceRate}% full completion)`).join("\n") : "  * All habits are on track (>70% average progress)!"}
+${laggingHabits.length > 0 ? laggingHabits.map((h) => `  * **${h.name}**: ${h.weeklyRate}% 7-day adherence (${h.adherenceRate}% overall completion)`).join("\n") : "  * All habits are on track (>70% average progress)!"}
 - Top Anchors:
-${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.averageProgressPercentage}% avg progress`).join("\n")}
+${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.weeklyRate}% 7-day adherence`).join("\n")}
 
 === TONE & FORMAT ===
 - Direct, intelligent, warm, conversational, and helpful.
@@ -63792,7 +63937,24 @@ Assistant:`;
       console.warn(`[WhatIfChatService] Gemini live generation failed, switching to fast fallback:`, err);
     }
   }
-  const baseFallback = generateDatabaseAwareFallback(message, userName, overallRate, habitAnalytics, laggingHabits, leadingHabits, highPartialHabits, weekendRate, weekdayRate);
+  const baseFallback = generateDatabaseAwareFallback(
+    message,
+    userName,
+    overallRate,
+    habitAnalytics,
+    laggingHabits,
+    leadingHabits,
+    highPartialHabits,
+    weekendRate,
+    weekdayRate,
+    todayStr,
+    todayOverallProgress,
+    todayCompletedCount,
+    todayInProgressCount,
+    todayPendingCount,
+    overallWeeklyRate,
+    overallMonthlyRate
+  );
   const fallbackResponse = {
     ...baseFallback,
     sessionId,
@@ -63815,18 +63977,52 @@ Assistant:`;
   }
   return fallbackResponse;
 }
-function generateDatabaseAwareFallback(message, userName, overallRate, allHabits, laggingHabits, leadingHabits, highPartialHabits, weekendRate, weekdayRate) {
+function generateDatabaseAwareFallback(message, userName, overallRate, allHabits, laggingHabits, leadingHabits, highPartialHabits, weekendRate, weekdayRate, todayStr, todayOverallProgress, todayCompletedCount, todayInProgressCount, todayPendingCount, overallWeeklyRate, overallMonthlyRate) {
   const q = message.toLowerCase().trim();
-  const partialHabit = highPartialHabits.length > 0 ? highPartialHabits[0] : allHabits.find((h) => h.latestProgressPercentage >= 70 && h.latestProgressPercentage < 100) || { name: "Focus Study", latestProgressPercentage: 70, averageProgressPercentage: 70, target: 2, unit: "hours", completedCount: 6, totalExpected: 14 };
+  const partialHabit = highPartialHabits.length > 0 ? highPartialHabits[0] : allHabits.find((h) => h.latestProgressPercentage >= 70 && h.latestProgressPercentage < 100) || allHabits[0] || { name: "Focus Study", latestProgressPercentage: 70, averageProgressPercentage: 70, target: 2, unit: "hours", completedCount: 6, totalExpected: 14 };
   const primaryLag = laggingHabits.length > 0 ? laggingHabits[0] : allHabits[0] || { name: "Focus Study", adherenceRate: 65, averageProgressPercentage: 70, missedCount: 4, target: 2, unit: "hours", completedCount: 6, totalExpected: 14 };
-  const topHabit = leadingHabits[0] || { name: "Morning Hydration", adherenceRate: 92, averageProgressPercentage: 95 };
+  const topHabit = leadingHabits[0] || allHabits[0] || { name: "Morning Hydration", adherenceRate: 92, averageProgressPercentage: 95 };
   let reply = "";
   let suggestedFollowUps = [
     "Where am I lagging the most right now?",
-    "How do I convert 70% progress into 100%?",
-    "What if I wake up at 5:30 AM every morning?"
+    "How do I convert in-progress habits into 100%?",
+    "What if I stay disciplined for 6 months?"
   ];
-  if (q === "hi" || q === "hello" || q === "hey" || q.startsWith("hi ") || q.startsWith("hello ") || q.startsWith("hey ") || q.includes("how are you") || q.includes("whats up") || q.includes("what's up") || q.includes("who are you")) {
+  if (q.includes("today") || q.includes("progress") && !q.includes("week") && !q.includes("month") && !q.includes("report") && !q.includes("70%")) {
+    reply = `\u2022 **Today's Live Habit Progress (${todayStr})**:
+  - **Overall Day Execution**: **${todayOverallProgress}%**
+  - **Summary**: **${todayCompletedCount}** completed, **${todayInProgressCount}** in progress, **${todayPendingCount}** pending out of **${allHabits.length}** tracked habits.
+
+\u2022 **Habit-by-Habit Breakdown for Today**:
+${allHabits.map((h) => `  * **${h.name}**: **${h.todayProgressPct}%** (${h.todayActual}/${h.target} ${h.unit}) \u2014 *${h.todayCompleted ? "Completed" : h.todayInProgress ? "In Progress" : "Not Started"}*`).join("\n")}
+
+\u2022 **Immediate Next Action**:
+  - ${todayPendingCount > 0 ? `Kickstart a 5-minute micro-start for **${(allHabits.find((h) => h.todayPending) || allHabits[0]).name}** to conquer initial inertia and lock in positive momentum.` : todayInProgressCount > 0 ? `Wrap up **${(allHabits.find((h) => h.todayInProgress) || allHabits[0]).name}** to reach 100% daily completion!` : `All tracked habits are completed for today! Outstanding discipline and momentum.`}`;
+    suggestedFollowUps = [
+      "Where am I lagging the most right now?",
+      "What if I stay disciplined for 6 months?",
+      "How are my weekly insights looking?"
+    ];
+  } else if (q.includes("week") || q.includes("month") || q.includes("insight") || q.includes("adherence")) {
+    const isMonthly = q.includes("month");
+    const rate = isMonthly ? overallMonthlyRate : overallWeeklyRate;
+    const days = isMonthly ? 30 : 7;
+    reply = `\u2022 **${isMonthly ? "Monthly" : "Weekly"} Adherence Diagnostic**:
+  - **Overall Adherence**: **${rate}%** across the last ${days} days.
+  - **Top Performing Habit**: **${topHabit.name}** (${isMonthly ? topHabit.monthlyRate : topHabit.weeklyRate}% consistency).
+  - **Primary Bottleneck**: **${primaryLag.name}** (${isMonthly ? primaryLag.monthlyRate : primaryLag.weeklyRate}% completion).
+
+\u2022 **Individual Habit Breakdown (${days} Days)**:
+${allHabits.map((h) => `  * **${h.name}**: ${isMonthly ? h.monthlyCompletedDays : h.weeklyCompletedDays}/${days} days logged full target (${isMonthly ? h.monthlyRate : h.weeklyRate}%)`).join("\n")}
+
+\u2022 **Actionable Strategic Focus**:
+  - Reduce cognitive resistance on **${primaryLag.name}** by anchoring it immediately after your morning routine. Consistency across off-days creates permanent identity.`;
+    suggestedFollowUps = [
+      "What is my today data progress?",
+      "Where am I lagging the most right now?",
+      "How do I build unbreakable self-discipline?"
+    ];
+  } else if (q === "hi" || q === "hello" || q === "hey" || q.startsWith("hi ") || q.startsWith("hello ") || q.startsWith("hey ") || q.includes("how are you") || q.includes("whats up") || q.includes("what's up") || q.includes("who are you")) {
     reply = `Hey **${userName}**! Great to connect with you. I'm your **Future You AI companion**\u2014ready to chat about anything on your mind.
 
 \u2022 **Ask Anything**: You can ask general questions about coding, tech, science, philosophy, writing, or just talk through your thoughts.
@@ -63939,7 +64135,7 @@ An **API** is a set of defined rules and protocols that enables different softwa
       "What is the ideal Pomodoro ratio for deep cognitive work?",
       "How do I stop scrolling in the evening?"
     ];
-  } else if (q.includes("70%") || q.includes("percent") || q.includes("partial") || q.includes("progress") && !q.includes("report")) {
+  } else if (q.includes("70%") || q.includes("percent") || q.includes("partial")) {
     reply = `\u2022 **Continuous Progress Recognition**:
   - You achieved **${partialHabit.latestProgressPercentage}% progress** on **${partialHabit.name}**!
   - **Current Tier**: **High-Partial Execution** (70% - 99% band).
@@ -64208,7 +64404,11 @@ router8.post("/weekly-insight", asyncHandler(async (req, res) => {
   }
   const options = {
     userId,
-    ...validation.data
+    ...validation.data,
+    habits: req.body.habits,
+    logs: req.body.logs,
+    userName: req.body.userName,
+    apiKey: req.body.apiKey
   };
   const result = await generateWeeklyInsight(options);
   res.json({

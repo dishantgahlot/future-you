@@ -91,15 +91,26 @@ export async function generateProgressReport(
     }
   }
 
-  // 1. Compute baseline statistical performance
+  // 1. Filter logs to the exact window (last 7 days for weekly, last 30 days for monthly)
+  const now = new Date()
+  const todayStr = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
+  const totalDays = period === 'weekly' ? 7 : 30
+  const cutoffDate = new Date(now.getTime() - (totalDays - 1) * 86400000)
+  const cutoffDateStr = [cutoffDate.getFullYear(), String(cutoffDate.getMonth() + 1).padStart(2, '0'), String(cutoffDate.getDate()).padStart(2, '0')].join('-')
+
+  const periodFilteredLogs = logsToProcess.filter((l: any) => {
+    if (!l.log_date) return true
+    return l.log_date >= cutoffDateStr && l.log_date <= todayStr
+  })
+
+  // Compute baseline statistical performance on the period-filtered logs
   const habitStats = habitsToProcess.map((h: any) => {
-    const habitLogs = logsToProcess.filter((l: any) => l.habit_id === h.id)
+    const habitLogs = periodFilteredLogs.filter((l: any) => l.habit_id === h.id)
     const target = Number(h.target_value) || 1
     const completedLogs = habitLogs.filter((l: any) => {
       const val = l.actual_value !== undefined ? Number(l.actual_value) : l.completion_status ? target : 0
       return val >= target
     })
-    const totalDays = period === 'weekly' ? 7 : 30
     const count = completedLogs.length
     const rate = Math.min(Math.round((count / totalDays) * 100), 100)
     return {
@@ -260,39 +271,57 @@ function generateContextualFallbackReport(
   laggingHabits: any[]
 ): ProgressReportData {
   const isWeekly = period === 'weekly'
-  const primaryLagger = laggingHabits.length > 0 ? laggingHabits[0] : allHabits[0] || { name: 'Focus Study', category: 'Focus', rate: 60, completedCount: 3, totalExpected: isWeekly ? 7 : 30 }
-  const secondLagger = laggingHabits.length > 1 ? laggingHabits[1] : allHabits[1] || { name: 'Sleep', category: 'Rest', rate: 70, completedCount: 5, totalExpected: isWeekly ? 7 : 30 }
+  const hasLagging = laggingHabits.length > 0
+  const primaryLagger = hasLagging ? laggingHabits[0] : allHabits[0] || { name: 'Study', category: 'Focus', rate: 100, completedCount: isWeekly ? 7 : 30, totalExpected: isWeekly ? 7 : 30 }
+  const secondLagger = laggingHabits.length > 1 ? laggingHabits[1] : allHabits[1] || allHabits[0] || { name: 'Sleep', category: 'Rest', rate: 100, completedCount: isWeekly ? 7 : 30, totalExpected: isWeekly ? 7 : 30 }
 
   const primaryName = (primaryLagger.name || '').toLowerCase()
   const primaryCat = (primaryLagger.category || '').toLowerCase()
   const isSleepHabit = primaryName.includes('sleep') || primaryCat.includes('sleep')
   const isScreenTime = primaryName.includes('screen') || primaryName.includes('phone') || primaryCat.includes('productivity')
 
+  const shortcomings: ShortcomingItem[] = hasLagging
+    ? [
+        {
+          habitName: primaryLagger.name,
+          issue: `Completed ${primaryLagger.completedCount}/${primaryLagger.totalExpected} days (${primaryLagger.rate}% adherence).`,
+          missedCountOrTarget: `${Math.max(0, primaryLagger.totalExpected - primaryLagger.completedCount)} missed sessions`,
+          rootCauseAnalysis: `High activation friction during busy or unstructured days.`,
+        },
+        ...(laggingHabits.length > 1
+          ? [
+              {
+                habitName: secondLagger.name,
+                issue: `Completed ${secondLagger.completedCount}/${secondLagger.totalExpected} days (${secondLagger.rate}% adherence).`,
+                missedCountOrTarget: `${Math.max(0, secondLagger.totalExpected - secondLagger.completedCount)} missed sessions`,
+                rootCauseAnalysis: `Schedule inconsistency and late-day cognitive fatigue.`,
+              },
+            ]
+          : []),
+      ]
+    : [
+        {
+          habitName: `**${topHabits[0]?.name || 'Consistency'}**`,
+          issue: `All active targets maintained with ${adherenceRate}% adherence across ${isWeekly ? 7 : 30} days.`,
+          missedCountOrTarget: '0 missed sessions',
+          rootCauseAnalysis: 'Solid daily routine anchors and strong execution momentum.',
+        },
+      ]
+
   return {
     period,
     periodLabel: isWeekly ? 'Weekly Growth Report' : 'Monthly Mastery Review',
     adherenceRate,
-    executiveSummary: `Overall adherence is at ${adherenceRate}%; core morning anchors are solid, while ${primaryLagger.name} remains the main bottleneck.`,
+    executiveSummary: hasLagging
+      ? `Overall adherence is at ${adherenceRate}%; core habits are active while ${primaryLagger.name} is the primary focus area for consistency.`
+      : `Outstanding discipline! Overall adherence is at ${adherenceRate}% across the last ${isWeekly ? '7' : '30'} days with all habits meeting targets.`,
     topPerformingHabits: topHabits.map((h: any) => ({
       name: h.name,
       category: h.category,
       streak: Math.max(Math.round(h.rate / 15), 3),
       rate: h.rate,
     })),
-    shortcomings: [
-      {
-        habitName: primaryLagger.name,
-        issue: `Completed ${primaryLagger.completedCount}/${primaryLagger.totalExpected} days (${primaryLagger.rate}% adherence).`,
-        missedCountOrTarget: `${primaryLagger.totalExpected - primaryLagger.completedCount} missed sessions`,
-        rootCauseAnalysis: `High late-afternoon activation friction without a fixed start cue.`,
-      },
-      {
-        habitName: secondLagger.name,
-        issue: `Completed ${secondLagger.completedCount}/${secondLagger.totalExpected} days (${secondLagger.rate}% adherence).`,
-        missedCountOrTarget: `${secondLagger.totalExpected - secondLagger.completedCount} missed sessions`,
-        rootCauseAnalysis: `Evening screen time delays sleep timing and increases next-day friction.`,
-      },
-    ],
+    shortcomings,
     areasOfImprovement: [
       {
         domain: isSleepHabit ? `Circadian Alignment` : isScreenTime ? `Digital Boundaries` : `${primaryLagger.category} Initiation`,

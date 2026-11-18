@@ -104,8 +104,23 @@ export function InsightsPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [reportError, setReportError] = useState<string | null>(null)
 
-  const habits = useMemo(() => getLocalHabits(), [])
-  const allLogs = useMemo(() => getAllLocalLogs(), [])
+  const [habits, setHabits] = useState(() => getLocalHabits())
+  const [allLogs, setAllLogs] = useState(() => getAllLocalLogs())
+
+  useEffect(() => {
+    const handleSync = () => {
+      setHabits(getLocalHabits())
+      setAllLogs(getAllLocalLogs())
+    }
+    window.addEventListener('future-you-storage-updated', handleSync)
+    window.addEventListener('storage', handleSync)
+    window.addEventListener('focus', handleSync)
+    return () => {
+      window.removeEventListener('future-you-storage-updated', handleSync)
+      window.removeEventListener('storage', handleSync)
+      window.removeEventListener('focus', handleSync)
+    }
+  }, [])
 
   const weekStart = useMemo(() => {
     return startOfWeek(selectedDate, { weekStartsOn: 1 })
@@ -145,8 +160,12 @@ export function InsightsPage() {
   }, [weekStart, allLogs, habits, totalHabits])
 
   const weeklyAvg = useMemo(() => {
-    const sum = weeklyPoints.reduce((acc, p) => acc + p.value, 0)
-    return Math.round(sum / weeklyPoints.length)
+    const now = new Date()
+    now.setHours(23, 59, 59, 999)
+    const elapsedPoints = weeklyPoints.filter((p) => p.fullDate <= now)
+    const pts = elapsedPoints.length > 0 ? elapsedPoints : weeklyPoints
+    const sum = pts.reduce((acc, p) => acc + p.value, 0)
+    return Math.round(sum / pts.length)
   }, [weeklyPoints])
 
   // Monthly 4-Week Breakdown
@@ -154,6 +173,11 @@ export function InsightsPage() {
   const yearMonthPrefix = useMemo(() => format(selectedDate, 'yyyy-MM'), [selectedDate])
 
   const monthlyWeeks = useMemo(() => {
+    const now = new Date()
+    const isCurrentMonth = format(selectedDate, 'yyyy-MM') === format(now, 'yyyy-MM')
+    const isFutureMonth = format(selectedDate, 'yyyy-MM') > format(now, 'yyyy-MM')
+    const currentDay = now.getDate()
+
     return [
       { label: 'W1', startDay: 1, endDay: 7 },
       { label: 'W2', startDay: 8, endDay: 14 },
@@ -161,11 +185,27 @@ export function InsightsPage() {
       { label: 'W4', startDay: 22, endDay: daysInMonth },
     ].map((w) => {
       let progressSum = 0
-      let dayCount = 0
+      const totalDaysInSlice = w.endDay - w.startDay + 1
 
-      for (let d = w.startDay; d <= w.endDay; d++) {
+      let elapsedDays = totalDaysInSlice
+      let isFuture = false
+
+      if (isCurrentMonth) {
+        if (currentDay < w.startDay) {
+          elapsedDays = 0
+          isFuture = true
+        } else if (currentDay <= w.endDay) {
+          elapsedDays = currentDay - w.startDay + 1
+        }
+      } else if (isFutureMonth) {
+        elapsedDays = 0
+        isFuture = true
+      }
+
+      const maxDay = isFuture ? w.startDay - 1 : Math.min(w.endDay, isCurrentMonth ? currentDay : w.endDay)
+
+      for (let d = w.startDay; d <= maxDay; d++) {
         const dateStr = `${yearMonthPrefix}-${String(d).padStart(2, '0')}`
-        dayCount++
 
         if (habits.length > 0) {
           let daySum = 0
@@ -180,19 +220,24 @@ export function InsightsPage() {
         }
       }
 
-      const percent = dayCount > 0 ? Math.round((progressSum / dayCount) * 100) : 0
+      const percent = elapsedDays > 0 ? Math.round((progressSum / elapsedDays) * 100) : 0
 
       return {
         ...w,
         value: percent,
-        dateRange: `${format(new Date(2026, selectedDate.getMonth(), w.startDay), 'MMM d')} - ${format(new Date(2026, selectedDate.getMonth(), w.endDay), 'MMM d')}`,
+        elapsedDays,
+        isFuture,
+        dateRange: `${format(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), w.startDay), 'MMM d')} - ${format(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), w.endDay), 'MMM d')}`,
       }
     })
   }, [selectedDate, yearMonthPrefix, daysInMonth, habits, allLogs])
 
   const monthlyAvg = useMemo(() => {
-    const sum = monthlyWeeks.reduce((acc, w) => acc + w.value, 0)
-    return Math.round(sum / monthlyWeeks.length)
+    if (monthlyWeeks.length === 0) return 0
+    const activeWeeks = monthlyWeeks.filter((w) => !w.isFuture && w.elapsedDays > 0)
+    const pts = activeWeeks.length > 0 ? activeWeeks : monthlyWeeks.slice(0, 1)
+    const sum = pts.reduce((acc, w) => acc + w.value, 0)
+    return Math.round(sum / pts.length)
   }, [monthlyWeeks])
 
   // Top Habit by Consistency
@@ -592,9 +637,16 @@ export function InsightsPage() {
 
                 <div className="space-y-3.5">
                   {habits.map((h) => {
-                    const habitLogs = allLogs.filter((l) => l.habit_id === h.id)
-                    const target = h.target_value || 1
                     const totalDays = viewPeriod === 'weekly' ? 7 : 30
+                    const now = new Date()
+                    const cutoffDate = new Date(now.getTime() - (totalDays - 1) * 86400000)
+                    const cutoffStr = format(cutoffDate, 'yyyy-MM-dd')
+                    const todayStr = format(now, 'yyyy-MM-dd')
+
+                    const habitLogs = allLogs.filter(
+                      (l) => l.habit_id === h.id && l.log_date >= cutoffStr && l.log_date <= todayStr
+                    )
+                    const target = h.target_value || 1
                     const completedCount = habitLogs.filter((l) => {
                       const val = l.actual_value !== undefined ? l.actual_value : l.completion_status ? target : 0
                       return val >= target

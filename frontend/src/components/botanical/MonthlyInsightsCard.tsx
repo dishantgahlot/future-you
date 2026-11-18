@@ -38,6 +38,7 @@ export function MonthlyInsightsCard({
     value: number
     completed: number
     totalExpected: number
+    isFuture?: boolean
   } | null>(null)
 
   // Current viewed month based on selectedDate + monthOffset
@@ -58,13 +59,34 @@ export function MonthlyInsightsCard({
       { label: 'W4', startDay: 22, endDay: daysInMonth, color: '#8CA25A' },
     ]
 
+    const now = new Date()
+    const isCurrentMonth = format(viewedMonthDate, 'yyyy-MM') === format(now, 'yyyy-MM')
+    const isFutureMonth = format(viewedMonthDate, 'yyyy-MM') > format(now, 'yyyy-MM')
+    const currentDay = now.getDate()
+
     return weekSlices.map((w) => {
       let progressSum = 0
       let completedInWeek = 0
-      const daysCount = w.endDay - w.startDay + 1
-      const totalExpected = daysCount * totalHabits
+      const totalDaysInSlice = w.endDay - w.startDay + 1
 
-      for (let d = w.startDay; d <= w.endDay; d++) {
+      let elapsedDays = totalDaysInSlice
+      let isFuture = false
+
+      if (isCurrentMonth) {
+        if (currentDay < w.startDay) {
+          elapsedDays = 0
+          isFuture = true
+        } else if (currentDay <= w.endDay) {
+          elapsedDays = currentDay - w.startDay + 1
+        }
+      } else if (isFutureMonth) {
+        elapsedDays = 0
+        isFuture = true
+      }
+
+      const maxDay = isFuture ? w.startDay - 1 : Math.min(w.endDay, isCurrentMonth ? currentDay : w.endDay)
+
+      for (let d = w.startDay; d <= maxDay; d++) {
         const dateStr = `${yearMonthPrefix}-${String(d).padStart(2, '0')}`
         
         if (habits.length > 0) {
@@ -81,23 +103,28 @@ export function MonthlyInsightsCard({
         }
       }
 
-      const percent = daysCount > 0 ? Math.round((progressSum / daysCount) * 100) : 0
+      const percent = elapsedDays > 0 ? Math.round((progressSum / elapsedDays) * 100) : 0
+      const totalExpected = elapsedDays * totalHabits
 
       return {
         ...w,
         value: percent,
         completed: completedInWeek,
         totalExpected,
+        elapsedDays,
+        isFuture,
         dateRange: `${format(viewedMonthDate, 'MMM')} ${w.startDay}–${w.endDay}`,
       }
     })
   }, [viewedMonthDate, daysInMonth, yearMonthPrefix, allLogs, habits, totalHabits])
 
-  // Monthly average rate
+  // Monthly average rate (only average weeks with elapsed days for active month)
   const monthlyAvg = useMemo(() => {
     if (weeksData.length === 0) return 0
-    const sum = weeksData.reduce((acc, w) => acc + w.value, 0)
-    return Math.round(sum / weeksData.length)
+    const activeWeeks = weeksData.filter((w) => !w.isFuture && w.elapsedDays > 0)
+    const pts = activeWeeks.length > 0 ? activeWeeks : weeksData.slice(0, 1)
+    const sum = pts.reduce((acc, w) => acc + w.value, 0)
+    return Math.round(sum / pts.length)
   }, [weeksData])
 
   const yTicks = [100, 75, 50, 25, 0]
@@ -200,6 +227,7 @@ export function MonthlyInsightsCard({
                   value: bar.value,
                   completed: bar.completed,
                   totalExpected: bar.totalExpected,
+                  isFuture: bar.isFuture,
                 })
               }
               onMouseLeave={() => setHoveredBar(null)}
@@ -214,14 +242,18 @@ export function MonthlyInsightsCard({
               <div className="w-full h-30 sm:h-34 flex items-end justify-center relative">
                 {/* Value tooltip tag above bar */}
                 <div className="absolute -top-6 text-[10px] font-bold text-leaf-1 dark:text-emerald-300 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md shadow-xs border border-botanical-border dark:border-slate-700 whitespace-nowrap z-20">
-                  {bar.value}%
+                  {bar.isFuture ? 'Upcoming' : `${bar.value}%`}
                 </div>
 
                 <motion.div
                   initial={{ height: 0 }}
-                  animate={{ height: `${Math.max(bar.value, 6)}%` }}
+                  animate={{ height: `${bar.isFuture ? 4 : Math.max(bar.value, 6)}%` }}
                   transition={{ duration: 0.6, delay: idx * 0.08, ease: 'easeOut' }}
-                  className="w-full rounded-t-xl rounded-b-2xs shadow-xs group-hover:brightness-95 transition-all bg-[#8CA25A] dark:bg-[#10B981]"
+                  className={`w-full rounded-t-xl rounded-b-2xs shadow-xs group-hover:brightness-95 transition-all ${
+                    bar.isFuture
+                      ? 'bg-[#D5DEC9] dark:bg-[#1E2D23] opacity-60'
+                      : 'bg-[#8CA25A] dark:bg-[#10B981]'
+                  }`}
                 />
               </div>
               <span className="text-[11px] text-[#767C6B] dark:text-slate-300 font-bold mt-1.5 group-hover:text-leaf-darkText dark:group-hover:text-white transition-colors">
@@ -242,9 +274,13 @@ export function MonthlyInsightsCard({
             <FontAwesomeIcon icon={faWandMagicSparkles} className="w-3.5 h-3.5 text-leaf-1 dark:text-emerald-400 flex-shrink-0" />
             <span className="truncate">
               {hoveredBar.label} ({hoveredBar.dateRange}):{' '}
-              <span className="text-leaf-1 dark:text-emerald-400 font-bold tabular-nums">
-                {hoveredBar.value}% ({hoveredBar.completed}/{hoveredBar.totalExpected} tasks)
-              </span>
+              {hoveredBar.isFuture ? (
+                <span className="text-[#8FA387] dark:text-[#A8BCA0] font-medium italic">Upcoming week</span>
+              ) : (
+                <span className="text-leaf-1 dark:text-emerald-400 font-bold tabular-nums">
+                  {hoveredBar.value}% ({hoveredBar.completed}/{hoveredBar.totalExpected} tasks)
+                </span>
+              )}
             </span>
           </div>
         ) : (

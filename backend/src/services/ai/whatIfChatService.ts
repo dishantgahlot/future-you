@@ -413,6 +413,13 @@ export async function simulateWhatIfScenario(
   }
 
   // 1. Deep Database Data Processing & Continuous Percentage Analytics
+  const now = new Date()
+  const todayStr = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
+  const sevenDaysAgo = new Date(now.getTime() - 6 * 86400000)
+  const sevenDaysAgoStr = [sevenDaysAgo.getFullYear(), String(sevenDaysAgo.getMonth() + 1).padStart(2, '0'), String(sevenDaysAgo.getDate()).padStart(2, '0')].join('-')
+  const thirtyDaysAgo = new Date(now.getTime() - 29 * 86400000)
+  const thirtyDaysAgoStr = [thirtyDaysAgo.getFullYear(), String(thirtyDaysAgo.getMonth() + 1).padStart(2, '0'), String(thirtyDaysAgo.getDate()).padStart(2, '0')].join('-')
+
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const dayStats: Record<string, { total: number; completed: number; totalPct: number }> = {
     Sunday: { total: 0, completed: 0, totalPct: 0 },
@@ -477,8 +484,13 @@ export async function simulateWhatIfScenario(
     const averageProgressPct = habitLogs.length > 0 ? Math.round((totalProgressSum / habitLogs.length) * 10) / 10 : 70
     const avgVal = habitLogs.length > 0 ? (totalActual / habitLogs.length).toFixed(1) : target
 
-    // Latest log
-    const latestLog = habitLogs[0]
+    // Sort logs descending by date to obtain the true latest log
+    const sortedLogs = [...habitLogs].sort((a: any, b: any) => {
+      const dateA = a.log_date || ''
+      const dateB = b.log_date || ''
+      return dateB.localeCompare(dateA)
+    })
+    const latestLog = sortedLogs[0]
     const latestVal = latestLog
       ? (latestLog.actual_value !== undefined ? Number(latestLog.actual_value) : Number(latestLog.value) || 0)
       : 0
@@ -487,6 +499,34 @@ export async function simulateWhatIfScenario(
         ? Number(latestLog.progress_percentage)
         : target > 0 ? Math.min(Math.round((latestVal / target) * 100 * 10) / 10, 100) : 0)
       : (averageProgressPct || 70)
+
+    // Accurate calculation for TODAY (${todayStr})
+    const todayLog = habitLogs.find((l: any) => l.log_date === todayStr)
+    const todayActual = todayLog
+      ? (todayLog.actual_value !== undefined ? Number(todayLog.actual_value) : Number(todayLog.value) || 0)
+      : 0
+    const todayProgressPct = target > 0
+      ? Math.min(Math.round((todayActual / target) * 100 * 10) / 10, 100)
+      : 0
+    const todayCompleted = todayActual >= target && target > 0
+    const todayInProgress = todayActual > 0 && todayActual < target
+    const todayPending = todayActual === 0
+
+    // Accurate calculation for THIS WEEK (Last 7 Days)
+    const last7DaysLogs = habitLogs.filter((l: any) => l.log_date >= sevenDaysAgoStr && l.log_date <= todayStr)
+    const weeklyCompletedDays = last7DaysLogs.filter((l: any) => {
+      const val = l.actual_value !== undefined ? Number(l.actual_value) : l.completion_status ? target : 0
+      return val >= target
+    }).length
+    const weeklyRate = Math.min(Math.round((weeklyCompletedDays / 7) * 100), 100)
+
+    // Accurate calculation for THIS MONTH (Last 30 Days)
+    const last30DaysLogs = habitLogs.filter((l: any) => l.log_date >= thirtyDaysAgoStr && l.log_date <= todayStr)
+    const monthlyCompletedDays = last30DaysLogs.filter((l: any) => {
+      const val = l.actual_value !== undefined ? Number(l.actual_value) : l.completion_status ? target : 0
+      return val >= target
+    }).length
+    const monthlyRate = Math.min(Math.round((monthlyCompletedDays / 30) * 100), 100)
 
     let progressTier: 'full' | 'high_partial' | 'moderate_partial' | 'started' | 'unstarted'
     if (latestProgressPct >= 100) progressTier = 'full'
@@ -512,11 +552,37 @@ export async function simulateWhatIfScenario(
       averageProgressPercentage: averageProgressPct,
       latestProgressPercentage: latestProgressPct,
       latestActual: latestVal,
+      todayLog,
+      todayActual,
+      todayProgressPct,
+      todayCompleted,
+      todayInProgress,
+      todayPending,
+      weeklyCompletedDays,
+      weeklyRate,
+      monthlyCompletedDays,
+      monthlyRate,
       progressTier,
       averageActual: avgVal,
       isLagging: fullAdherenceRate < 75 && averageProgressPct < 70,
     }
   })
+
+  // Global Today Rollups
+  const todayOverallProgress = habitAnalytics.length > 0
+    ? Math.round(habitAnalytics.reduce((a, b) => a + b.todayProgressPct, 0) / habitAnalytics.length)
+    : 0
+  const todayCompletedCount = habitAnalytics.filter((h) => h.todayCompleted).length
+  const todayInProgressCount = habitAnalytics.filter((h) => h.todayInProgress).length
+  const todayPendingCount = habitAnalytics.filter((h) => h.todayPending).length
+
+  // Global Weekly & Monthly Rollups
+  const overallWeeklyRate = habitAnalytics.length > 0
+    ? Math.round(habitAnalytics.reduce((a, b) => a + b.weeklyRate, 0) / habitAnalytics.length)
+    : 0
+  const overallMonthlyRate = habitAnalytics.length > 0
+    ? Math.round(habitAnalytics.reduce((a, b) => a + b.monthlyRate, 0) / habitAnalytics.length)
+    : 0
 
   // Sort into top performers, partial progress opportunities, and lagging areas
   const laggingHabits = [...habitAnalytics].filter((h) => h.isLagging).sort((a, b) => a.averageProgressPercentage - b.averageProgressPercentage)
@@ -560,25 +626,37 @@ You possess the complete knowledge, intellect, and conversational reasoning of a
    - NEVER start your response with a canned greeting reciting habit statistics (e.g. DO NOT say "Hi Dishant! Right now you are operating at a 74% overall average...").
    - NEVER inject unprompted habit percentages or productivity lectures into general knowledge, technical, or casual questions.
 
-2. ON-DEMAND LIVE DATABASE ACCESS:
-   - When the user asks about their habits, routines, streaks, progress, shortcomings, or "what if" simulations (e.g. "how are my habits doing?", "where am I lagging?", "how is my study?", "what if I run daily for 6 months?"):
-     * Draw directly upon their exact live database metrics below.
-     * Recognize and validate partial completions (like 70% progress) as real wins that conquered activation energy, not failures.
-     * Cite actual habit names, streaks, adherence rates, and percentages.
-   - If the user asks for personal growth advice, you may naturally and gently ground your recommendations in their relevant tracked habits without being robotic.
+2. ON-DEMAND LIVE DATABASE ACCESS (ACCURATE & ZERO GUESSWORK):
+   - When the user asks about "today", "today's data", "today's progress", "how am I doing today", or asks what they did or didn't do today:
+     * You MUST cite the exact live figures from [TODAY'S STATUS (${todayStr})] below.
+     * State clearly which habits are COMPLETED (${todayCompletedCount}), IN PROGRESS (${todayInProgressCount}), and PENDING (${todayPendingCount}).
+     * Use their real tracked habit names (${habits.map((h: any) => h.name).join(', ')}), actual logged numbers, and targets.
+     * Do NOT report historical averages as today's numbers.
+   - When the user asks about weekly progress, monthly progress, or insights:
+     * Cite the exact 7-day (${overallWeeklyRate}%) and 30-day (${overallMonthlyRate}%) metrics from [WEEKLY & MONTHLY PERFORMANCE].
+   - Recognize partial completions (like 70% progress) as real wins that conquered activation energy, not failures.
 
 === LIVE DATABASE CONTEXT FOR ${userName.toUpperCase()} ===
-- Overall Average Progress: ${overallRate}%
-- Full 100% Completion Rate: ${overallFullRate}%
+[TODAY'S LIVE STATUS - ${todayStr}]:
+- Overall Today Progress: ${todayOverallProgress}%
+- Habits Completed Today: ${todayCompletedCount} of ${habits.length}
+- Habits In Progress Today: ${todayInProgressCount}
+- Habits Pending / Not Started: ${todayPendingCount}
+- Detailed Today Status By Habit:
+${habitAnalytics.map((h) => `  * **${h.name}**: Today's Progress: **${h.todayProgressPct}%** (${h.todayActual}/${h.target} ${h.unit}) | Status: ${h.todayCompleted ? 'COMPLETED' : h.todayInProgress ? 'IN PROGRESS' : 'NOT STARTED / PENDING'}`).join('\n')}
+
+[WEEKLY & MONTHLY ADHERENCE (REAL LOGGED DATA)]:
+- Last 7-Day Adherence: ${overallWeeklyRate}% (${habitAnalytics.map((h) => `${h.name}: ${h.weeklyCompletedDays}/7 days [${h.weeklyRate}%]`).join(', ')})
+- Last 30-Day Adherence: ${overallMonthlyRate}% (${habitAnalytics.map((h) => `${h.name}: ${h.monthlyCompletedDays}/30 days [${h.monthlyRate}%]`).join(', ')})
 - Weekday Adherence: ${weekdayRate}% | Weekend Adherence: ${weekendRate}%
-- Active Habits (With Exact Percentages & Tiers):
-${habitAnalytics.map((h) => `  * **${h.name}** (${h.category}): Latest progress: **${h.latestProgressPercentage}%** (${h.latestActual}/${h.target} ${h.unit}) | 7-day avg: ${h.averageProgressPercentage}% | Tier: ${h.progressTier.toUpperCase()} | Full 100% days: ${h.completedCount}, Partial (70-99%) days: ${h.highPartialCount}`).join('\n')}
+- Active Habits Overall Consistency:
+${habitAnalytics.map((h) => `  * **${h.name}** (${h.category}): 7-day adherence: ${h.weeklyRate}% | 30-day adherence: ${h.monthlyRate}% | Overall full completion: ${h.adherenceRate}%`).join('\n')}
 ${highPartialHabits.length > 0 ? `- Habits in Partial Progress (70-99% completed):
 ${highPartialHabits.map((h) => `  * **${h.name}**: Achieved **${h.latestProgressPercentage}%** progress! Only ${Math.max(0, 100 - h.latestProgressPercentage)}% remaining to reach 100%.`).join('\n')}` : ''}
 - Current Lagging Areas / Shortcomings:
-${laggingHabits.length > 0 ? laggingHabits.map((h) => `  * **${h.name}**: ${h.averageProgressPercentage}% avg progress (${h.adherenceRate}% full completion)`).join('\n') : '  * All habits are on track (>70% average progress)!'}
+${laggingHabits.length > 0 ? laggingHabits.map((h) => `  * **${h.name}**: ${h.weeklyRate}% 7-day adherence (${h.adherenceRate}% overall completion)`).join('\n') : '  * All habits are on track (>70% average progress)!'}
 - Top Anchors:
-${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.averageProgressPercentage}% avg progress`).join('\n')}
+${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.weeklyRate}% 7-day adherence`).join('\n')}
 
 === TONE & FORMAT ===
 - Direct, intelligent, warm, conversational, and helpful.
@@ -683,7 +761,24 @@ ${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.averageProgressPe
   }
 
   // 2. High-Fidelity Multi-Domain LLM Fallback (Optimized with User Data + Open for Any Conversation)
-  const baseFallback = generateDatabaseAwareFallback(message, userName, overallRate, habitAnalytics, laggingHabits, leadingHabits, highPartialHabits, weekendRate, weekdayRate)
+  const baseFallback = generateDatabaseAwareFallback(
+    message,
+    userName,
+    overallRate,
+    habitAnalytics,
+    laggingHabits,
+    leadingHabits,
+    highPartialHabits,
+    weekendRate,
+    weekdayRate,
+    todayStr,
+    todayOverallProgress,
+    todayCompletedCount,
+    todayInProgressCount,
+    todayPendingCount,
+    overallWeeklyRate,
+    overallMonthlyRate
+  )
   const fallbackResponse: WhatIfChatResponse = {
     ...baseFallback,
     sessionId,
@@ -715,27 +810,74 @@ function generateDatabaseAwareFallback(
   leadingHabits: any[],
   highPartialHabits: any[],
   weekendRate: number,
-  weekdayRate: number
+  weekdayRate: number,
+  todayStr: string,
+  todayOverallProgress: number,
+  todayCompletedCount: number,
+  todayInProgressCount: number,
+  todayPendingCount: number,
+  overallWeeklyRate: number,
+  overallMonthlyRate: number
 ): Omit<WhatIfChatResponse, 'sessionId' | 'sessionTitle'> {
   const q = message.toLowerCase().trim()
 
   const partialHabit = highPartialHabits.length > 0
     ? highPartialHabits[0]
-    : (allHabits.find(h => h.latestProgressPercentage >= 70 && h.latestProgressPercentage < 100) || { name: 'Focus Study', latestProgressPercentage: 70, averageProgressPercentage: 70, target: 2, unit: 'hours', completedCount: 6, totalExpected: 14 })
+    : (allHabits.find(h => h.latestProgressPercentage >= 70 && h.latestProgressPercentage < 100) || allHabits[0] || { name: 'Focus Study', latestProgressPercentage: 70, averageProgressPercentage: 70, target: 2, unit: 'hours', completedCount: 6, totalExpected: 14 })
   const primaryLag = laggingHabits.length > 0
     ? laggingHabits[0]
     : (allHabits[0] || { name: 'Focus Study', adherenceRate: 65, averageProgressPercentage: 70, missedCount: 4, target: 2, unit: 'hours', completedCount: 6, totalExpected: 14 })
-  const topHabit = leadingHabits[0] || { name: 'Morning Hydration', adherenceRate: 92, averageProgressPercentage: 95 }
+  const topHabit = leadingHabits[0] || allHabits[0] || { name: 'Morning Hydration', adherenceRate: 92, averageProgressPercentage: 95 }
 
   let reply = ''
   let suggestedFollowUps = [
     'Where am I lagging the most right now?',
-    'How do I convert 70% progress into 100%?',
-    'What if I wake up at 5:30 AM every morning?',
+    'How do I convert in-progress habits into 100%?',
+    'What if I stay disciplined for 6 months?',
   ]
 
+  // DOMAIN 0: TODAY'S ACCURATE PROGRESS
+  if (q.includes('today') || (q.includes('progress') && !q.includes('week') && !q.includes('month') && !q.includes('report') && !q.includes('70%'))) {
+    reply = `• **Today's Live Habit Progress (${todayStr})**:
+  - **Overall Day Execution**: **${todayOverallProgress}%**
+  - **Summary**: **${todayCompletedCount}** completed, **${todayInProgressCount}** in progress, **${todayPendingCount}** pending out of **${allHabits.length}** tracked habits.
+
+• **Habit-by-Habit Breakdown for Today**:
+${allHabits.map((h) => `  * **${h.name}**: **${h.todayProgressPct}%** (${h.todayActual}/${h.target} ${h.unit}) — *${h.todayCompleted ? 'Completed' : h.todayInProgress ? 'In Progress' : 'Not Started'}*`).join('\n')}
+
+• **Immediate Next Action**:
+  - ${todayPendingCount > 0 ? `Kickstart a 5-minute micro-start for **${(allHabits.find(h => h.todayPending) || allHabits[0]).name}** to conquer initial inertia and lock in positive momentum.` : todayInProgressCount > 0 ? `Wrap up **${(allHabits.find(h => h.todayInProgress) || allHabits[0]).name}** to reach 100% daily completion!` : `All tracked habits are completed for today! Outstanding discipline and momentum.`}`
+    suggestedFollowUps = [
+      'Where am I lagging the most right now?',
+      'What if I stay disciplined for 6 months?',
+      'How are my weekly insights looking?',
+    ]
+  }
+
+  // DOMAIN 0.5: WEEKLY & MONTHLY REAL INSIGHTS
+  else if (q.includes('week') || q.includes('month') || q.includes('insight') || q.includes('adherence')) {
+    const isMonthly = q.includes('month')
+    const rate = isMonthly ? overallMonthlyRate : overallWeeklyRate
+    const days = isMonthly ? 30 : 7
+    reply = `• **${isMonthly ? 'Monthly' : 'Weekly'} Adherence Diagnostic**:
+  - **Overall Adherence**: **${rate}%** across the last ${days} days.
+  - **Top Performing Habit**: **${topHabit.name}** (${isMonthly ? topHabit.monthlyRate : topHabit.weeklyRate}% consistency).
+  - **Primary Bottleneck**: **${primaryLag.name}** (${isMonthly ? primaryLag.monthlyRate : primaryLag.weeklyRate}% completion).
+
+• **Individual Habit Breakdown (${days} Days)**:
+${allHabits.map((h) => `  * **${h.name}**: ${isMonthly ? h.monthlyCompletedDays : h.weeklyCompletedDays}/${days} days logged full target (${isMonthly ? h.monthlyRate : h.weeklyRate}%)`).join('\n')}
+
+• **Actionable Strategic Focus**:
+  - Reduce cognitive resistance on **${primaryLag.name}** by anchoring it immediately after your morning routine. Consistency across off-days creates permanent identity.`
+    suggestedFollowUps = [
+      'What is my today data progress?',
+      'Where am I lagging the most right now?',
+      'How do I build unbreakable self-discipline?',
+    ]
+  }
+
   // DOMAIN 1: GREETINGS & CASUAL BANTER
-  if (q === 'hi' || q === 'hello' || q === 'hey' || q.startsWith('hi ') || q.startsWith('hello ') || q.startsWith('hey ') || q.includes('how are you') || q.includes('whats up') || q.includes("what's up") || q.includes('who are you')) {
+  else if (q === 'hi' || q === 'hello' || q === 'hey' || q.startsWith('hi ') || q.startsWith('hello ') || q.startsWith('hey ') || q.includes('how are you') || q.includes('whats up') || q.includes("what's up") || q.includes('who are you')) {
     reply = `Hey **${userName}**! Great to connect with you. I'm your **Future You AI companion**—ready to chat about anything on your mind.
 
 • **Ask Anything**: You can ask general questions about coding, tech, science, philosophy, writing, or just talk through your thoughts.
@@ -865,8 +1007,8 @@ An **API** is a set of defined rules and protocols that enables different softwa
     ]
   }
 
-  // DOMAIN 6: HABIT PROGRESS, PERCENTAGES & 70% COMPLETION
-  else if (q.includes('70%') || q.includes('percent') || q.includes('partial') || (q.includes('progress') && !q.includes('report'))) {
+  // DOMAIN 6: PARTIAL COMPLETION RECOGNITION (70% RULE)
+  else if (q.includes('70%') || q.includes('percent') || q.includes('partial')) {
     reply = `• **Continuous Progress Recognition**:
   - You achieved **${partialHabit.latestProgressPercentage}% progress** on **${partialHabit.name}**!
   - **Current Tier**: **High-Partial Execution** (70% - 99% band).

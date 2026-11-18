@@ -157,8 +157,22 @@ export function Simulator() {
   const chatBottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const habits = useMemo(() => getLocalHabits(), [])
-  const allLogs = useMemo(() => getAllLocalLogs(), [])
+  const [habits, setHabits] = useState(() => getLocalHabits())
+
+  // Keep habits fresh whenever updated elsewhere in the app
+  useEffect(() => {
+    const handleSync = () => {
+      setHabits(getLocalHabits())
+    }
+    window.addEventListener('future-you-storage-updated', handleSync)
+    window.addEventListener('storage', handleSync)
+    window.addEventListener('focus', handleSync)
+    return () => {
+      window.removeEventListener('future-you-storage-updated', handleSync)
+      window.removeEventListener('storage', handleSync)
+      window.removeEventListener('focus', handleSync)
+    }
+  }, [])
 
   const activeSession = useMemo(() => {
     return sessions.find((s) => s.sessionId === activeSessionId)
@@ -328,14 +342,18 @@ export function Simulator() {
         content: m.content,
       }))
 
+      // Read fresh live habits and logs from storage
+      const liveHabits = getLocalHabits()
+      const liveLogs = getAllLocalLogs()
+
       const res = await aiApi.askWhatIfSimulation({
         message: query,
         userId: user?.id,
         sessionId: activeSessionId || undefined,
         sessionTitle: activeSession?.title || undefined,
         conversationHistory: historyPayload,
-        habits,
-        logs: allLogs,
+        habits: liveHabits,
+        logs: liveLogs,
         userName,
       })
 

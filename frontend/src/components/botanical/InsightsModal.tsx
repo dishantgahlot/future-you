@@ -27,6 +27,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import { format, startOfWeek, addDays, isSameDay, setDate } from 'date-fns'
 import type { Habit, HabitLog } from '../../types'
+import { aiApi } from '../../services/api'
 
 function getHabitFAIcon(name: string, cat?: string) {
   const n = (name || '').toLowerCase()
@@ -138,12 +139,21 @@ export function InsightsModal({
   }, [weekStart, allLogs, habits, totalHabits])
 
   const weeklyAvg = useMemo(() => {
-    const sum = weeklyPoints.reduce((acc, p) => acc + p.value, 0)
-    return Math.round(sum / weeklyPoints.length)
+    const now = new Date()
+    now.setHours(23, 59, 59, 999)
+    const elapsedPoints = weeklyPoints.filter((p) => p.fullDate <= now)
+    const pts = elapsedPoints.length > 0 ? elapsedPoints : weeklyPoints
+    const sum = pts.reduce((acc, p) => acc + p.value, 0)
+    return Math.round(sum / pts.length)
   }, [weeklyPoints])
 
   // --- Compute Monthly Data (4 Weeks) ---
   const monthlyWeeks = useMemo(() => {
+    const now = new Date()
+    const isCurrentMonth = format(selectedDate, 'yyyy-MM') === format(now, 'yyyy-MM')
+    const isFutureMonth = format(selectedDate, 'yyyy-MM') > format(now, 'yyyy-MM')
+    const currentDay = now.getDate()
+
     return [
       { label: 'W1', startDay: 1, endDay: 7, dateRange: '1st – 7th' },
       { label: 'W2', startDay: 8, endDay: 14, dateRange: '8th – 14th' },
@@ -153,8 +163,26 @@ export function InsightsModal({
       let progressSum = 0
       let completedInWeek = 0
       let daysLogged = 0
+      const totalDaysInSlice = w.endDay - w.startDay + 1
 
-      for (let day = w.startDay; day <= w.endDay; day++) {
+      let elapsedDays = totalDaysInSlice
+      let isFuture = false
+
+      if (isCurrentMonth) {
+        if (currentDay < w.startDay) {
+          elapsedDays = 0
+          isFuture = true
+        } else if (currentDay <= w.endDay) {
+          elapsedDays = currentDay - w.startDay + 1
+        }
+      } else if (isFutureMonth) {
+        elapsedDays = 0
+        isFuture = true
+      }
+
+      const maxDay = isFuture ? w.startDay - 1 : Math.min(w.endDay, isCurrentMonth ? currentDay : w.endDay)
+
+      for (let day = w.startDay; day <= maxDay; day++) {
         const d = setDate(selectedDate, day)
         const dateStr = format(d, 'yyyy-MM-dd')
         
@@ -175,9 +203,8 @@ export function InsightsModal({
         }
       }
 
-      const daysCount = w.endDay - w.startDay + 1
-      const value = daysCount > 0 ? Math.round((progressSum / daysCount) * 100) : 0
-      const totalExpected = daysCount * totalHabits
+      const value = elapsedDays > 0 ? Math.round((progressSum / elapsedDays) * 100) : 0
+      const totalExpected = elapsedDays * totalHabits
 
       return {
         ...w,
@@ -185,13 +212,18 @@ export function InsightsModal({
         completed: completedInWeek,
         totalExpected,
         daysLogged,
+        elapsedDays,
+        isFuture,
       }
     })
   }, [selectedDate, allLogs, habits, totalHabits])
 
   const monthlyAvg = useMemo(() => {
-    const sum = monthlyWeeks.reduce((acc, w) => acc + w.value, 0)
-    return Math.round(sum / monthlyWeeks.length)
+    if (monthlyWeeks.length === 0) return 0
+    const activeWeeks = monthlyWeeks.filter((w) => !w.isFuture && w.elapsedDays > 0)
+    const pts = activeWeeks.length > 0 ? activeWeeks : monthlyWeeks.slice(0, 1)
+    const sum = pts.reduce((acc, w) => acc + w.value, 0)
+    return Math.round(sum / pts.length)
   }, [monthlyWeeks])
 
   // Top Habit / Performance Stats
@@ -236,13 +268,43 @@ export function InsightsModal({
         )
       : 0
 
-  // Simulated AI Report Generation (Placeholder for user's AI API)
-  const handleGenerateAIReport = () => {
+  // Real AI Progress Report Generation
+  const [aiReportData, setAiReportData] = useState<any>(null)
+  const [aiReportError, setAiReportError] = useState<string | null>(null)
+
+  const handleGenerateAIReport = async () => {
     setIsGeneratingAI(true)
-    setTimeout(() => {
+    setAiReportError(null)
+    try {
+      const res = await aiApi.generateProgressReport({
+        period: viewType,
+        habits,
+        logs: allLogs,
+        userName,
+      })
+      if (res.data) {
+        setAiReportData(res.data)
+      } else if (res.error) {
+        setAiReportError(res.error)
+      }
+    } catch (err: any) {
+      setAiReportError(err?.message || 'Failed to generate AI Progress Report.')
+    } finally {
       setIsGeneratingAI(false)
-    }, 900)
+    }
   }
+
+  // Clear report data when switching period to avoid showing stale data
+  useEffect(() => {
+    setAiReportData(null)
+  }, [viewType])
+
+  // Automatically trigger real report generation when switching to the report tab if not yet loaded
+  useEffect(() => {
+    if (isOpen && activeTab === 'report' && !aiReportData && !isGeneratingAI) {
+      handleGenerateAIReport()
+    }
+  }, [isOpen, activeTab, viewType])
 
   const handleCopyReport = () => {
     const habitDetails = detailedHabitProgress
@@ -668,40 +730,84 @@ ${habitDetails}
                   </div>
                 </div>
 
+                {/* AI Error Notification if any */}
+                {aiReportError && (
+                  <div className="p-3 rounded-xl bg-[#FDF2F0] border border-[#F5C2B8] text-xs font-semibold text-[#B44C3A]">
+                    {aiReportError}
+                  </div>
+                )}
+
                 {/* AI Report Card Content */}
                 <div className="bg-white dark:bg-[#0E1714] border border-[#E3DDCF] dark:border-[#1E2E27] rounded-2xl p-5 shadow-xs space-y-4">
                   {/* Executive Summary */}
                   <div>
-                    <h5 className="text-xs font-bold text-[#52633E] dark:text-[#A8D968] uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                      <FontAwesomeIcon icon={faFire} className="w-3.5 h-3.5 text-[#738541] dark:text-[#A8D968]" />
-                      Personalized Progress Analysis
-                    </h5>
+                    <div className="flex items-center justify-between mb-1">
+                      <h5 className="text-xs font-bold text-[#52633E] dark:text-[#A8D968] uppercase tracking-wider flex items-center gap-1.5">
+                        <FontAwesomeIcon icon={faFire} className="w-3.5 h-3.5 text-[#738541] dark:text-[#A8D968]" />
+                        <span>{aiReportData ? `${viewType === 'weekly' ? 'Weekly' : 'Monthly'} AI Diagnosis` : 'Live Progress Analysis'}</span>
+                      </h5>
+                      {aiReportData && (
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#EEF4E8] dark:bg-[#1C2C1D] text-[#415525] dark:text-[#A8D968] border border-[#D5E3C4] dark:border-[#2E4731]">
+                          {aiReportData.adherenceRate}% Adherence
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-[#1D2516] dark:text-[#CBD8BF] font-medium leading-relaxed">
-                      {userName} has achieved an overall completion score of{' '}
-                      <strong className="text-[#2C3E14] dark:text-[#F5F2EB] font-bold">{todayOverallRate}%</strong> across{' '}
-                      {habits.length} active habits today ({format(selectedDate, 'MMM d, yyyy')}).
-                      {completedHabits.length > 0 && (
-                        <span>
-                          {' '}You have fully achieved <strong>{completedHabits.length} habit(s)</strong> (
-                          {completedHabits.map((c) => c.name).join(', ')}).
-                        </span>
-                      )}
-                      {inProgressHabits.length > 0 && (
-                        <span>
-                          {' '}<strong>{inProgressHabits.length} habit(s)</strong> are in active progress (
-                          {inProgressHabits
-                            .map((p) => `${p.name}: ${p.actual}/${p.target} ${p.unit} [${p.percent}%]`)
-                            .join(', ')}
-                          ).
-                        </span>
-                      )}
-                      {pendingHabits.length > 0 && (
-                        <span>
-                          {' '}Pending to start: {pendingHabits.map((p) => p.name).join(', ')}.
-                        </span>
+                      {aiReportData?.executiveSummary ? (
+                        aiReportData.executiveSummary
+                      ) : (
+                        <>
+                          {userName} has achieved an overall completion score of{' '}
+                          <strong className="text-[#2C3E14] dark:text-[#F5F2EB] font-bold">{todayOverallRate}%</strong> across{' '}
+                          {habits.length} active habits today ({format(selectedDate, 'MMM d, yyyy')}).
+                          {completedHabits.length > 0 && (
+                            <span>
+                              {' '}You have fully achieved <strong>{completedHabits.length} habit(s)</strong> (
+                              {completedHabits.map((c) => c.name).join(', ')}).
+                            </span>
+                          )}
+                          {inProgressHabits.length > 0 && (
+                            <span>
+                              {' '}<strong>{inProgressHabits.length} habit(s)</strong> are in active progress (
+                              {inProgressHabits
+                                .map((p) => `${p.name}: ${p.actual}/${p.target} ${p.unit} [${p.percent}%]`)
+                                .join(', ')}
+                              ).
+                            </span>
+                          )}
+                          {pendingHabits.length > 0 && (
+                            <span>
+                              {' '}Pending to start: {pendingHabits.map((p) => p.name).join(', ')}.
+                            </span>
+                          )}
+                        </>
                       )}
                     </p>
                   </div>
+
+                  {/* AI Shortcomings & Bottlenecks (when available) */}
+                  {aiReportData?.shortcomings && aiReportData.shortcomings.length > 0 && (
+                    <div className="pt-3 border-t border-[#F0EBE0] dark:border-[#1E2E27] space-y-2.5">
+                      <h6 className="text-xs font-bold text-[#B44C3A] dark:text-[#F87171] uppercase tracking-wider flex items-center gap-1.5">
+                        <span>Identified Shortcomings & Focus Areas</span>
+                      </h6>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {aiReportData.shortcomings.map((sc: any, idx: number) => (
+                          <div key={idx} className="p-3 rounded-xl bg-[#FAF8F3] dark:bg-[#121D17] border border-[#E8E2D5] dark:border-[#203024] space-y-1">
+                            <span className="font-bold text-xs text-[#1D2516] dark:text-[#F5F2EB] block">
+                              {sc.habitName.replace(/\*\*/g, '')}
+                            </span>
+                            <p className="text-[11px] text-[#52633E] dark:text-[#CBD8BF] font-medium leading-tight">
+                              {sc.issue} ({sc.missedCountOrTarget})
+                            </p>
+                            <p className="text-[10px] text-[#767C6B] dark:text-[#8FA387] italic">
+                              Trigger: {sc.rootCauseAnalysis}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Habit-by-Habit Custom Progress Breakdown (Prominent Visual Bars & Bold Numbers) */}
                   <div className="pt-3 border-t border-[#F0EBE0] dark:border-[#1E2E27] space-y-3">

@@ -177,6 +177,10 @@ router.post('/weekly-insight', asyncHandler(async (req: AuthenticatedRequest, re
   const options: GenerateWeeklyInsightOptions = {
     userId,
     ...validation.data,
+    habits: req.body.habits,
+    logs: req.body.logs,
+    userName: req.body.userName,
+    apiKey: req.body.apiKey,
   }
 
   const result = await generateWeeklyInsight(options)

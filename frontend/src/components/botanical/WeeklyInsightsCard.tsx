@@ -33,6 +33,7 @@ export function WeeklyInsightsCard({
     value: number
     completed: number
     total: number
+    isFuture?: boolean
   } | null>(null)
 
   // Current base week based on selectedDate + weekOffset
@@ -52,9 +53,13 @@ export function WeeklyInsightsCard({
   const totalHabits = habits.length || 6
 
   const points = useMemo(() => {
+    const now = new Date()
+    now.setHours(23, 59, 59, 999)
+
     return Array.from({ length: 7 }, (_, i) => {
       const dayDate = addDays(weekStart, i)
       const dayStr = format(dayDate, 'yyyy-MM-dd')
+      const isFuture = dayDate.getTime() > now.getTime()
       
       let progressSum = 0
       let completedCount = 0
@@ -77,14 +82,19 @@ export function WeeklyInsightsCard({
         value: percent,
         completed: completedCount,
         total: totalHabits,
+        isFuture,
       }
     })
   }, [weekStart, allLogs, habits, totalHabits])
 
-  // Average weekly completion rate
+  // Average weekly completion rate (only average days that have elapsed up to today)
   const weeklyAvg = useMemo(() => {
-    const sum = points.reduce((acc, p) => acc + p.value, 0)
-    return Math.round(sum / points.length)
+    const now = new Date()
+    now.setHours(23, 59, 59, 999)
+    const elapsedPoints = points.filter((p) => p.fullDate <= now)
+    const pts = elapsedPoints.length > 0 ? elapsedPoints : points
+    const sum = pts.reduce((acc, p) => acc + p.value, 0)
+    return Math.round(sum / pts.length)
   }, [points])
 
   // Graph geometry for 7 points with broad spacious resolution that stretches full length
@@ -269,6 +279,7 @@ export function WeeklyInsightsCard({
                     value: pt.value,
                     completed: pt.completed,
                     total: pt.total,
+                    isFuture: pt.isFuture,
                   })
                 }
                 onMouseLeave={() => setHoveredPoint(null)}
@@ -326,9 +337,13 @@ export function WeeklyInsightsCard({
             <FontAwesomeIcon icon={faWandMagicSparkles} className="w-3.5 h-3.5 text-leaf-1 dark:text-emerald-400 flex-shrink-0" />
             <span className="truncate">
               {format(hoveredPoint.date, 'EEE, MMM d')}:{' '}
-              <span className="text-leaf-1 dark:text-emerald-400 font-bold tabular-nums">
-                {hoveredPoint.value}% ({hoveredPoint.completed}/{hoveredPoint.total} habits)
-              </span>
+              {hoveredPoint.isFuture ? (
+                <span className="text-[#8FA387] dark:text-[#A8BCA0] font-medium italic">Upcoming day</span>
+              ) : (
+                <span className="text-leaf-1 dark:text-emerald-400 font-bold tabular-nums">
+                  {hoveredPoint.value}% ({hoveredPoint.completed}/{hoveredPoint.total} habits)
+                </span>
+              )}
             </span>
           </div>
         ) : (
