@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Habit, HabitLog } from '../types'
 import {
@@ -23,7 +23,7 @@ import { HabitConsistencyCard } from '../components/botanical/HabitConsistencyCa
 import { DailyProgressCard } from '../components/botanical/DailyProgressCard'
 import { InsightsModal } from '../components/botanical/InsightsModal'
 import { HabitFormModal } from '../components/habits/HabitFormModal'
-import { format } from 'date-fns'
+import { format, isSameDay, parseISO } from 'date-fns'
 
 export function TodayPage() {
   const navigate = useNavigate()
@@ -38,6 +38,46 @@ export function TodayPage() {
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null)
   const [selectedModalGraph, setSelectedModalGraph] = useState<'weekly' | 'monthly' | null>(null)
   const [modalInitialTab, setModalInitialTab] = useState<'analytics' | 'report'>('analytics')
+
+  // Track live real-world date to handle automatic midnight & new-day reset
+  const lastRealDateStrRef = useRef<string>(format(new Date(), 'yyyy-MM-dd'))
+  const wasDateManuallyPickedRef = useRef<boolean>(false)
+
+  // Live midnight & day-rollover monitor:
+  // Automatically advances to the new day and resets daily progress bar and daily habits to 0%,
+  // while preserving all accumulated logs in allLogs for weekly and monthly insights.
+  useEffect(() => {
+    const handleDayCheck = () => {
+      const currentRealDayStr = format(new Date(), 'yyyy-MM-dd')
+      if (currentRealDayStr !== lastRealDateStrRef.current) {
+        lastRealDateStrRef.current = currentRealDayStr
+        // If the user hasn't explicitly locked onto a historical past date:
+        if (!wasDateManuallyPickedRef.current || isSameDay(selectedDate, parseISO(lastRealDateStrRef.current))) {
+          wasDateManuallyPickedRef.current = false
+          setSelectedDate(new Date())
+        }
+        // Sync storage and notify rest of app
+        setHabits(getLocalHabits(user?.id))
+        setAllLogs(getAllLocalLogs(user?.id))
+        window.dispatchEvent(new CustomEvent('future-you-day-rollover', { detail: { date: currentRealDayStr } }))
+      }
+    }
+
+    const interval = setInterval(handleDayCheck, 15000)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        handleDayCheck()
+      }
+    }
+
+    window.addEventListener('focus', handleDayCheck)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', handleDayCheck)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [user?.id, selectedDate])
 
   // Load habits from backend / Supabase when available
   const loadRemoteHabits = useCallback(async () => {
@@ -200,7 +240,10 @@ export function TodayPage() {
       {/* 1. Botanical Hero Banner with Yellowish-Green Glow & Calendar Strip */}
       <BotanicalHero
         selectedDate={selectedDate}
-        onSelectDate={setSelectedDate}
+        onSelectDate={(d) => {
+          wasDateManuallyPickedRef.current = !isSameDay(d, new Date())
+          setSelectedDate(d)
+        }}
         userName={displayName}
       />
 
@@ -217,7 +260,10 @@ export function TodayPage() {
         allLogs={allLogs}
         habits={habits}
         selectedDate={selectedDate}
-        onSelectDate={setSelectedDate}
+        onSelectDate={(d) => {
+          wasDateManuallyPickedRef.current = !isSameDay(d, new Date())
+          setSelectedDate(d)
+        }}
       />
 
       {/* 4. Horizontal Overview Row: 3 Balanced Cards Side-by-Side */}
@@ -228,13 +274,17 @@ export function TodayPage() {
           pending={pendingCount}
           total={habits.length || 6}
           overallPercent={dayOverallPercent}
+          selectedDate={selectedDate}
         />
 
         <WeeklyInsightsCard
           allLogs={allLogs}
           habits={habits}
           selectedDate={selectedDate}
-          onSelectDate={setSelectedDate}
+          onSelectDate={(d) => {
+            wasDateManuallyPickedRef.current = !isSameDay(d, new Date())
+            setSelectedDate(d)
+          }}
           onExpand={() => {
             setSelectedModalGraph('weekly')
             setModalInitialTab('analytics')
@@ -245,7 +295,10 @@ export function TodayPage() {
           allLogs={allLogs}
           habits={habits}
           selectedDate={selectedDate}
-          onSelectDate={setSelectedDate}
+          onSelectDate={(d) => {
+            wasDateManuallyPickedRef.current = !isSameDay(d, new Date())
+            setSelectedDate(d)
+          }}
           onExpand={() => {
             setSelectedModalGraph('monthly')
             setModalInitialTab('analytics')
@@ -258,6 +311,7 @@ export function TodayPage() {
         habits={habits}
         logs={todayLogs}
         onManageHabits={() => navigate('/habits')}
+        selectedDate={selectedDate}
       />
 
       {/* Full Expanded Graph & AI Progress Report Modal with Blur Background */}

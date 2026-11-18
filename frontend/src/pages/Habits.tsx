@@ -125,7 +125,30 @@ export function Habits() {
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null)
   const [deletingConfirmId, setDeletingConfirmId] = useState<string | null>(null)
 
-  const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), [])
+  const [todayStr, setTodayStr] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+
+  // Live day-rollover monitor: resets habits to fresh 0% whenever the calendar day advances
+  useEffect(() => {
+    const checkDay = () => {
+      const nowStr = format(new Date(), 'yyyy-MM-dd')
+      setTodayStr((prev) => (prev !== nowStr ? nowStr : prev))
+      setHabits(getLocalHabits())
+      setLogs(getAllLocalLogs())
+    }
+    window.addEventListener('future-you-day-rollover', checkDay)
+    window.addEventListener('focus', checkDay)
+    const handleVis = () => {
+      if (document.visibilityState === 'visible') checkDay()
+    }
+    document.addEventListener('visibilitychange', handleVis)
+    const timer = setInterval(checkDay, 15000)
+    return () => {
+      window.removeEventListener('future-you-day-rollover', checkDay)
+      window.removeEventListener('focus', checkDay)
+      document.removeEventListener('visibilitychange', handleVis)
+      clearInterval(timer)
+    }
+  }, [])
 
   useEffect(() => {
     const handleQuickAdd = () => {

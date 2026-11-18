@@ -23,7 +23,7 @@ export function MainLayout() {
       <Sidebar />
 
       <div
-        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ease-in-out w-full overflow-x-hidden max-w-full ${
+        className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 ease-in-out w-full overflow-x-hidden max-w-full ${
           isOpen ? 'lg:pl-60' : 'lg:pl-[68px]'
         }`}
       >

@@ -1,6 +1,7 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faClock } from '@fortawesome/free-solid-svg-icons'
 import { motion } from 'framer-motion'
+import { isSameDay, format } from 'date-fns'
 
 interface DailyProgressCardProps {
   completed?: number
@@ -8,6 +9,7 @@ interface DailyProgressCardProps {
   pending?: number
   total?: number
   overallPercent?: number
+  selectedDate?: Date
 }
 
 export function DailyProgressCard({
@@ -16,6 +18,7 @@ export function DailyProgressCard({
   pending: propPending,
   total = 6,
   overallPercent,
+  selectedDate,
 }: DailyProgressCardProps) {
   const safeTotal = total > 0 ? total : 6
   const percent =
@@ -64,7 +67,9 @@ export function DailyProgressCard({
               Daily Progress
             </h3>
             <p className="text-xs text-[#52633E] dark:text-[#8FA387] font-semibold mt-0.5">
-              Live status for today
+              {selectedDate && !isSameDay(selectedDate, new Date())
+                ? `Status for ${format(selectedDate, 'MMM d')}`
+                : 'Live status for today'}
             </p>
           </div>
         </div>

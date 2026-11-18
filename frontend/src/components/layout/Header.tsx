@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCalendarDays, faBell, faChevronDown } from '@fortawesome/free-solid-svg-icons'
 import { Link } from 'react-router-dom'
@@ -14,6 +14,26 @@ export function Header() {
   const { unreadCount, toggleOpen } = useNotifications()
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState(() => new Date())
+
+  // Keep header date synchronized when a new day begins
+  useEffect(() => {
+    const handleDaySync = () => {
+      setSelectedDate(new Date())
+    }
+    window.addEventListener('future-you-day-rollover', handleDaySync)
+    window.addEventListener('focus', handleDaySync)
+    const handleVis = () => {
+      if (document.visibilityState === 'visible') handleDaySync()
+    }
+    document.addEventListener('visibilitychange', handleVis)
+    const timer = setInterval(handleDaySync, 60000)
+    return () => {
+      window.removeEventListener('future-you-day-rollover', handleDaySync)
+      window.removeEventListener('focus', handleDaySync)
+      document.removeEventListener('visibilitychange', handleVis)
+      clearInterval(timer)
+    }
+  }, [])
 
   const todayFormatted = format(selectedDate, 'EEE, d MMM yyyy')
 

@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
+import { isSameDay, format } from 'date-fns'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faSeedling,
@@ -40,6 +41,7 @@ interface TodaysHabitsCardProps {
   onAddHabit?: () => void
   onEditHabit?: (habit: Habit) => void
   onDeleteHabit?: (habitId: string) => void
+  selectedDate?: Date
 }
 
 /**
@@ -91,7 +93,10 @@ export function TodaysHabitsCard({
   habits,
   logs,
   onManageHabits,
+  selectedDate,
 }: TodaysHabitsCardProps) {
+  const isToday = !selectedDate || isSameDay(selectedDate, new Date())
+
   // Sort habits: active habits first
   const displayHabits = useMemo(() => {
     return [...habits].sort((a, b) => (b.is_active ? 1 : 0) - (a.is_active ? 1 : 0))
@@ -117,14 +122,16 @@ export function TodaysHabitsCard({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg sm:text-2xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight">
-                Today's Habits
+                {isToday ? "Today's Habits" : `${format(selectedDate!, 'MMM d')} Habits`}
               </h2>
               <span className="px-2 py-0.5 rounded-lg bg-[#EEF4E8] dark:bg-[#253A1D] text-[#415525] dark:text-[#B6DB8A] text-[11px] sm:text-xs font-semibold border border-[#D5E3C4] dark:border-[#385926]">
                 {completedCount} of {habits.length} done
               </span>
             </div>
             <p className="text-[11px] sm:text-xs text-[#6F6759] dark:text-[#A8BCA0] mt-0.5">
-              Live progress · Manage & complete in Habit section
+              {isToday
+                ? 'Live progress · Manage & complete in Habit section'
+                : `Status for ${format(selectedDate!, 'EEEE, d MMMM yyyy')}`}
             </p>
           </div>
         </div>
