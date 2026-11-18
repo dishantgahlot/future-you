@@ -69,6 +69,34 @@ export function InsightsModal({
   const [copied, setCopied] = useState(false)
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
   const [aiCustomQuestion, setAiCustomQuestion] = useState('')
+  const [aiCustomAnswer, setAiCustomAnswer] = useState<{ question: string; answer: string } | null>(null)
+  const [isAskingQuestion, setIsAskingQuestion] = useState(false)
+
+  const handleAskQuestion = async () => {
+    if (!aiCustomQuestion.trim() || isAskingQuestion) return
+    const q = aiCustomQuestion.trim()
+    setIsAskingQuestion(true)
+    try {
+      const res = await aiApi.askCoach(q, 'habit', {
+        habits: detailedHabitProgress,
+        todayOverallRate,
+        weeklyAvg,
+        monthlyAvg,
+        period: viewType,
+        userName,
+      })
+      if (res.data?.answer) {
+        setAiCustomAnswer({ question: q, answer: res.data.answer })
+        setAiCustomQuestion('')
+      } else {
+        await handleGenerateAIReport()
+      }
+    } catch {
+      await handleGenerateAIReport()
+    } finally {
+      setIsAskingQuestion(false)
+    }
+  }
 
   // Sync tab and viewType when modal opens
   useEffect(() => {
@@ -906,29 +934,58 @@ ${habitDetails}
                   </div>
                 </div>
 
-                {/* Ask AI Follow-up Input */}
-                <div className="bg-white dark:bg-[#0E1714] border border-[#E3DDCF] dark:border-[#1E2E27] rounded-2xl p-3.5 flex items-center gap-2">
-                  <FontAwesomeIcon icon={faCompass} className="w-4 h-4 text-[#738541] dark:text-[#A8D968] flex-shrink-0 ml-1" />
+                {/* AI Follow-up Answer Display */}
+                {aiCustomAnswer && (
+                  <div className="p-3.5 rounded-2xl bg-[#F0F6E8] dark:bg-[#142318] border border-[#CCDDB5] dark:border-[#2E4334] text-xs space-y-1.5 animate-fade-in relative">
+                    <div className="flex items-center justify-between text-[#3C5120] dark:text-[#A8D968] font-bold">
+                      <span className="flex items-center gap-1.5">
+                        <FontAwesomeIcon icon={faWandMagicSparkles} className="text-xs" />
+                        Advice: {aiCustomAnswer.question}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAiCustomAnswer(null)}
+                        className="text-[#6F7D5D] hover:text-[#1D2516] dark:hover:text-white cursor-pointer p-0.5"
+                        title="Dismiss advice"
+                      >
+                        <FontAwesomeIcon icon={faXmark} className="text-xs" />
+                      </button>
+                    </div>
+                    <p className="text-[#2C381E] dark:text-[#E2EBD6] font-medium leading-relaxed whitespace-pre-line">
+                      {aiCustomAnswer.answer}
+                    </p>
+                  </div>
+                )}
+
+                {/* Ask AI Follow-up Input with Visible Blinking Caret & Click-to-Focus */}
+                <label
+                  htmlFor="ask-ai-followup-input"
+                  className="bg-white dark:bg-[#0E1714] border border-[#E3DDCF] dark:border-[#1E2E27] focus-within:border-[#738541] dark:focus-within:border-[#22C55E] focus-within:ring-2 focus-within:ring-[#738541]/25 dark:focus-within:ring-[#22C55E]/25 rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5 cursor-text transition-all shadow-xs"
+                >
+                  <FontAwesomeIcon icon={faCompass} className="w-4 h-4 text-[#738541] dark:text-[#A8D968] shrink-0 ml-1" />
                   <input
+                    id="ask-ai-followup-input"
                     type="text"
                     value={aiCustomQuestion}
                     onChange={(e) => setAiCustomQuestion(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && aiCustomQuestion.trim() && !isAskingQuestion) {
+                        e.preventDefault()
+                        handleAskQuestion()
+                      }
+                    }}
                     placeholder="Ask AI: e.g. How do I maintain my streak during travel?"
-                    className="flex-1 bg-transparent border-none text-xs text-[#1D2516] dark:text-[#F5F2EB] placeholder-[#8A847A] dark:placeholder-[#6E8268] focus:outline-hidden"
+                    className="flex-1 bg-transparent border-none text-xs sm:text-sm text-[#1D2516] dark:text-[#F5F2EB] placeholder-[#8A847A] dark:placeholder-[#6E8268] focus:outline-none focus:ring-0 caret-[#738541] dark:caret-[#22C55E] cursor-text min-w-0"
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      if (aiCustomQuestion.trim()) {
-                        handleGenerateAIReport()
-                        setAiCustomQuestion('')
-                      }
-                    }}
-                    className="px-3 py-1.5 bg-[#738541] dark:bg-[#4E6826] hover:bg-[#5E6F34] dark:hover:bg-[#41581F] text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                    disabled={isAskingQuestion || !aiCustomQuestion.trim()}
+                    onClick={handleAskQuestion}
+                    className="px-3.5 py-1.5 bg-[#738541] dark:bg-[#4E6826] hover:bg-[#5E6F34] dark:hover:bg-[#41581F] disabled:opacity-50 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shrink-0 shadow-2xs"
                   >
-                    Ask
+                    {isAskingQuestion ? 'Thinking...' : 'Ask'}
                   </button>
-                </div>
+                </label>
               </div>
             )}
           </div>
