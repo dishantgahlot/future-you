@@ -13,6 +13,7 @@ import {
   faAnglesLeft,
   faAnglesRight,
   faRightFromBracket,
+  faLeaf,
 } from '@fortawesome/free-solid-svg-icons'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSidebar } from '../../contexts/SidebarContext'
@@ -90,12 +91,11 @@ export function Sidebar() {
               title="Future You — Expand sidebar (Ctrl+B)"
               aria-label="Future You — Expand sidebar"
             >
-              {/* App Brand Icon Squircle */}
+              {/* Leaf Icon Squircle */}
               <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-emerald-50 dark:bg-[#1E2F1A] text-emerald-600 dark:text-[#A8D968] shadow-2xs group-hover:bg-emerald-100 dark:group-hover:bg-[#283F23] group-hover:scale-105 transition-all">
-                <img
-                  src="/favicon-32x32.png"
-                  alt="Future You"
-                  className="w-5 h-5 object-contain group-hover:hidden transition-all"
+                <FontAwesomeIcon
+                  icon={faLeaf}
+                  className="w-4 h-4 transform -rotate-12 group-hover:hidden transition-all text-emerald-600 dark:text-[#A8D968]"
                 />
                 <FontAwesomeIcon
                   icon={faAnglesRight}
@@ -196,9 +196,9 @@ export function Sidebar() {
                 onClick={closeMobile}
                 className="flex items-center gap-2.5 group"
               >
-                {/* App Brand Logo Icon */}
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-emerald-50 dark:bg-emerald-950/60 shadow-2xs group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900/60 transition-colors p-1">
-                  <img src="/favicon-32x32.png" alt="Future You" className="w-full h-full object-contain" />
+                {/* Emerald Leaf Logo Icon */}
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 shadow-2xs group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900/60 transition-colors">
+                  <FontAwesomeIcon icon={faLeaf} className="w-4 h-4 text-emerald-600 dark:text-emerald-400 transform -rotate-12" />
                 </div>
                 <span className="font-serif font-bold text-lg tracking-tight text-slate-900 dark:text-slate-100">
                   FUTURE YOU
