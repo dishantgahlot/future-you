@@ -31,17 +31,17 @@ export function DailyProgressCard({
       ? propPending
       : Math.max(safeTotal - completed - inProgress, 0)
 
-  // SVG circular gauge math
-  const size = 96
-  const strokeWidth = 8
+  // SVG circular gauge math: enlarged to 144px with 10px stroke so text has abundant clearance
+  const size = 144
+  const strokeWidth = 10
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
   const offset = circumference - (percent / 100) * circumference
 
   return (
-    <div className="bg-white dark:bg-[#0D1814] border border-botanical-border dark:border-[#223326] rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-xs flex flex-col justify-between relative overflow-hidden transition-colors">
+    <div className="bg-white dark:bg-[#0D1814] border border-[#E3DDCF] dark:border-[#223326] rounded-2xl sm:rounded-3xl p-3.5 sm:p-4.5 shadow-xs flex flex-col h-full relative overflow-hidden transition-colors">
       {/* Mountain & Pine Trees Line Art Watermark in Bottom-Right */}
-      <div className="absolute right-2 bottom-1 w-36 h-20 pointer-events-none select-none text-[#738541]/20 dark:text-[#A8D968]/10">
+      <div className="absolute right-2 bottom-1 w-36 h-20 pointer-events-none select-none text-[#738541]/15 dark:text-[#A8D968]/10">
         <svg viewBox="0 0 160 80" fill="none" stroke="currentColor" strokeWidth="1.2" className="w-full h-full">
           {/* Distant mountain ridge */}
           <path d="M10 70 L50 35 L80 55 L120 20 L155 70" strokeLinecap="round" strokeLinejoin="round" />
@@ -57,16 +57,16 @@ export function DailyProgressCard({
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between pb-2.5 border-b border-[#E8E3D7] dark:border-[#223326] relative z-10">
+      <div className="flex items-center justify-between pb-2 sm:pb-2.5 border-b border-[#E8E3D7] dark:border-[#223326] relative z-10">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] shadow-2xs">
-            <FontAwesomeIcon icon={faClock} className="w-4 h-4 text-[#738541] dark:text-[#9EB868]" />
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] shadow-2xs">
+            <FontAwesomeIcon icon={faClock} className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#738541] dark:text-[#9EB868]" />
           </div>
           <div>
-            <h3 className="text-xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none">
+            <h3 className="text-sm xs:text-base sm:text-lg font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none">
               Daily Progress
             </h3>
-            <p className="text-xs text-[#52633E] dark:text-[#8FA387] font-semibold mt-0.5">
+            <p className="text-[10px] sm:text-[11px] text-[#52633E] dark:text-[#8FA387] font-semibold mt-0.5">
               {selectedDate && !isSameDay(selectedDate, new Date())
                 ? `Status for ${format(selectedDate, 'MMM d')}`
                 : 'Live status for today'}
@@ -75,10 +75,10 @@ export function DailyProgressCard({
         </div>
       </div>
 
-      {/* Body: Circular Ring on Left + Legend on Right */}
-      <div className="flex items-center justify-between gap-3 sm:gap-5 py-2.5 sm:py-3 relative z-10">
-        {/* Radial Gauge with Centered Percent */}
-        <div className="relative w-20 h-20 xs:w-22 xs:h-22 sm:w-26 sm:h-26 flex items-center justify-center flex-shrink-0">
+      {/* Centered Main Area: Enlarged Graph in the Center with No Overlapping Text */}
+      <div className="flex-1 flex flex-col items-center justify-center py-2.5 sm:py-3.5 relative z-10 min-h-0">
+        {/* Prominent Radial Gauge - Centered & Sized so text never overlaps */}
+        <div className="relative w-32 h-32 sm:w-36 sm:h-36 flex items-center justify-center flex-shrink-0">
           <svg className="w-full h-full -rotate-90" viewBox={`0 0 ${size} ${size}`}>
             {/* Background Track */}
             <circle
@@ -86,7 +86,7 @@ export function DailyProgressCard({
               cy={size / 2}
               r={radius}
               stroke="#E8EEDD"
-              className="dark:stroke-[#1D2D23]"
+              className="dark:stroke-[#1B2D20]"
               strokeWidth={strokeWidth}
               fill="none"
             />
@@ -107,34 +107,34 @@ export function DailyProgressCard({
             />
           </svg>
 
-          {/* Centered Values with Strong Legibility */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="text-xl xs:text-2xl sm:text-3xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums">
+          {/* Centered Values with Generous Clearance - Zero Overlap with Circle Arc */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none select-none px-2">
+            <span className="text-3xl sm:text-4xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums">
               {percent}%
             </span>
-            <span className="text-[10px] xs:text-[11px] sm:text-xs font-bold text-[#52633E] dark:text-[#8FA387] mt-0.5 sm:mt-1 tabular-nums">
+            <span className="text-[11px] sm:text-xs font-bold text-[#52633E] dark:text-[#8FA387] mt-1 sm:mt-1.5 tabular-nums whitespace-nowrap">
               {completed} of {safeTotal} done
             </span>
           </div>
         </div>
 
-        {/* Legend List with Detailed High Contrast Breakdown */}
-        <div className="flex flex-col gap-1.5 sm:gap-2 flex-1 pl-1">
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#738541] dark:bg-[#22C55E] flex-shrink-0" />
-            <span className="text-xs sm:text-sm font-bold text-[#1D2516] dark:text-[#F5F2EB] tabular-nums">
+        {/* Legend / Status Badges Centered Underneath */}
+        <div className="flex items-center justify-center gap-2 sm:gap-2.5 mt-3 sm:mt-3.5 flex-wrap w-full">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF8F3] dark:bg-[#132219] border border-[#E8E2D5] dark:border-[#223528] shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-[#738541] dark:bg-[#22C55E] flex-shrink-0" />
+            <span className="text-[11px] sm:text-xs font-bold text-[#1D2516] dark:text-[#F5F2EB] tabular-nums">
               {completed} completed
             </span>
           </div>
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#E5B54F] dark:bg-amber-400 flex-shrink-0" />
-            <span className="text-xs sm:text-sm font-bold text-[#1D2516] dark:text-[#F5F2EB] tabular-nums">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF8F3] dark:bg-[#132219] border border-[#E8E2D5] dark:border-[#223528] shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-[#E5B54F] dark:bg-amber-400 flex-shrink-0" />
+            <span className="text-[11px] sm:text-xs font-bold text-[#1D2516] dark:text-[#F5F2EB] tabular-nums">
               {inProgress} in progress
             </span>
           </div>
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#CBD5E1] dark:bg-[#2E4334] flex-shrink-0" />
-            <span className="text-xs sm:text-sm font-bold text-[#6D7B58] dark:text-[#8FA387] tabular-nums">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FAF8F3] dark:bg-[#132219] border border-[#E8E2D5] dark:border-[#223528] shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-[#CBD5E1] dark:bg-[#2E4334] flex-shrink-0" />
+            <span className="text-[11px] sm:text-xs font-medium text-[#6D7B58] dark:text-[#8FA387] tabular-nums">
               {pending} pending
             </span>
           </div>
