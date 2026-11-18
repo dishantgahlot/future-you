@@ -16,13 +16,15 @@ export function DailyProgressCard({
   completed = 0,
   inProgress = 0,
   pending: propPending,
-  total = 6,
+  total = 0,
   overallPercent,
   selectedDate,
 }: DailyProgressCardProps) {
-  const safeTotal = total > 0 ? total : 6
+  const safeTotal = total !== undefined ? total : 0
   const percent =
-    overallPercent !== undefined
+    safeTotal === 0
+      ? 0
+      : overallPercent !== undefined
       ? Math.min(Math.max(overallPercent, 0), 100)
       : Math.min(Math.round((completed / safeTotal) * 100), 100)
 
@@ -113,7 +115,7 @@ export function DailyProgressCard({
               {percent}%
             </span>
             <span className="text-[11px] sm:text-xs font-bold text-[#52633E] dark:text-[#8FA387] mt-1 sm:mt-1.5 tabular-nums whitespace-nowrap">
-              {completed} of {safeTotal} done
+              {safeTotal > 0 ? `${completed} of ${safeTotal} done` : 'No habits set'}
             </span>
           </div>
         </div>

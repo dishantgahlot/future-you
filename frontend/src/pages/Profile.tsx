@@ -8,7 +8,7 @@ import {
   faCircleCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { useUserProfile } from '../contexts/UserProfileContext'
-import { DEFAULT_HABITS, saveLocalHabits } from '../utils/habitStorage'
+import { saveLocalHabits } from '../utils/habitStorage'
 import { AvatarPickerSection } from '../components/profile/AvatarPickerSection'
 
 export function Profile() {
@@ -35,9 +35,9 @@ export function Profile() {
   }
 
   const handleResetHabits = () => {
-    saveLocalHabits(DEFAULT_HABITS)
+    saveLocalHabits([])
     setResetConfirm(false)
-    showNotification('Habits reset to defaults. Refresh to apply everywhere.')
+    showNotification('Habits cleared. You can now add your own habits fresh.')
   }
 
   return (

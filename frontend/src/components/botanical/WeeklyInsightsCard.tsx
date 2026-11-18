@@ -50,7 +50,7 @@ export function WeeklyInsightsCard({
   }, [weekStart])
 
   // Build points for each day Mon..Sun
-  const totalHabits = habits.length || 6
+  const totalHabits = habits.length
 
   const points = useMemo(() => {
     const now = new Date()

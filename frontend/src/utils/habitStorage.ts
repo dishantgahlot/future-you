@@ -69,110 +69,39 @@ export function getLogsStorageKey(userId?: string): string {
 }
 
 /**
- * Generates personalized starter habits for a new user account.
- * Crucially: zero logs are associated with this until the user explicitly tracks them!
+ * Returns an empty habits array by default.
+ * Users must manually add and configure their own habits.
  */
-export function createDefaultHabitsForUser(userId: string): Habit[] {
-  const now = new Date().toISOString()
-  return [
-    {
-      id: `habit-sleep-${userId.slice(0, 8)}`,
-      user_id: userId,
-      name: 'Sleep',
-      description: '7 - 8 hours of restorative sleep',
-      category: 'sleep',
-      frequency: 'daily',
-      target_value: 8,
-      unit: 'h',
-      color: '#7E6BA5',
-      color_theme: 'lavender',
-      icon: 'moon',
-      is_active: true,
-      created_at: now,
-      updated_at: now,
-    },
-    {
-      id: `habit-study-${userId.slice(0, 8)}`,
-      user_id: userId,
-      name: 'Study',
-      description: 'Deep focus reading and learning',
-      category: 'learning',
-      frequency: 'daily',
-      target_value: 2,
-      unit: 'h',
-      color: '#C87850',
-      color_theme: 'kraft',
-      icon: 'book',
-      is_active: true,
-      created_at: now,
-      updated_at: now,
-    },
-    {
-      id: `habit-exercise-${userId.slice(0, 8)}`,
-      user_id: userId,
-      name: 'Exercise',
-      description: 'Daily workout or physical exercise',
-      category: 'fitness',
-      frequency: 'daily',
-      target_value: 30,
-      unit: 'mins',
-      color: '#6B8E4E',
-      color_theme: 'sage',
-      icon: 'dumbbell',
-      is_active: true,
-      created_at: now,
-      updated_at: now,
-    },
-    {
-      id: `habit-hydration-${userId.slice(0, 8)}`,
-      user_id: userId,
-      name: 'Morning Hydration',
-      description: 'Drink 2000 ml clean water throughout the day',
-      category: 'health',
-      frequency: 'daily',
-      target_value: 2000,
-      unit: 'ml',
-      color: '#4A90E2',
-      color_theme: 'sage',
-      icon: 'droplet',
-      is_active: true,
-      created_at: now,
-      updated_at: now,
-    },
-    {
-      id: `habit-screentime-${userId.slice(0, 8)}`,
-      user_id: userId,
-      name: 'Screen Time',
-      description: 'Under 3 hours total recreational screen time',
-      category: 'productivity',
-      frequency: 'daily',
-      target_value: 3,
-      unit: 'h',
-      color: '#C88E3E',
-      color_theme: 'chamomile',
-      icon: 'mobile',
-      is_active: true,
-      created_at: now,
-      updated_at: now,
-    },
-  ]
+export function createDefaultHabitsForUser(_userId: string): Habit[] {
+  return []
 }
 
-export const DEFAULT_HABITS: Habit[] = createDefaultHabitsForUser('guest-user')
+export const DEFAULT_HABITS: Habit[] = []
 
 export function getLocalHabits(userId?: string): Habit[] {
   try {
     const key = getHabitsStorageKey(userId)
     const raw = localStorage.getItem(key)
     if (raw === null) {
-      const uid = userId || getActiveUserId()
-      const starter = createDefaultHabitsForUser(uid)
-      localStorage.setItem(key, JSON.stringify(starter))
-      return starter
+      localStorage.setItem(key, JSON.stringify([]))
+      return []
     }
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed
+
+    // Ensure no default starter habits remain; user adds all habits manually
+    const customOnly = parsed.filter(
+      (h) =>
+        !h.id.startsWith('habit-sleep-') &&
+        !h.id.startsWith('habit-study-') &&
+        !h.id.startsWith('habit-exercise-') &&
+        !h.id.startsWith('habit-hydration-') &&
+        !h.id.startsWith('habit-screentime-')
+    )
+    if (customOnly.length !== parsed.length) {
+      localStorage.setItem(key, JSON.stringify(customOnly))
+    }
+    return customOnly
   } catch {
     return []
   }

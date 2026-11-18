@@ -272,7 +272,7 @@ export function TodayPage() {
           completed={completedCount}
           inProgress={inProgressCount}
           pending={pendingCount}
-          total={habits.length || 6}
+          total={habits.length}
           overallPercent={dayOverallPercent}
           selectedDate={selectedDate}
         />

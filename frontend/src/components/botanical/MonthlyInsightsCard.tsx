@@ -46,7 +46,7 @@ export function MonthlyInsightsCard({
     return addMonths(selectedDate, monthOffset)
   }, [selectedDate, monthOffset])
 
-  const totalHabits = habits.length || 6
+  const totalHabits = habits.length
   const daysInMonth = getDaysInMonth(viewedMonthDate)
   const yearMonthPrefix = format(viewedMonthDate, 'yyyy-MM')
 
