@@ -424,7 +424,7 @@ export async function generateWeeklyInsight(options: GenerateWeeklyInsightOption
         response = validation.data
         usedFallback = false
       } else {
-        console.warn('[WeeklyInsight] Validation warning:', validation.errors)
+        console.warn('[WeeklyInsight] Validation warning:', (validation as any).errors)
         usedFallback = true
       }
     } else {

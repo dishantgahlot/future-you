@@ -266,7 +266,7 @@ export function parseAndValidateJSON<T>(
 
     return {
       success: false,
-      errors: validation.errors,
+      errors: (validation as any).errors || [],
       rawResponse: response,
     }
   } catch (parseError) {

@@ -370,12 +370,16 @@ router.post('/generate', async (req: AuthenticatedRequest, res: Response) => {
       enableIllustrativeMode,
     })
 
+    const validDateRange = (dateRange?.start && dateRange?.end)
+      ? { start: dateRange.start, end: dateRange.end }
+      : undefined
+
     // Generate prediction
     const result = await engine.generatePrediction({
       userId,
       habits,
       userProfile: userProfile || undefined,
-      dateRange,
+      dateRange: validDateRange,
     })
 
     // Save to database

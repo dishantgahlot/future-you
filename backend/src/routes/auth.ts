@@ -54,7 +54,7 @@ router.post('/signup', validate(signUpSchema), asyncHandler(async (req, res) => 
   if (error) {
     if (error.message?.toLowerCase().includes('already') || error.message?.toLowerCase().includes('exists')) {
       const { data: usersData } = await getSupabase().auth.admin.listUsers()
-      const existing = usersData?.users.find(u => u.email?.toLowerCase() === email.toLowerCase())
+      const existing = (usersData?.users as any[])?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())
       if (existing) {
         await getSupabase().auth.admin.updateUserById(existing.id, {
           password,
@@ -91,7 +91,7 @@ router.post('/confirm-user', asyncHandler(async (req, res) => {
 
   try {
     const { data: usersData } = await getSupabase().auth.admin.listUsers()
-    const user = usersData?.users.find(u => u.email?.toLowerCase() === email.toLowerCase())
+    const user = (usersData?.users as any[])?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())
     if (user) {
       await getSupabase().auth.admin.updateUserById(user.id, { email_confirm: true })
       return res.json({ success: true, user })

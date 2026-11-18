@@ -487,7 +487,7 @@ export async function generateFutureLetter(options: GenerateFutureLetterOptions)
         response = validation.data
         usedFallback = false
       } else {
-        console.warn('[FutureLetter] Validation warning:', validation.errors)
+        console.warn('[FutureLetter] Validation warning:', (validation as any).errors)
         usedFallback = true
       }
     } else {

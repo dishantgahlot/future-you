@@ -286,7 +286,7 @@ router.post('/habits/from-recommendation', asyncHandler(async (req: Authenticate
     throw new AppError(400, 'Invalid request', validation.error.flatten())
   }
 
-  const habit = await createHabitFromRecommendation(userId, validation.data)
+  const habit = await createHabitFromRecommendation(userId, validation.data as any)
 
   res.json({
     success: true,
@@ -334,7 +334,9 @@ router.post('/coach', asyncHandler(async (req: AuthenticatedRequest, res: Respon
 
   const options: AskCoachOptions = {
     userId,
-    ...validation.data,
+    question: validation.data.question,
+    contextType: validation.data.contextType as any,
+    contextData: validation.data.contextData,
   }
 
   const result = await askCoach(options)
