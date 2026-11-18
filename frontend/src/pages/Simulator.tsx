@@ -37,14 +37,14 @@ interface SavedSession {
   updatedAt: string
 }
 
-// Curated starter scenarios covering chat, shortcomings, and what-ifs
+// Curated starter scenarios designed for the Future You persona & app context
 const STARTER_SCENARIOS = [
-  'Hi! How are my habits looking today?',
-  'I completed 70% of my study today, how is my progress?',
+  'How is my habit trajectory looking today?',
   'What if I stay disciplined for 6 months?',
-  'I feel overwhelmed today, how should I reset?',
-  'Explain the Feynman learning technique',
-  'Where am I lagging the most right now?',
+  'Where am I lagging the most, and how do I fix it?',
+  'I hit 70% progress today—how does Future You view this?',
+  'Why do my weekends drop off, and how do we bridge the gap?',
+  'I feel overwhelmed today—how should I reset without breaking my streak?',
 ]
 
 function formatSessionTime(isoString?: string) {
@@ -141,7 +141,11 @@ export function Simulator() {
   const welcomeMessage: ChatMessage = useMemo(() => ({
     id: 'welcome',
     role: 'model',
-    content: `Hey **${userName}**! I'm your **Future You AI Companion**.\n\n• I have full conversational intelligence: ask me *anything*—from coding, science, philosophy, and learning techniques, to mindset, productivity, and life advice.\n• I'm deeply connected to **your personal habits & progress**: I track your real habits, exact completion percentages, strengths, and future what-if projections!`,
+    content: `Hey **${userName}**! I am **Future You**—the voice, wisdom, and compass of where your daily habits and choices are taking us.
+
+• **Dedicated Persona**: I am personalized exclusively for your growth journey, habit systems, mindset, and life trajectory.
+• **Live Habit Intelligence**: I continuously track your real habits, exact completion percentages, and the compounding math of your consistency.
+• **What We Can Explore**: Test what-if future projections, diagnose friction in lagging habits, master the 70% continuous progress rule, or design daily focus rituals!`,
     timestamp: 'Just now',
   }), [userName])
 
@@ -409,14 +413,14 @@ export function Simulator() {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 sm:gap-2">
               <h1 className="font-serif font-bold text-base sm:text-lg text-[#1D2516] dark:text-[#F5F2EB] tracking-tight truncate">
-                What-If Intelligence
+                Future You Persona
               </h1>
               <span className="hidden xs:inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#EEF4E8] dark:bg-[#16271D] text-[#4A6225] dark:text-[#A8D968] border border-[#CCD8B8] dark:border-[#22352B]">
-                AI
+                AI Persona
               </span>
             </div>
             <p className="text-[10px] sm:text-[11px] text-[#7A8C74] dark:text-[#83967D] flex items-center gap-1.5 flex-wrap truncate">
-              <span>Conversational AI · {habits.length} habits tracked</span>
+              <span>Personal Growth Persona · {habits.length} habits tracked</span>
             </p>
           </div>
         </div>
@@ -719,7 +723,7 @@ export function Simulator() {
             {isSending && (
               <div className="flex items-center gap-2.5 text-xs text-[#4A6225] dark:text-[#A8D968] p-3 bg-[#EEF4E8] dark:bg-[#16271D] rounded-2xl w-fit border border-[#CCD8B8] dark:border-[#22352B] animate-pulse">
                 <FontAwesomeIcon icon={faRotateRight} className="animate-spin text-[#4A6225] dark:text-[#A8D968]" />
-                <span>Consulting your habits & trajectory...</span>
+                <span>Consulting Future You & your habit trajectory...</span>
               </div>
             )}
 
@@ -735,7 +739,7 @@ export function Simulator() {
                 value={inputVal}
                 onChange={(e) => setInputVal(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask about habits, simulate a scenario, or chat about any topic (coding, mindset, science)..."
+                placeholder="Ask Future You about your habits, simulate a 6-month trajectory, or get focus advice..."
                 disabled={isSending}
                 className="flex-1 py-1 px-1.5 bg-transparent text-xs sm:text-sm text-[#1D2516] dark:text-[#F5F2EB] placeholder-[#8A847A] dark:placeholder-[#6E8268] focus:outline-none resize-none font-medium max-h-28"
               />
@@ -757,7 +761,7 @@ export function Simulator() {
             <div className="flex justify-between items-center text-[10px] text-[#7A8C74] dark:text-[#6E8268] mt-1.5 px-1">
               <span className="flex items-center gap-1">
                 <FontAwesomeIcon icon={faLeaf} className="text-[#4A6225] dark:text-[#A8D968] text-[9px]" />
-                Future You Intelligence
+                Future You AI Persona
               </span>
               <span>Shift + Enter for new line</span>
             </div>

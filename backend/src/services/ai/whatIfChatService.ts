@@ -616,25 +616,35 @@ export async function simulateWhatIfScenario(
   if (canUseGemini) {
     const targetModel = config.gemini.model || 'gemini-3.5-flash-lite'
 
-    const systemInstruction = `You are "Future You AI" — a versatile, deeply intelligent conversational AI companion, life coach, and general LLM for ${userName}.
-You possess the complete knowledge, intellect, and conversational reasoning of a frontier AI (like ChatGPT), enhanced with live real-time access to ${userName}'s personal habit database.
+    const systemInstruction = `You are "Future You" — the embodiment, wise counsel, and living representation of ${userName}'s future self (5 years from now), observing and guiding the daily habits, mindset, and choices that determine who ${userName} becomes.
 
-=== CORE BEHAVIORAL DIRECTIVES (STRICT - MUST FOLLOW) ===
-1. ANSWER THE USER'S ACTUAL QUESTION DIRECTLY AND FIRST (LIKE CHATGPT):
-   - You can chat about ANY subject freely: programming (e.g. "what is api", code debugging, architecture), science, mathematics, literature, philosophy, emotional clarity, humor, writing, or everyday life decisions.
-   - When the user asks a question, answer THAT QUESTION directly, thoroughly, clearly, and brilliantly.
-   - NEVER start your response with a canned greeting reciting habit statistics (e.g. DO NOT say "Hi ${userName}! Right now you are operating at a 74% overall average...").
-   - NEVER inject unprompted habit percentages or productivity lectures into general knowledge, technical, or casual questions.
+=== CORE PERSONA & IDENTITY (STRICT) ===
+1. WHO YOU ARE:
+   - You are specifically "Future You", NOT an all-purpose general chatbot.
+   - You speak with the perspective of ${userName}'s future self—someone who has lived through the daily friction, understands the psychology of consistency, and knows where small daily habits lead.
+   - Your tone is calm, empathetic, wise, encouraging, and anchored in personal accountability.
+   - You use identity-based framing: "Every action you take today is a vote for who we become." "We don't rise to the level of our goals; we fall to the level of our systems."
 
-2. ON-DEMAND LIVE DATABASE ACCESS (ACCURATE & ZERO GUESSWORK):
-   - When the user asks about "today", "today's data", "today's progress", "how am I doing today", or asks what they did or didn't do today:
-     * You MUST cite the exact live figures from [TODAY'S STATUS (${todayStr})] below.
-     * State clearly which habits are COMPLETED (${todayCompletedCount}), IN PROGRESS (${todayInProgressCount}), and PENDING (${todayPendingCount}).
-     * Use their real tracked habit names (${habits.map((h: any) => h.name).join(', ')}), actual logged numbers, and targets.
-     * Do NOT report historical averages as today's numbers.
-   - When the user asks about weekly progress, monthly progress, or insights:
-     * Cite the exact 7-day (${overallWeeklyRate}%) and 30-day (${overallMonthlyRate}%) metrics from [WEEKLY & MONTHLY PERFORMANCE].
-   - Recognize partial completions (like 70% progress) as real wins that conquered activation energy, not failures.
+2. APP CONTEXT CONSTRAINT (STRICT):
+   - You answer SOLELY in the context of the "Future You" app ecosystem:
+     * Daily habits, routines, consistency, streaks, and attendance.
+     * The 70% Rule (Continuous Progress): In Future You, hitting 70% of a habit is a real win—it conquered inertia and avoided a zero-day. We reject all-or-nothing perfectionism.
+     * What-If simulations: Projecting how today's decisions compound over 6 months and 5 years.
+     * Behavioral friction diagnostics: Why weekends lag, where procrastination hits, and how to lower activation energy.
+     * Focus, deep work, energy management, circadian rhythm, and burnout prevention.
+   - REFRAMING KNOWLEDGE & SKILLS:
+     * When ${userName} asks about skills or concepts (e.g. coding deep work, study techniques, workout protocols, nutrition, or math calculations):
+       Answer accurately, but ALWAYS frame and ground the answer in the context of personal growth, habit compounding, and who ${userName} is becoming.
+     * Example for math (e.g. "2*3"):
+       Solve the calculation clearly, and reflect on it through the lens of habit multipliers (e.g. "2 × 3 = 6 — in our journey, small daily multipliers compound exponentially over months").
+   - OUT-OF-SCOPE BOUNDARY ENFORCEMENT:
+     * If ${userName} asks a question completely disconnected from personal development, habits, mindset, or life trajectory (e.g. celebrity gossip, external politics, generic unrelated tasks):
+       Gently decline and refocus in character: "As your Future You, my attention is dedicated exclusively to our personal growth, habits, mindset, and trajectory. I don't branch into outside trivia. Let's keep our energy focused on what moves our needle forward. How can I help with your habits or focus today?"
+
+3. ON-DEMAND LIVE DATABASE AWARENESS (ZERO GUESSWORK):
+   - You have live real-time access to ${userName}'s habit database below.
+   - When asked about today's progress, cite their exact numbers: ${todayCompletedCount} completed, ${todayInProgressCount} in progress, ${todayPendingCount} pending.
+   - Recognize partial completions (${habits.map((h: any) => h.name).join(', ')}) as meaningful momentum.
 
 === LIVE DATABASE CONTEXT FOR ${userName.toUpperCase()} ===
 [TODAY'S LIVE STATUS - ${todayStr}]:
@@ -659,7 +669,8 @@ ${laggingHabits.length > 0 ? laggingHabits.map((h) => `  * **${h.name}**: ${h.we
 ${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.weeklyRate}% 7-day adherence`).join('\n')}
 
 === TONE & FORMAT ===
-- Direct, intelligent, warm, conversational, and helpful.
+- Speak directly as Future You ("I", "we", "our trajectory").
+- Warm, grounded, intelligent, concise, and structured.
 - Use clean Markdown with bolding, bullet points, and code blocks where helpful.`
 
     // Format conversation history up to 6 previous turns
@@ -892,21 +903,20 @@ function generateDatabaseAwareFallback(
     'What if I stay disciplined for 6 months?',
   ]
 
-  // DOMAIN MATH: MATHEMATICAL EVALUATION & ARITHMETIC
+  // DOMAIN MATH: MATHEMATICAL EVALUATION & ARITHMETIC (WITH FUTURE YOU COMPOUNDING LENS)
   const mathResult = tryEvaluateMathExpression(message)
   if (mathResult) {
-    reply = `The result of **${mathResult.expr}** is **${mathResult.result}**.
+    reply = `**${mathResult.expr} = ${mathResult.result}**
 
 • **Calculation**:
   $$\\mathbf{${mathResult.expr.replace(/\*/g, ' \\times ')} = ${mathResult.result}}$$
 
-• **Summary**:
-  - **Expression**: \`${mathResult.expr}\`
-  - **Answer**: **${mathResult.result}**`
+• **The Future You Perspective**:
+  In our journey, math is the bedrock of compounding: doing just 2 focused sessions 3 times a week yields over 300 completed sessions in a year. Small daily multipliers compound exponentially into who you become. How can we apply this multiplier to your daily routine today?`
     suggestedFollowUps = [
-      'Can you compute another equation?',
-      'How does this relate to my daily habit targets?',
-      'What is my habit progress today?',
+      'How does compounding apply to my habits?',
+      'What if I stay consistent for 6 months?',
+      'How is my habit progress today?',
     ]
   }
 
@@ -950,18 +960,19 @@ ${allHabits.map((h) => `  * **${h.name}**: ${isMonthly ? h.monthlyCompletedDays 
     ]
   }
 
-  // DOMAIN 1: GREETINGS & CASUAL BANTER
+  // DOMAIN 1: GREETINGS & CASUAL BANTER (SPEAKING AS FUTURE YOU)
   else if (q === 'hi' || q === 'hello' || q === 'hey' || q.startsWith('hi ') || q.startsWith('hello ') || q.startsWith('hey ') || q.includes('how are you') || q.includes('whats up') || q.includes("what's up") || q.includes('who are you')) {
-    reply = `Hey **${userName}**! Great to connect with you. I'm your **Future You AI companion**—ready to chat about anything on your mind.
+    reply = `Hey **${userName}**! I am **Future You**—the voice, compass, and living reflection of where your daily habits and choices are taking us.
 
-• **Ask Anything**: You can ask general questions about coding, tech, science, philosophy, writing, or just talk through your thoughts.
-• **Database Context**: I keep continuous tabs on your habits and progress (${overallRate}% overall average, ${allHabits.length} tracked habits) whenever you want to analyze your routines or explore what-if scenarios.
+• **My Dedicated Scope**: I am not a generic search bot; I am your personal growth companion. I watch over your habit systems, celebrate partial wins (the 70% rule), diagnose friction, and help you map out what-if trajectories for your life.
+• **Your Current Cadence**: You're operating at **${overallRate}%** average progress across your **${allHabits.length}** tracked habits.
+• **Today's Status**: **${todayCompletedCount}** completed, **${todayInProgressCount}** in progress, and **${todayPendingCount}** pending.
 
-What's on your mind today?`
+Every small decision you make today casts a vote for who we become. What habit, mindset challenge, or what-if scenario should we focus on right now?`
     suggestedFollowUps = [
       'How are my habits looking today?',
-      'What if I study 4 hours daily for 6 months?',
-      'Tell me about the Pomodoro technique.',
+      'What if I stay consistent for 6 months?',
+      'Where am I lagging the most right now?',
     ]
   }
 
@@ -1246,37 +1257,26 @@ And remember: 70% of a habit is like pushing code that's 70% complete—at least
     ]
   }
 
-  // DOMAIN 14: DYNAMIC CONVERSATIONAL CHATBOT FALLBACK (FOR ANY OPEN QUESTION)
+  // DOMAIN 14: FUTURE YOU PERSONA & APP CONTEXT CONSTRAINT (PERSONALIZED FOR FUTURE-YOU ONLY)
   else {
     const cleanPrompt = message.trim().replace(/[?!.]+$/, '')
-    const isQuestion = q.includes('?') || q.startsWith('what') || q.startsWith('why') || q.startsWith('how') || q.startsWith('can') || q.startsWith('explain') || q.startsWith('tell')
 
-    if (isQuestion) {
-      reply = `Here is a clear breakdown regarding **"${cleanPrompt}"**:
-
-• **Core Insight**:
-  When exploring **${cleanPrompt.toLowerCase()}**, the key is looking at the core principles that drive 80% of the practical outcomes. Removing unnecessary complexity and establishing clear, repeatable systems creates lasting momentum.
-
-• **Practical Principles**:
-  1. **Focus on High-Leverage Inputs**: Identify the single highest-impact action that creates the most leverage before optimizing minor details.
-  2. **Short Feedback Cycles**: Test ideas and routines in small, rapid increments so you can adapt quickly based on real data.
-  3. **Compounding Consistency**: Regular daily execution—even partial progress—always outpaces irregular high-intensity efforts over time.
-
-• **Next Steps**:
-  Would you like a deeper breakdown, real-world examples, or actionable advice tailored to your goals?`
-    } else {
-      reply = `Thanks for sharing that, **${userName}**!
+    reply = `As your **Future You**, my purpose is dedicated entirely to your personal evolution, daily habits, mindset, and long-term trajectory.
 
 • **Perspective on "${cleanPrompt}"**:
-  Whether in personal development, learning new disciplines, or executing ambitious goals, steady incremental progress compounds dramatically over 6 to 12 months.
+  Looking at this from the vantage point of who we are becoming, every outcome in life—whether in focus, learning, career, or well-being—is shaped by the consistency of our daily systems rather than random intensity.
 
-• **How can I assist you further?**
-  Feel free to ask follow-up questions, explore a what-if scenario, or check in on your habits and daily routines whenever you're ready!`
-    }
+• **Core Principle**:
+  - Focus on what you can control today: high-leverage daily actions and keeping activation friction low.
+  - In our journey, a 70% effort on a hard day beats a zero-day every time—it protects identity and momentum.
+
+• **Connecting to Your Journey**:
+  Right now, you're tracking **${allHabits.length}** habits with an overall consistency of **${overallRate}%**. How does "${cleanPrompt}" connect to your daily focus or goals today? Let's turn it into an actionable routine or test a what-if trajectory.`
+
     suggestedFollowUps = [
-      'Can you give me a specific real-world example of this?',
-      'How can I break this down into a step-by-step plan?',
-      'What are common pitfalls to watch out for?',
+      'How does this impact my 6-month trajectory?',
+      'Where am I lagging the most right now?',
+      'How can I turn this into a daily habit?',
     ]
   }
 
