@@ -15,7 +15,6 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { useUserProfile } from '../contexts/UserProfileContext'
 import { BotanicalHero } from '../components/botanical/BotanicalHero'
-import { DesktopNotificationBanner } from '../components/notifications/DesktopNotificationBanner'
 import { QuickStatsBar } from '../components/botanical/QuickStatsBar'
 import { TodaysHabitsCard } from '../components/botanical/TodaysHabitsCard'
 import { WeeklyInsightsCard } from '../components/botanical/WeeklyInsightsCard'
@@ -238,9 +237,6 @@ export function TodayPage() {
 
   return (
     <div className="space-y-3.5 sm:space-y-4">
-      {/* WhatsApp-Style Desktop Notification Permission Banner */}
-      <DesktopNotificationBanner />
-
       {/* 1. Botanical Hero Banner with Yellowish-Green Glow & Calendar Strip */}
       <BotanicalHero
         selectedDate={selectedDate}

@@ -5,6 +5,7 @@ import {
   isNotificationSupported,
   getNotificationPermission,
   showDesktopNotification,
+  registerNotificationServiceWorker,
 } from '../utils/desktopNotification'
 
 export interface AppNotification {
@@ -12,13 +13,15 @@ export interface AppNotification {
   title: string
   message: string
   timestamp: string // ISO string
-  cadence: '1h' | 'initial' | 'custom'
+  cadence: '1h' | 'custom'
   read: boolean
   stats: {
     completedCount: number
     totalCount: number
+    pendingCount: number
     percent: number
     pendingHabits: string[]
+    completedHabits?: string[]
   }
 }
 
@@ -26,6 +29,7 @@ interface NotificationContextType {
   notifications: AppNotification[]
   unreadCount: number
   isOpen: boolean
+  activeToast: AppNotification | null
   isBrowserPermissionGranted: boolean
   browserPermission: NotificationPermission
   isBrowserSupported: boolean
@@ -35,6 +39,7 @@ interface NotificationContextType {
   markAllAsRead: () => void
   clearNotification: (id: string) => void
   clearAll: () => void
+  dismissToast: () => void
   requestBrowserPermission: () => Promise<boolean>
   testDesktopNotification: () => void
   notifyHabitMilestone: (habitName: string, actual: number, target: number, unit?: string) => void
@@ -45,9 +50,9 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 
 const STORAGE_KEY = 'future-you-notifications-v2'
 const LAST_HOURLY_NOTIFICATION_KEY = 'future-you-last-hourly-notification-time'
-const ONE_HOUR_MS = 60 * 60 * 1000 // Exactly 1 hour in milliseconds
+const ONE_HOUR_MS = 60 * 60 * 1000 // Exactly 1 hour (60 minutes) in milliseconds
 
-function computeTodayHabitStats() {
+export function computeTodayHabitStats() {
   const habits = getLocalHabits().filter((h) => h.is_active)
   const allLogs = getAllLocalLogs()
   const todayStr = format(new Date(), 'yyyy-MM-dd')
@@ -55,6 +60,7 @@ function computeTodayHabitStats() {
 
   let completed = 0
   const pendingNames: string[] = []
+  const completedNames: string[] = []
 
   habits.forEach((h) => {
     const log = todayLogs.find((l) => l.habit_id === h.id)
@@ -62,50 +68,54 @@ function computeTodayHabitStats() {
     const actual = log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
     if (actual >= target && target > 0) {
       completed++
+      completedNames.push(h.name)
     } else {
       pendingNames.push(h.name)
     }
   })
 
-  const total = habits.length || 1
-  const percent = Math.min(Math.round((completed / total) * 100), 100)
+  const total = habits.length
+  const pendingCount = pendingNames.length
+  const percent = total > 0 ? Math.min(Math.round((completed / total) * 100), 100) : 0
 
   return {
     completedCount: completed,
-    totalCount: habits.length,
+    totalCount: total,
+    pendingCount,
     percent,
     pendingHabits: pendingNames,
+    completedHabits: completedNames,
   }
 }
 
-function createCadenceNotification(
-  cadence: '1h' | 'initial' = '1h',
+export function createCadenceNotification(
+  cadence: '1h' | 'custom' = '1h',
   stats = computeTodayHabitStats()
 ): AppNotification {
-  const { completedCount, totalCount, percent, pendingHabits } = stats
-  const pendingStr =
-    pendingHabits.length > 0 ? pendingHabits.slice(0, 3).join(', ') : 'None (all completed)'
+  const { completedCount, totalCount, pendingCount, percent, pendingHabits } = stats
 
   let title = ''
   let message = ''
 
-  if (cadence === '1h') {
-    if (percent === 100) {
-      title = 'Hourly Update · All Habits Done!'
-      message = `Incredible! All ${totalCount} habits completed today. Consistency protecting your future trajectory.`
-    } else if (percent === 0) {
-      title = 'Hourly Routine Check-in'
-      message = `0/${totalCount} habits logged today. Take a quick step on ${pendingStr} to break inertia.`
-    } else {
-      title = 'Hourly Progress Update'
-      message = `${completedCount}/${totalCount} habits completed (${percent}%). Pending: ${pendingStr}.`
-    }
+  if (totalCount === 0) {
+    title = 'Hourly Routine · Set Up Your Habits'
+    message = 'You have not set up any habits yet. Add your daily habits to start tracking progress and receive hourly check-ins!'
+  } else if (pendingCount === 0) {
+    // 100% completed
+    title = `Hourly Check-in · All ${totalCount} Habits Completed! (100%)`
+    message = `Incredible dedication! You have completed all ${totalCount} of ${totalCount} habits today (0 remaining). Consistency protecting your future self!`
+  } else if (completedCount === 0) {
+    // 0% completed
+    const pendingListStr =
+      pendingHabits.slice(0, 3).join(', ') + (pendingHabits.length > 3 ? ` +${pendingHabits.length - 3} more` : '')
+    title = `Hourly Reminder · ${pendingCount} Habit${pendingCount > 1 ? 's' : ''} Haven't Been Done Yet (0%)`
+    message = `Today's progress: 0/${totalCount} habits completed (0%). You haven't done ${pendingCount} habit${pendingCount > 1 ? 's' : ''} yet: ${pendingListStr}. Take a quick step to break inertia!`
   } else {
-    title = 'Daily Habit Slate Ready'
-    message =
-      percent === 0
-        ? `Your slate is fresh at 0% for today. Routine notifications will update you once every hour.`
-        : `Today's current progress: ${completedCount}/${totalCount} done (${percent}%).`
+    // In progress (e.g. 2/5 done, 3 pending)
+    const pendingListStr =
+      pendingHabits.slice(0, 3).join(', ') + (pendingHabits.length > 3 ? ` +${pendingHabits.length - 3} more` : '')
+    title = `Hourly Reminder · ${pendingCount} Habit${pendingCount > 1 ? 's' : ''} Remaining (${percent}% Done)`
+    message = `Today's progress: ${completedCount}/${totalCount} completed (${percent}%). You currently haven't done ${pendingCount} habit${pendingCount > 1 ? 's' : ''} yet: ${pendingListStr}. Keep up your momentum!`
   }
 
   return {
@@ -125,25 +135,31 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) {
         const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(
+            (item: any) =>
+              item &&
+              item.cadence !== 'initial' &&
+              !item.title?.toLowerCase().includes('daily habit slate ready')
+          )
+        }
       }
     } catch {
-      // fallback to initial
+      // fallback
     }
-    // Initial situation alert
-    const initial = createCadenceNotification('initial')
-    return [initial]
+    return []
   })
 
   const [isOpen, setIsOpen] = useState(false)
+  const [activeToast, setActiveToast] = useState<AppNotification | null>(null)
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   const isBrowserSupported = isNotificationSupported()
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission>(() => {
     return getNotificationPermission()
   })
 
   const isBrowserPermissionGranted = browserPermission === 'granted'
-
-  const lastCadenceFired = useRef<{ [key: string]: number }>({})
 
   // Persist notifications
   useEffect(() => {
@@ -153,6 +169,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       console.error('Error saving notifications:', e)
     }
   }, [notifications])
+
+  // Register service worker on mount
+  useEffect(() => {
+    registerNotificationServiceWorker().catch(() => {})
+  }, [])
 
   // Synchronize browser permission status on window focus
   useEffect(() => {
@@ -169,39 +190,72 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       title: item.title,
       body: item.message,
       tag: item.id || `future-you-${Date.now()}`,
-    })
+      requireInteraction: true,
+      onClick: () => {
+        window.focus()
+        setIsOpen(true)
+      },
+    }).catch(() => {})
   }, [])
 
-  // Add notification helper
+  const dismissToast = useCallback(() => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current)
+      toastTimeoutRef.current = null
+    }
+    setActiveToast(null)
+  }, [])
+
+  // Add notification helper: triggers desktop alert, sets in-app toast, and records in history
   const addNotification = useCallback((item: AppNotification) => {
     setNotifications((prev) => [item, ...prev.slice(0, 49)]) // Keep last 50
+
+    // Trigger In-App Pop-up Toast for the Web
+    setActiveToast(item)
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current)
+    }
+    toastTimeoutRef.current = setTimeout(() => {
+      setActiveToast(null)
+      toastTimeoutRef.current = null
+    }, 9000)
+
+    // Trigger Native OS Desktop Alert
     sendDesktopAlert(item)
   }, [sendDesktopAlert])
 
-  // Request browser Notification permission (with immediate welcome toast upon granting)
+  // Request browser Notification permission
   const requestBrowserPermission = useCallback(async (): Promise<boolean> => {
     if (!isNotificationSupported()) return false
     try {
       const permission = await Notification.requestPermission()
       setBrowserPermission(permission)
-      const granted = permission === 'granted'
-      if (granted) {
-        showDesktopNotification({
-          title: 'Future You · Desktop Notifications Active',
-          body: "You'll now receive habit check-ins and completion alerts directly on your desktop, just like WhatsApp!",
-          tag: 'welcome-desktop-alert',
-        })
-      }
-      return granted
+      return permission === 'granted'
     } catch {
       return false
     }
   }, [])
 
-  // Trigger test desktop notification immediately
+  // Proactively ask user to turn on notifications on web upon first interaction
+  useEffect(() => {
+    if (!isBrowserSupported || browserPermission !== 'default') return
+
+    const handlePromptOnInteraction = () => {
+      requestBrowserPermission().catch(() => {})
+    }
+
+    window.addEventListener('click', handlePromptOnInteraction, { once: true })
+    window.addEventListener('keydown', handlePromptOnInteraction, { once: true })
+
+    return () => {
+      window.removeEventListener('click', handlePromptOnInteraction)
+      window.removeEventListener('keydown', handlePromptOnInteraction)
+    }
+  }, [browserPermission, isBrowserSupported, requestBrowserPermission])
+
+  // Trigger notification immediately on both Desktop and Web
   const testDesktopNotification = useCallback(async () => {
     if (!isNotificationSupported()) {
-      alert('Desktop notifications are not supported in this browser.')
       return
     }
 
@@ -210,16 +264,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (!granted) return
     }
 
-    const testItem: AppNotification = {
-      id: crypto.randomUUID(),
-      title: 'Future You · Desktop Alert Test',
-      message: 'WhatsApp-style desktop notifications are working! You will receive routine updates and habit celebrations right here on your desktop.',
-      timestamp: new Date().toISOString(),
-      cadence: 'custom',
-      read: false,
-      stats: computeTodayHabitStats(),
-    }
-
+    const testItem = createCadenceNotification('1h')
     addNotification(testItem)
   }, [requestBrowserPermission, addNotification])
 
@@ -227,6 +272,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const notifyHabitMilestone = useCallback((habitName: string, actual: number, target: number, unit?: string) => {
     const safeTarget = target > 0 ? target : 1
     const percent = Math.min(Math.round((actual / safeTarget) * 100), 100)
+    const stats = computeTodayHabitStats()
 
     if (percent >= 100) {
       const item: AppNotification = {
@@ -236,7 +282,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         timestamp: new Date().toISOString(),
         cadence: 'custom',
         read: false,
-        stats: computeTodayHabitStats(),
+        stats,
       }
       addNotification(item)
     } else if (percent >= 70) {
@@ -247,13 +293,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         timestamp: new Date().toISOString(),
         cadence: 'custom',
         read: false,
-        stats: computeTodayHabitStats(),
+        stats,
       }
       addNotification(item)
     }
   }, [addNotification])
 
-  // Trigger manual or programmatic cadence notification (restricted to hourly updates)
+  // Trigger hourly cadence notification
   const triggerCadenceNotification = useCallback((cadence: '1h' = '1h') => {
     const nowMs = Date.now()
     try {
@@ -265,25 +311,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     addNotification(item)
   }, [addNotification])
 
-  // Automated cadence timer: strictly restricted to send once every 1 hour only
+  // Automated Hourly Cadence Engine:
+  // Strictly triggers once every hour to remind the user about habit progress and pending habits.
   useEffect(() => {
-    // If this is the user's first session, record the starting timestamp so they aren't spammed immediately
-    try {
-      const stored = localStorage.getItem(LAST_HOURLY_NOTIFICATION_KEY)
-      if (!stored) {
-        localStorage.setItem(LAST_HOURLY_NOTIFICATION_KEY, String(Date.now()))
-      }
-    } catch {
-      // ignore
-    }
-
     const checkHourlyTrigger = () => {
-      const now = new Date()
-      const nowMs = now.getTime()
-      const minute = now.getMinutes()
-      const hour = now.getHours()
-      const hourKey = `hourly-${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${hour}`
-
+      const nowMs = Date.now()
       let lastFiredTime = 0
       try {
         lastFiredTime = Number(localStorage.getItem(LAST_HOURLY_NOTIFICATION_KEY) || 0)
@@ -291,22 +323,71 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         lastFiredTime = 0
       }
 
+      // If no notification was ever recorded, set the anchor to now
+      if (!lastFiredTime) {
+        try {
+          localStorage.setItem(LAST_HOURLY_NOTIFICATION_KEY, String(nowMs))
+        } catch {}
+        return
+      }
+
       const elapsed = nowMs - lastFiredTime
 
-      // Only trigger if at least 1 hour has elapsed since last notification,
-      // or at top-of-hour (:00) if at least 50 minutes have elapsed
-      if (!lastCadenceFired.current[hourKey]) {
-        if ((minute === 0 && elapsed >= 50 * 60 * 1000) || elapsed >= ONE_HOUR_MS) {
-          lastCadenceFired.current[hourKey] = nowMs
-          triggerCadenceNotification('1h')
-        }
+      // If at least 1 hour has elapsed since the last hourly notification, trigger the reminder!
+      if (elapsed >= ONE_HOUR_MS) {
+        triggerCadenceNotification('1h')
       }
     }
 
-    // Check periodically every 30 seconds for clock-based hourly trigger
-    const interval = setInterval(checkHourlyTrigger, 30000)
+    // Check every 15 seconds on main thread
+    const interval = setInterval(checkHourlyTrigger, 15000)
 
-    return () => clearInterval(interval)
+    // Also check immediately when window gains focus or visibility returns
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        checkHourlyTrigger()
+      }
+    }
+    window.addEventListener('focus', handleVisibilityOrFocus)
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus)
+
+    // Inline Web Worker ticker to keep hourly checks running even when the tab is backgrounded
+    let worker: Worker | null = null
+    try {
+      const workerCode = `
+        let timer = null;
+        self.onmessage = function(e) {
+          if (e.data === 'start') {
+            if (timer) clearInterval(timer);
+            timer = setInterval(function() {
+              self.postMessage('hourly-tick');
+            }, 30000); // tick every 30s in worker
+          } else if (e.data === 'stop') {
+            if (timer) clearInterval(timer);
+          }
+        };
+      `
+      const blob = new Blob([workerCode], { type: 'application/javascript' })
+      worker = new Worker(URL.createObjectURL(blob))
+      worker.onmessage = () => {
+        checkHourlyTrigger()
+      }
+      worker.postMessage('start')
+    } catch {
+      // Fallback relies on setInterval
+    }
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', handleVisibilityOrFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus)
+      if (worker) {
+        try {
+          worker.postMessage('stop')
+          worker.terminate()
+        } catch {}
+      }
+    }
   }, [triggerCadenceNotification])
 
   const unreadCount = notifications.filter((n) => !n.read).length
@@ -339,6 +420,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         notifications,
         unreadCount,
         isOpen,
+        activeToast,
         isBrowserPermissionGranted,
         browserPermission,
         isBrowserSupported,
@@ -348,6 +430,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         markAllAsRead,
         clearNotification,
         clearAll,
+        dismissToast,
         requestBrowserPermission,
         testDesktopNotification,
         notifyHabitMilestone,

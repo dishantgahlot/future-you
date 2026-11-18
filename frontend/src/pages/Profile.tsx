@@ -6,11 +6,8 @@ import {
   faEnvelope,
   faCheck,
   faCircleCheck,
-  faBell,
-  faDesktop,
 } from '@fortawesome/free-solid-svg-icons'
 import { useUserProfile } from '../contexts/UserProfileContext'
-import { useNotifications } from '../contexts/NotificationContext'
 import { saveLocalHabits } from '../utils/habitStorage'
 import { AvatarPickerSection } from '../components/profile/AvatarPickerSection'
 
@@ -20,13 +17,6 @@ export function Profile() {
     email,
     updateProfile,
   } = useUserProfile()
-
-  const {
-    browserPermission,
-    isBrowserPermissionGranted,
-    requestBrowserPermission,
-    testDesktopNotification,
-  } = useNotifications()
 
   const [nameInput, setNameInput] = useState(fullName)
   const [statusMsg, setStatusMsg] = useState<string | null>(null)
@@ -139,74 +129,7 @@ export function Profile() {
         </form>
       </div>
 
-      {/* 4. Desktop Notifications (WhatsApp-Style) Section */}
-      <div className="bg-white/95 dark:bg-[#0D1814] rounded-3xl border border-[#E8E2D5] dark:border-[#223326] p-5 sm:p-6 shadow-[0_2px_12px_rgba(29,37,22,0.03)] space-y-4 transition-colors">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="font-serif font-bold text-lg text-[#1D2516] dark:text-[#F5F2EB]">
-                Desktop Notifications
-              </h2>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#EAEFE2] dark:bg-[#1D2D23] text-[#4E6228] dark:text-[#A8D968]">
-                WhatsApp-Style
-              </span>
-            </div>
-            <p className="text-xs text-[#4E5642] dark:text-[#9BAF90] mt-0.5">
-              Receive native operating system alerts and gentle chimes when habits are completed or during hourly routine check-ins.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {isBrowserPermissionGranted ? (
-              <button
-                type="button"
-                onClick={testDesktopNotification}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#738541] hover:bg-[#5E6D34] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer active:scale-95"
-              >
-                <FontAwesomeIcon icon={faBell} className="w-3 h-3" />
-                <span>Send Test Desktop Alert</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={requestBrowserPermission}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#738541] hover:bg-[#5E6D34] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer active:scale-95"
-              >
-                <FontAwesomeIcon icon={faDesktop} className="w-3 h-3" />
-                <span>Enable Desktop Notifications</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="p-3 rounded-2xl bg-[#F6F3EB]/60 dark:bg-[#15231C] border border-[#E8E2D5] dark:border-[#223326] flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isBrowserPermissionGranted
-                  ? 'bg-emerald-500 ring-2 ring-emerald-500/20 animate-pulse'
-                  : browserPermission === 'denied'
-                  ? 'bg-rose-500'
-                  : 'bg-amber-400'
-              }`}
-            />
-            <span className="font-semibold text-[#1D2516] dark:text-[#F5F2EB]">
-              Status:{' '}
-              {isBrowserPermissionGranted
-                ? 'Active & Permitted (OS Alerts & Audio Chime)'
-                : browserPermission === 'denied'
-                ? 'Blocked by browser permissions (Allow in browser site settings)'
-                : 'Awaiting permission (Click Enable above)'}
-            </span>
-          </div>
-
-          <span className="text-[11px] text-[#8A9280] dark:text-[#8FA387] hidden sm:inline">
-            Works across Windows, macOS, and Linux
-          </span>
-        </div>
-      </div>
-
-      {/* 5. System Preferences & Session */}
+      {/* 4. System Preferences & Session */}
       <div className="bg-white/95 dark:bg-[#0D1814] rounded-3xl border border-[#E8E2D5] dark:border-[#223326] p-5 sm:p-6 shadow-[0_2px_12px_rgba(29,37,22,0.03)] space-y-4 transition-colors">
         <div>
           <h2 className="font-serif font-bold text-lg text-[#1D2516] dark:text-[#F5F2EB]">

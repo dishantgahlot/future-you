@@ -1,6 +1,6 @@
 /**
- * Desktop Notification Utility for Future You (WhatsApp-Style)
- * Native Web Notifications + Web Audio API synthesizer for clean notification chimes
+ * Desktop Notification Utility for Future You
+ * Native Web Notifications + Service Worker registration + Web Audio API synthesizer for clean notification chimes.
  */
 
 export function isNotificationSupported(): boolean {
@@ -13,7 +13,28 @@ export function getNotificationPermission(): NotificationPermission {
 }
 
 /**
- * Plays a pleasant WhatsApp-like cheerful dual-tone chime using Web Audio API.
+ * Registers the notification service worker if supported by the browser.
+ */
+export async function registerNotificationServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return null
+  }
+  try {
+    const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    return registration
+  } catch (err) {
+    console.debug('[DesktopNotification] Service Worker registration skipped or failed:', err)
+    return null
+  }
+}
+
+// Auto-register service worker on startup in browser environment
+if (typeof window !== 'undefined') {
+  registerNotificationServiceWorker().catch(() => {})
+}
+
+/**
+ * Plays a cheerful dual-tone melodic chime using Web Audio API.
  * Requires no external audio files or network requests.
  */
 export function playNotificationChime(): void {
@@ -67,13 +88,17 @@ export interface ShowDesktopNotificationOptions {
   badge?: string
   tag?: string
   silent?: boolean
+  requireInteraction?: boolean
   onClick?: () => void
 }
 
 /**
  * Displays a native desktop notification (OS toast) and plays the chime sound.
+ * Ensures compatibility with Windows 10/11 Action Center and Chromium notification engine.
  */
-export function showDesktopNotification(options: ShowDesktopNotificationOptions): Notification | null {
+export async function showDesktopNotification(
+  options: ShowDesktopNotificationOptions
+): Promise<Notification | null> {
   if (!isNotificationSupported() || Notification.permission !== 'granted') {
     return null
   }
@@ -84,13 +109,42 @@ export function showDesktopNotification(options: ShowDesktopNotificationOptions)
       playNotificationChime()
     }
 
-    const notification = new Notification(options.title, {
+    // Build fully-qualified URLs for icon and badge so Windows Action Center displays them reliably
+    const origin = typeof window !== 'undefined' ? window.location.origin : ''
+    const iconUrl = options.icon
+      ? (options.icon.startsWith('http') ? options.icon : `${origin}${options.icon.startsWith('/') ? '' : '/'}${options.icon}`)
+      : `${origin}/android-chrome-192x192.png`
+
+    const badgeUrl = options.badge
+      ? (options.badge.startsWith('http') ? options.badge : `${origin}${options.badge.startsWith('/') ? '' : '/'}${options.badge}`)
+      : `${origin}/favicon-32x32.png`
+
+    const notificationOptions: NotificationOptions = {
       body: options.body,
-      icon: options.icon || '/android-chrome-192x192.png',
-      badge: options.badge || '/favicon-32x32.png',
+      icon: iconUrl,
+      badge: badgeUrl,
       tag: options.tag || `future-you-${Date.now()}`,
-      silent: true, // We handle the chime smoothly via Web Audio API so OS doesn't clash
-    })
+      // IMPORTANT FOR WINDOWS: Never pass silent: true! Windows Action Center suppresses toast banner pop-ups when silent is true.
+      silent: false,
+      // Keep notification active on desktop until the user clicks or dismisses it
+      requireInteraction: options.requireInteraction ?? true,
+    }
+
+    // 1. Try Service Worker showNotification if active (preferred by modern Chromium on desktop & mobile)
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.ready
+        if (reg && typeof reg.showNotification === 'function') {
+          await reg.showNotification(options.title, notificationOptions)
+          return null
+        }
+      } catch (swErr) {
+        console.debug('[DesktopNotification] Service worker showNotification fallback to new Notification:', swErr)
+      }
+    }
+
+    // 2. Direct Window Notification API constructor
+    const notification = new Notification(options.title, notificationOptions)
 
     notification.onclick = () => {
       try {

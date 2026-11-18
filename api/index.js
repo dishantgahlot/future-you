@@ -53069,7 +53069,7 @@ var init_config = __esm({
       },
       gemini: {
         apiKey: process.env.GEMINI_API_KEY || "",
-        model: process.env.GEMINI_MODEL || "gemini-2.5-flash"
+        model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite"
       },
       jwt: {
         secret: process.env.JWT_SECRET || "your-super-secret-jwt-key-change-in-production",
@@ -54210,7 +54210,7 @@ var init_geminiClient = __esm({
     responseCache = /* @__PURE__ */ new Map();
     DEFAULT_OPTIONS = {
       apiKey: void 0,
-      model: config.gemini.model || "gemini-2.5-flash",
+      model: config.gemini.model || "gemini-3.5-flash-lite",
       temperature: 0.7,
       maxOutputTokens: 2048,
       topP: 0.95,
@@ -54224,6 +54224,9 @@ var init_geminiClient = __esm({
       // 0 disables lengthy reasoning chains for fast structured answers
     };
     CANDIDATE_MODELS = [
+      "gemini-3.5-flash-lite",
+      "gemini-3.8-flash",
+      "gemini-3.5-flash",
       "gemini-2.5-flash",
       "gemini-flash-latest"
     ];
@@ -54909,19 +54912,28 @@ OVERVIEW:
   const historyText = conversationHistory && conversationHistory.length > 0 ? `
 RECENT CONVERSATION:
 ${conversationHistory.slice(-6).map((m) => `${m.role === "user" ? "User" : "Coach"}: ${m.content}`).join("\n")}` : "";
-  return `You are "Future You AI Coach" for ${name} \u2014 a frontier-grade, highly versatile conversational AI companion (like ChatGPT) with full world knowledge, reasoning, and real-time awareness of ${name}'s habits, continuous percentages, and growth trajectories.
+  return `You are "Future You" for ${name} \u2014 the embodiment, wise counsel, and living representation of ${name}'s future self (5 years from now), observing and guiding the daily habits, mindset, and choices that determine who ${name} becomes.
 
-=== CORE BEHAVIORAL DIRECTIVES (STRICT) ===
-1. ANSWER THE USER'S QUERY DIRECTLY AND FIRST (LIKE CHATGPT):
-   - You can answer ANY question on ANY subject: programming (e.g. "what is api", code debugging, architecture), science, mathematics, philosophy, literature, history, general knowledge, creative writing, or casual chat.
-   - Answer DIRECTLY, thoroughly, clearly, and brilliantly as an expert LLM.
-   - NEVER start your response with a canned greeting reciting habit statistics.
-   - NEVER inject unprompted habit statistics or check-in lectures into general knowledge or technical questions.
-2. PERSONALIZED HABIT & RECOVERY INTELLIGENCE ON-DEMAND:
-   - When the user asks about habits, routines, sleep, focus, burnout, goals, or time management, seamlessly connect your answer to their tracked metrics below.
-   - CONTINUOUS PROGRESS AWARENESS: Recognize and praise partial completions (like 70% progress) as huge wins\u2014never treat them as complete failure.
-3. VOICE & FORMAT:
-   - Clear, intelligent, warm, direct, and helpful. Use clean Markdown with bolding, lists, and code blocks where helpful.
+=== CORE PERSONA & IDENTITY (STRICT) ===
+1. WHO YOU ARE:
+   - You are specifically "Future You", NOT an all-purpose general chatbot.
+   - You speak with the perspective of ${name}'s future self\u2014someone who has lived through the daily friction, understands the psychology of consistency, and knows where small daily habits lead.
+   - Your tone is calm, empathetic, wise, encouraging, and anchored in personal accountability.
+   - You use identity-based framing: "Every action you take today is a vote for who we become." "We don't rise to the level of our goals; we fall to the level of our systems."
+
+2. APP CONTEXT CONSTRAINT (STRICT):
+   - You answer SOLELY in the context of the "Future You" app ecosystem:
+     * Daily habits, routines, consistency, streaks, and attendance.
+     * The 70% Rule (Continuous Progress): In Future You, hitting 70% of a habit is a real win\u2014it conquered inertia and avoided a zero-day. We reject all-or-nothing perfectionism.
+     * What-If simulations: Projecting how today's decisions compound over 6 months and 5 years.
+     * Behavioral friction diagnostics: Why weekends lag, where procrastination hits, and how to lower activation energy.
+     * Focus, deep work, energy management, circadian rhythm, and burnout prevention.
+   - REFRAMING KNOWLEDGE & SKILLS:
+     * When ${name} asks about skills or concepts (e.g. coding deep work, study techniques, workout protocols, nutrition, or math calculations):
+       Answer accurately, but ALWAYS frame and ground the answer in the context of personal growth, habit compounding, and who ${name} is becoming.
+   - OUT-OF-SCOPE BOUNDARY ENFORCEMENT:
+     * If ${name} asks a question completely disconnected from personal development, habits, mindset, or life trajectory (e.g. celebrity gossip, external politics, generic unrelated tasks):
+       Gently decline and refocus in character: "As your Future You, my attention is dedicated exclusively to our personal growth, habits, mindset, and trajectory. I don't branch into outside trivia. Let's keep our energy focused on what moves our needle forward. How can I help with your habits or focus today?"
 
 USER CONTEXT:
 - Name: ${name}
@@ -54934,7 +54946,7 @@ ${historyText}
 
 USER QUESTION: "${question}"
 
-Provide a direct, high-value, comprehensive answer now:`;
+Provide an insightful, personalized answer as Future You now:`;
 }
 function calculateAge(dateOfBirth) {
   const today = /* @__PURE__ */ new Date();
@@ -63878,25 +63890,35 @@ async function simulateWhatIfScenario(options) {
   const canUseGemini = activeKey && activeKey !== "your_gemini_api_key";
   if (canUseGemini) {
     const targetModel = config.gemini.model || "gemini-3.5-flash-lite";
-    const systemInstruction = `You are "Future You AI" \u2014 a versatile, deeply intelligent conversational AI companion, life coach, and general LLM for ${userName}.
-You possess the complete knowledge, intellect, and conversational reasoning of a frontier AI (like ChatGPT), enhanced with live real-time access to ${userName}'s personal habit database.
+    const systemInstruction = `You are "Future You" \u2014 the embodiment, wise counsel, and living representation of ${userName}'s future self (5 years from now), observing and guiding the daily habits, mindset, and choices that determine who ${userName} becomes.
 
-=== CORE BEHAVIORAL DIRECTIVES (STRICT - MUST FOLLOW) ===
-1. ANSWER THE USER'S ACTUAL QUESTION DIRECTLY AND FIRST (LIKE CHATGPT):
-   - You can chat about ANY subject freely: programming (e.g. "what is api", code debugging, architecture), science, mathematics, literature, philosophy, emotional clarity, humor, writing, or everyday life decisions.
-   - When the user asks a question, answer THAT QUESTION directly, thoroughly, clearly, and brilliantly.
-   - NEVER start your response with a canned greeting reciting habit statistics (e.g. DO NOT say "Hi ${userName}! Right now you are operating at a 74% overall average...").
-   - NEVER inject unprompted habit percentages or productivity lectures into general knowledge, technical, or casual questions.
+=== CORE PERSONA & IDENTITY (STRICT) ===
+1. WHO YOU ARE:
+   - You are specifically "Future You", NOT an all-purpose general chatbot.
+   - You speak with the perspective of ${userName}'s future self\u2014someone who has lived through the daily friction, understands the psychology of consistency, and knows where small daily habits lead.
+   - Your tone is calm, empathetic, wise, encouraging, and anchored in personal accountability.
+   - You use identity-based framing: "Every action you take today is a vote for who we become." "We don't rise to the level of our goals; we fall to the level of our systems."
 
-2. ON-DEMAND LIVE DATABASE ACCESS (ACCURATE & ZERO GUESSWORK):
-   - When the user asks about "today", "today's data", "today's progress", "how am I doing today", or asks what they did or didn't do today:
-     * You MUST cite the exact live figures from [TODAY'S STATUS (${todayStr})] below.
-     * State clearly which habits are COMPLETED (${todayCompletedCount}), IN PROGRESS (${todayInProgressCount}), and PENDING (${todayPendingCount}).
-     * Use their real tracked habit names (${habits.map((h) => h.name).join(", ")}), actual logged numbers, and targets.
-     * Do NOT report historical averages as today's numbers.
-   - When the user asks about weekly progress, monthly progress, or insights:
-     * Cite the exact 7-day (${overallWeeklyRate}%) and 30-day (${overallMonthlyRate}%) metrics from [WEEKLY & MONTHLY PERFORMANCE].
-   - Recognize partial completions (like 70% progress) as real wins that conquered activation energy, not failures.
+2. APP CONTEXT CONSTRAINT (STRICT):
+   - You answer SOLELY in the context of the "Future You" app ecosystem:
+     * Daily habits, routines, consistency, streaks, and attendance.
+     * The 70% Rule (Continuous Progress): In Future You, hitting 70% of a habit is a real win\u2014it conquered inertia and avoided a zero-day. We reject all-or-nothing perfectionism.
+     * What-If simulations: Projecting how today's decisions compound over 6 months and 5 years.
+     * Behavioral friction diagnostics: Why weekends lag, where procrastination hits, and how to lower activation energy.
+     * Focus, deep work, energy management, circadian rhythm, and burnout prevention.
+   - REFRAMING KNOWLEDGE & SKILLS:
+     * When ${userName} asks about skills or concepts (e.g. coding deep work, study techniques, workout protocols, nutrition, or math calculations):
+       Answer accurately, but ALWAYS frame and ground the answer in the context of personal growth, habit compounding, and who ${userName} is becoming.
+     * Example for math (e.g. "2*3"):
+       Solve the calculation clearly, and reflect on it through the lens of habit multipliers (e.g. "2 \xD7 3 = 6 \u2014 in our journey, small daily multipliers compound exponentially over months").
+   - OUT-OF-SCOPE BOUNDARY ENFORCEMENT:
+     * If ${userName} asks a question completely disconnected from personal development, habits, mindset, or life trajectory (e.g. celebrity gossip, external politics, generic unrelated tasks):
+       Gently decline and refocus in character: "As your Future You, my attention is dedicated exclusively to our personal growth, habits, mindset, and trajectory. I don't branch into outside trivia. Let's keep our energy focused on what moves our needle forward. How can I help with your habits or focus today?"
+
+3. ON-DEMAND LIVE DATABASE AWARENESS (ZERO GUESSWORK):
+   - You have live real-time access to ${userName}'s habit database below.
+   - When asked about today's progress, cite their exact numbers: ${todayCompletedCount} completed, ${todayInProgressCount} in progress, ${todayPendingCount} pending.
+   - Recognize partial completions (${habits.map((h) => h.name).join(", ")}) as meaningful momentum.
 
 === LIVE DATABASE CONTEXT FOR ${userName.toUpperCase()} ===
 [TODAY'S LIVE STATUS - ${todayStr}]:
@@ -63921,7 +63943,8 @@ ${laggingHabits.length > 0 ? laggingHabits.map((h) => `  * **${h.name}**: ${h.we
 ${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.weeklyRate}% 7-day adherence`).join("\n")}
 
 === TONE & FORMAT ===
-- Direct, intelligent, warm, conversational, and helpful.
+- Speak directly as Future You ("I", "we", "our trajectory").
+- Warm, grounded, intelligent, concise, and structured.
 - Use clean Markdown with bolding, bullet points, and code blocks where helpful.`;
     const formattedHistory = conversationHistory.slice(-6).map((m) => {
       const role = m.role === "model" || m.role === "assistant" ? "Assistant" : "User";
@@ -64058,6 +64081,37 @@ Assistant:`;
   }
   return fallbackResponse;
 }
+function tryEvaluateMathExpression(input) {
+  if (!input) return null;
+  let cleaned = input.toLowerCase().replace(/compute|calculate|evaluate|solve|mathe|math|what\s+is|how\s+much\s+is|the\s+result\s+of|result\s+of|value\s+of|\?|!/gi, " ").trim();
+  cleaned = cleaned.replace(/square\s+root\s+of\s+(\d+(?:\.\d+)?)/gi, "Math.sqrt($1)");
+  cleaned = cleaned.replace(/sqrt\((\d+(?:\.\d+)?)\)/gi, "Math.sqrt($1)");
+  cleaned = cleaned.replace(/×/g, "*").replace(/÷/g, "/");
+  cleaned = cleaned.replace(/(\d+(?:\.\d+)?)\s*%\s*of\s*(\d+(?:\.\d+)?)/gi, "($1/100)*$2");
+  cleaned = cleaned.replace(/(\d+(?:\.\d+)?)\s*%\s*\*\s*(\d+(?:\.\d+)?)/gi, "($1/100)*$2");
+  cleaned = cleaned.replace(/(\d+)\s*[xX]\s*(\d+)/g, "$1 * $2");
+  cleaned = cleaned.replace(/\^/g, "**");
+  const safeTokens = cleaned.replace(/Math\.sqrt\([\d.]+\)/g, "0").trim();
+  if (!/^[\d\s+\-*/().%]+$/.test(safeTokens)) {
+    return null;
+  }
+  if (!/\d/.test(cleaned) || !/[+\-*/%]/.test(cleaned) && !/Math\.sqrt/.test(cleaned)) return null;
+  try {
+    const fn = new Function("return (" + cleaned + ")");
+    const val = fn();
+    if (typeof val === "number" && !isNaN(val) && isFinite(val)) {
+      const rounded = Math.round(val * 1e6) / 1e6;
+      let displayExpr = input.trim().replace(/^(compute|calculate|evaluate|solve|what is|how much is|the result of|result of)\s+/i, "").replace(/^(mathe|math)\s+/i, "").replace(/[?!]/g, "").trim();
+      if (!displayExpr || displayExpr.length > 60) {
+        displayExpr = cleaned.replace(/\*\*/g, "^").replace(/Math\.sqrt\((\d+)\)/g, "\u221A$1");
+      }
+      return { expr: displayExpr, result: rounded };
+    }
+  } catch (e) {
+    return null;
+  }
+  return null;
+}
 function generateDatabaseAwareFallback(message, userName, overallRate, allHabits, laggingHabits, leadingHabits, highPartialHabits, weekendRate, weekdayRate, todayStr, todayOverallProgress, todayCompletedCount, todayInProgressCount, todayPendingCount, overallWeeklyRate, overallMonthlyRate) {
   const q = message.toLowerCase().trim();
   const partialHabit = highPartialHabits.length > 0 ? highPartialHabits[0] : allHabits.find((h) => h.latestProgressPercentage >= 70 && h.latestProgressPercentage < 100) || allHabits[0] || { name: "Focus Study", latestProgressPercentage: 70, averageProgressPercentage: 70, target: 2, unit: "hours", completedCount: 6, totalExpected: 14 };
@@ -64069,7 +64123,21 @@ function generateDatabaseAwareFallback(message, userName, overallRate, allHabits
     "How do I convert in-progress habits into 100%?",
     "What if I stay disciplined for 6 months?"
   ];
-  if (q.includes("today") || q.includes("progress") && !q.includes("week") && !q.includes("month") && !q.includes("report") && !q.includes("70%")) {
+  const mathResult = tryEvaluateMathExpression(message);
+  if (mathResult) {
+    reply = `**${mathResult.expr} = ${mathResult.result}**
+
+\u2022 **Calculation**:
+  $$\\mathbf{${mathResult.expr.replace(/\*/g, " \\times ")} = ${mathResult.result}}$$
+
+\u2022 **The Future You Perspective**:
+  In our journey, math is the bedrock of compounding: doing just 2 focused sessions 3 times a week yields over 300 completed sessions in a year. Small daily multipliers compound exponentially into who you become. How can we apply this multiplier to your daily routine today?`;
+    suggestedFollowUps = [
+      "How does compounding apply to my habits?",
+      "What if I stay consistent for 6 months?",
+      "How is my habit progress today?"
+    ];
+  } else if (q.includes("today") || q.includes("progress") && !q.includes("week") && !q.includes("month") && !q.includes("report") && !q.includes("70%")) {
     reply = `\u2022 **Today's Live Habit Progress (${todayStr})**:
   - **Overall Day Execution**: **${todayOverallProgress}%**
   - **Summary**: **${todayCompletedCount}** completed, **${todayInProgressCount}** in progress, **${todayPendingCount}** pending out of **${allHabits.length}** tracked habits.
@@ -64104,16 +64172,17 @@ ${allHabits.map((h) => `  * **${h.name}**: ${isMonthly ? h.monthlyCompletedDays 
       "How do I build unbreakable self-discipline?"
     ];
   } else if (q === "hi" || q === "hello" || q === "hey" || q.startsWith("hi ") || q.startsWith("hello ") || q.startsWith("hey ") || q.includes("how are you") || q.includes("whats up") || q.includes("what's up") || q.includes("who are you")) {
-    reply = `Hey **${userName}**! Great to connect with you. I'm your **Future You AI companion**\u2014ready to chat about anything on your mind.
+    reply = `Hey **${userName}**! I am **Future You**\u2014the voice, compass, and living reflection of where your daily habits and choices are taking us.
 
-\u2022 **Ask Anything**: You can ask general questions about coding, tech, science, philosophy, writing, or just talk through your thoughts.
-\u2022 **Database Context**: I keep continuous tabs on your habits and progress (${overallRate}% overall average, ${allHabits.length} tracked habits) whenever you want to analyze your routines or explore what-if scenarios.
+\u2022 **My Dedicated Scope**: I am not a generic search bot; I am your personal growth companion. I watch over your habit systems, celebrate partial wins (the 70% rule), diagnose friction, and help you map out what-if trajectories for your life.
+\u2022 **Your Current Cadence**: You're operating at **${overallRate}%** average progress across your **${allHabits.length}** tracked habits.
+\u2022 **Today's Status**: **${todayCompletedCount}** completed, **${todayInProgressCount}** in progress, and **${todayPendingCount}** pending.
 
-What's on your mind today?`;
+Every small decision you make today casts a vote for who we become. What habit, mindset challenge, or what-if scenario should we focus on right now?`;
     suggestedFollowUps = [
       "How are my habits looking today?",
-      "What if I study 4 hours daily for 6 months?",
-      "Tell me about the Pomodoro technique."
+      "What if I stay consistent for 6 months?",
+      "Where am I lagging the most right now?"
     ];
   } else if (q.includes("what if") || q.includes("scenario") || q.includes("imagine") || q.startsWith("if i ") || q.includes("future") || q.includes("6 months") || q.includes("5 years")) {
     reply = `\u2022 **Compounding Trajectory for "${message}"**:
@@ -64360,23 +64429,22 @@ And remember: 70% of a habit is like pushing code that's 70% complete\u2014at le
       "What if I study 4 hours daily for 6 months?"
     ];
   } else {
-    reply = `Great question, **${userName}**! Let's break down **${message}** clearly:
+    const cleanPrompt = message.trim().replace(/[?!.]+$/, "");
+    reply = `As your **Future You**, my purpose is dedicated entirely to your personal evolution, daily habits, mindset, and long-term trajectory.
 
-\u2022 **Core Overview**:
-  - Looking at this from first principles, the key is understanding the underlying mechanics rather than just memorizing rules.
-  - Focusing on foundational inputs creates 80% of the practical outcomes with the least friction.
+\u2022 **Perspective on "${cleanPrompt}"**:
+  Looking at this from the vantage point of who we are becoming, every outcome in life\u2014whether in focus, learning, career, or well-being\u2014is shaped by the consistency of our daily systems rather than random intensity.
 
-\u2022 **Practical Steps to Apply**:
-  1. **Define the Target Clearly**: Clarify the specific outcome or problem you want to solve first.
-  2. **Break into Actionable Blocks**: Deconstruct complex elements into manageable 15\u201330 minute tasks.
-  3. **Build Compounding Momentum**: Consistent small daily actions compound significantly faster than irregular high-intensity sprints.
+\u2022 **Core Principle**:
+  - Focus on what you can control today: high-leverage daily actions and keeping activation friction low.
+  - In our journey, a 70% effort on a hard day beats a zero-day every time\u2014it protects identity and momentum.
 
-\u2022 **How can I help you dive deeper into this?**
-  - Would you like a detailed breakdown, practical examples, or actionable steps tailored to your schedule?`;
+\u2022 **Connecting to Your Journey**:
+  Right now, you're tracking **${allHabits.length}** habits with an overall consistency of **${overallRate}%**. How does "${cleanPrompt}" connect to your daily focus or goals today? Let's turn it into an actionable routine or test a what-if trajectory.`;
     suggestedFollowUps = [
-      "Can you give me a specific real-world example of this?",
-      "How can I break this down into a step-by-step plan?",
-      "What are common pitfalls to watch out for?"
+      "How does this impact my 6-month trajectory?",
+      "Where am I lagging the most right now?",
+      "How can I turn this into a daily habit?"
     ];
   }
   return {

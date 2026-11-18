@@ -43,7 +43,6 @@ import { deleteHabit, updateHabit, upsertHabitLog, createHabit } from '../servic
 import { HabitFormModal } from '../components/habits/HabitFormModal'
 import { format } from 'date-fns'
 import { useNotifications } from '../contexts/NotificationContext'
-import { DesktopNotificationBanner } from '../components/notifications/DesktopNotificationBanner'
 
 const CATEGORY_FILTERS: { value: HabitCategory | 'all'; label: string; icon: IconDefinition }[] = [
   { value: 'all', label: 'All', icon: faLeaf },
@@ -216,7 +215,7 @@ export function Habits() {
         ? target
         : 0
 
-    // Trigger celebratory desktop alert (WhatsApp-style) upon reaching 100% or 70% threshold
+    // Trigger celebratory desktop alert upon reaching 100% or 70% threshold
     if (clampedVal >= target && prevVal < target) {
       notifyHabitMilestone(habit.name, clampedVal, target, habit.unit)
     } else if (clampedVal >= target * 0.7 && prevVal < target * 0.7) {
@@ -399,9 +398,6 @@ export function Habits() {
 
   return (
     <div className="space-y-4 sm:space-y-5 max-w-7xl mx-auto pb-8 sm:pb-0">
-      {/* WhatsApp-Style Desktop Notification Permission Banner */}
-      <DesktopNotificationBanner />
-
       {/* 1. Header Banner ("Habit Studio" with watercolor botanical landscape & quote) */}
       <div className="bg-[#FAF7F0] dark:bg-[#0D1814] rounded-3xl border border-[#E9E1D2] dark:border-[#223326] p-4 sm:p-6 md:p-7 shadow-[0_2px_12px_rgba(29,37,22,0.03)] relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors">
         {/* Watercolor botanical background on right */}

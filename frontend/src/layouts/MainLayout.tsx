@@ -2,6 +2,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Sidebar } from '../components/layout/Sidebar'
 import { Header } from '../components/layout/Header'
 import { MobileNav } from '../components/layout/MobileNav'
+import { InAppNotificationToast } from '../components/notifications/InAppNotificationToast'
 import { motion } from 'framer-motion'
 import { useSidebar } from '../contexts/SidebarContext'
 
@@ -41,6 +42,9 @@ export function MainLayout() {
         </main>
         <MobileNav onOpenAddModal={handleOpenAddModal} />
       </div>
+
+      {/* Global Floating In-App Web Notification Toast */}
+      <InAppNotificationToast />
     </div>
   )
 }
