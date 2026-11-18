@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faCalendarDays,
@@ -23,6 +23,14 @@ export function HabitConsistencyCard({
   onSelectDate,
 }: HabitConsistencyCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to current week on mobile on mount / date change
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth
+    }
+  }, [selectedDate])
 
   // Hover state for bottom information bar
   const [hoveredDay, setHoveredDay] = useState<{
@@ -199,15 +207,22 @@ export function HabitConsistencyCard({
       ref={cardRef}
       className="relative bg-white/95 dark:bg-[#0D1814] border border-[#E8E2D5] dark:border-[#223326] rounded-2xl sm:rounded-3xl px-4 sm:px-6 py-4 sm:py-5 shadow-[0_2px_12px_rgba(29,37,22,0.03)] flex flex-col justify-between w-full transition-colors"
     >
-      {/* 1. Header with Title & Badges Only (Clean, Minimal, No Fluff) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-[#E8E3D7] dark:border-[#223326]">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] shadow-2xs">
-            <FontAwesomeIcon icon={faCalendarDays} className="text-sm" />
+      {/* 1. Header with Title & Badges (Clean, Minimal, No Fluff, Mobile-optimized) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 sm:pb-3 border-b border-[#E8E3D7] dark:border-[#223326]">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] shadow-2xs">
+              <FontAwesomeIcon icon={faCalendarDays} className="text-xs sm:text-sm" />
+            </div>
+            <h3 className="text-lg sm:text-2xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight">
+              Habit Consistency
+            </h3>
           </div>
-          <h3 className="text-xl sm:text-2xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight">
-            Habit Consistency
-          </h3>
+
+          {/* Mobile Swipe Hint Badge */}
+          <span className="sm:hidden text-[10px] text-[#556E2B] dark:text-[#A8D968] font-bold bg-[#EEF4E8] dark:bg-[#1D2D23] px-2 py-0.5 rounded-full border border-[#D5E3C4] dark:border-[#2E4334]">
+            52w · Swipe →
+          </span>
         </div>
 
         {/* Badges */}
@@ -223,9 +238,9 @@ export function HabitConsistencyCard({
         </div>
       </div>
 
-      {/* 2. Heatmap Grid with All 7 Days & All 12 Months as Perfect Squircles (Scrollable horizontally on mobile to prevent crushing) */}
-      <div className="pt-3.5 sm:pt-4 w-full overflow-x-auto custom-scrollbar pb-2 -mx-1 px-1 sm:mx-0 sm:px-0">
-        <div className="min-w-[680px] sm:min-w-0 w-full">
+      {/* 2. Heatmap Grid with All 7 Days & All 12 Months as Perfect Squircles (Scrollable horizontally on mobile with auto-scroll to latest) */}
+      <div ref={scrollContainerRef} className="pt-3.5 sm:pt-4 w-full overflow-x-auto custom-scrollbar pb-2 -mx-1 px-1 sm:mx-0 sm:px-0 touch-pan-x">
+        <div className="min-w-[640px] sm:min-w-0 w-full">
           {/* Month Labels Row aligned across the 52 columns with dedicated height to prevent ANY overlap */}
           <div className="flex items-center gap-2 sm:gap-2.5 w-full mb-3 select-none">
             {/* Spacer matching Day labels column width exactly */}
@@ -271,11 +286,20 @@ export function HabitConsistencyCard({
                       <button
                         key={dateStr}
                         type="button"
-                        onClick={() => onSelectDate(day)}
+                        onClick={() => {
+                          onSelectDate(day)
+                          setHoveredDay({
+                            dateStr: format(day, 'yyyy-MM-dd'),
+                            displayDate: format(day, 'EEE, MMM d, yyyy'),
+                            completedCount: dayData.completed,
+                            totalCount: total,
+                            percent: dayData.percent,
+                          })
+                        }}
                         onMouseEnter={(e) => handleCellHover(e, day, dayData, total)}
                         onMouseLeave={handleCellLeave}
                         aria-label={`${format(day, 'MMM d')}: ${dayData.completed} completed (${dayData.percent}%)`}
-                        className={`flex-1 aspect-square rounded-[3.5px] transition-all duration-75 cursor-pointer relative shadow-2xs ${getCellColor(
+                        className={`flex-1 aspect-square rounded-[3px] sm:rounded-[3.5px] transition-all duration-75 cursor-pointer relative shadow-2xs ${getCellColor(
                           dayData.percent,
                           dayData.completed
                         )} ${

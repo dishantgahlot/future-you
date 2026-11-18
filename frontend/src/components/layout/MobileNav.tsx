@@ -24,7 +24,7 @@ export function MobileNav({ onOpenAddModal }: MobileNavProps) {
   ]
 
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-3 pb-3 pt-1 pointer-events-none">
+    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 pointer-events-none">
       <nav className="pointer-events-auto max-w-md mx-auto bg-white/95 dark:bg-[#0D1814]/95 backdrop-blur-xl border border-[#E8E2D5] dark:border-[#223326] shadow-lg rounded-3xl px-4 py-2 flex items-center justify-between transition-colors">
         {/* Left two items */}
         {navItems.slice(0, 2).map((item) => {

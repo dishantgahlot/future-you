@@ -107,23 +107,23 @@ export function TodaysHabitsCard({
   }, [habits, logs])
 
   return (
-    <div className="bg-white dark:bg-[#0E1714] border border-[#E8E2D5] dark:border-[#1E2E27] rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-[0_2px_12px_rgba(29,37,22,0.03)] flex flex-col justify-between w-full transition-colors">
+    <div className="bg-white dark:bg-[#0E1714] border border-[#E8E2D5] dark:border-[#1E2E27] rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-[0_2px_12px_rgba(29,37,22,0.03)] flex flex-col justify-between w-full transition-colors">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-[#E8E3D7] dark:border-[#1E2E27]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 sm:pb-3 border-b border-[#E8E3D7] dark:border-[#1E2E27]">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-[#EEF4E8] dark:bg-[#1E2F1A] flex items-center justify-center text-[#738541] dark:text-[#A8D968] shadow-2xs">
-            <FontAwesomeIcon icon={faSun} className="text-sm" />
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#EEF4E8] dark:bg-[#1E2F1A] flex items-center justify-center text-[#738541] dark:text-[#A8D968] shadow-2xs">
+            <FontAwesomeIcon icon={faSun} className="text-xs sm:text-sm" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl sm:text-2xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight">
+              <h2 className="text-lg sm:text-2xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight">
                 Today's Habits
               </h2>
-              <span className="px-2.5 py-0.5 rounded-lg bg-[#EEF4E8] dark:bg-[#253A1D] text-[#415525] dark:text-[#B6DB8A] text-xs font-semibold border border-[#D5E3C4] dark:border-[#385926]">
+              <span className="px-2 py-0.5 rounded-lg bg-[#EEF4E8] dark:bg-[#253A1D] text-[#415525] dark:text-[#B6DB8A] text-[11px] sm:text-xs font-semibold border border-[#D5E3C4] dark:border-[#385926]">
                 {completedCount} of {habits.length} done
               </span>
             </div>
-            <p className="text-xs text-[#6F6759] dark:text-[#A8BCA0] mt-0.5">
+            <p className="text-[11px] sm:text-xs text-[#6F6759] dark:text-[#A8BCA0] mt-0.5">
               Live progress · Manage & complete in Habit section
             </p>
           </div>
@@ -133,7 +133,7 @@ export function TodaysHabitsCard({
         <button
           type="button"
           onClick={onManageHabits}
-          className="self-start sm:self-auto py-1.5 px-3.5 rounded-xl bg-[#EEF4E8] dark:bg-[#253A1D] text-[#415525] dark:text-[#B6DB8A] hover:bg-[#E3EDD7] dark:hover:bg-[#2F4A24] font-bold text-xs transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer border border-[#D5E3C4] dark:border-[#385926]"
+          className="self-start sm:self-auto py-1 sm:py-1.5 px-3 sm:px-3.5 rounded-xl bg-[#EEF4E8] dark:bg-[#253A1D] text-[#415525] dark:text-[#B6DB8A] hover:bg-[#E3EDD7] dark:hover:bg-[#2F4A24] font-bold text-xs transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer border border-[#D5E3C4] dark:border-[#385926]"
         >
           <FontAwesomeIcon icon={faSliders} className="text-[11px]" />
           <span>Habit Studio</span>
@@ -142,7 +142,7 @@ export function TodaysHabitsCard({
       </div>
 
       {/* Habits Progress Grid (Read-Only on Dashboard) */}
-      <div className="pt-3.5">
+      <div className="pt-3">
         {displayHabits.length === 0 ? (
           <div className="text-center py-10 px-4 rounded-2xl border-2 border-dashed border-[#E3DCCE] dark:border-[#1E2E27] bg-[#FAF8F3] dark:bg-[#0B130F] space-y-3">
             <div className="w-12 h-12 rounded-full bg-[#EEF4E8] dark:bg-[#1E2F1A] text-[#738541] dark:text-[#A8D968] flex items-center justify-center mx-auto text-xl shadow-2xs">
@@ -164,7 +164,7 @@ export function TodaysHabitsCard({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3.5">
             {displayHabits.map((habit) => {
               const log = logs.find((l) => l.habit_id === habit.id)
               const isCompleted = log?.completion_status || false
@@ -180,7 +180,7 @@ export function TodaysHabitsCard({
                 <div
                   key={habit.id}
                   onClick={onManageHabits}
-                  className={`relative rounded-2xl border p-3.5 flex flex-col justify-between transition-all duration-200 select-none cursor-pointer group ${
+                  className={`relative rounded-2xl border p-3 sm:p-3.5 flex flex-col justify-between transition-all duration-200 select-none cursor-pointer group ${
                     isCompleted
                       ? 'bg-[#F2F7EC] dark:bg-[#162919] border-[#738541]/45 dark:border-[#335928] shadow-2xs'
                       : isInProgress
@@ -192,10 +192,10 @@ export function TodaysHabitsCard({
                   {/* Top: Icon + Title + Status Badge */}
                   <div>
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
                         {/* Botanical Icon Badge */}
                         <div
-                          className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
+                          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
                             isCompleted
                               ? 'bg-[#E3EDD7] text-[#415525] dark:bg-[#253A1D] dark:text-[#A8D968]'
                               : isInProgress

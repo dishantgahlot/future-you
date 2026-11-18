@@ -37,17 +37,21 @@ export function Sidebar() {
   const { fullName, email, avatarUrl } = useUserProfile()
   const { signOut } = useAuth()
 
+  const isDashboard = location.pathname === '/dashboard'
+
   return (
     <>
-      {/* Mobile Hamburger Button */}
-      <button
-        type="button"
-        className="lg:hidden fixed top-3 left-3 z-50 p-2.5 bg-white/95 dark:bg-[#0D1814] text-[#2B351F] dark:text-[#E2EBD8] rounded-2xl shadow-md border border-[#E8E2D5] dark:border-[#223326] cursor-pointer transition-colors"
-        onClick={openMobile}
-        aria-label="Open menu"
-      >
-        <FontAwesomeIcon icon={faBars} className="h-4 w-4 text-[#4A6225] dark:text-[#A8D968]" />
-      </button>
+      {/* Mobile Hamburger Button (On non-dashboard pages; on dashboard it is integrated into the hero header) */}
+      {!isDashboard && (
+        <button
+          type="button"
+          className="lg:hidden fixed top-3 left-3 z-50 p-2.5 bg-white/95 dark:bg-[#0D1814] text-[#2B351F] dark:text-[#E2EBD8] rounded-2xl shadow-md border border-[#E8E2D5] dark:border-[#223326] cursor-pointer transition-colors"
+          onClick={openMobile}
+          aria-label="Open menu"
+        >
+          <FontAwesomeIcon icon={faBars} className="h-4 w-4 text-[#4A6225] dark:text-[#A8D968]" />
+        </button>
+      )}
 
       {/* Mobile Backdrop */}
       <AnimatePresence>

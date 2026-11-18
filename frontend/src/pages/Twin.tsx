@@ -176,26 +176,28 @@ export function Twin() {
           <button
             type="button"
             onClick={() => setHorizon('6_months')}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 sm:gap-2 ${
+            className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 sm:gap-2 ${
               !is5Year
                 ? 'bg-[#738541] text-white shadow-xs'
                 : 'text-[#6F6759] dark:text-[#9BAF90] hover:text-[#1D2516] dark:hover:text-[#F5F2EB] hover:bg-[#F2ECE0] dark:hover:bg-[#1E3027]'
             }`}
           >
             <FontAwesomeIcon icon={faCalendarDays} className="text-xs" />
-            <span>6-Month Trajectory</span>
+            <span className="hidden xs:inline">6-Month Trajectory</span>
+            <span className="xs:hidden">6 Months</span>
           </button>
           <button
             type="button"
             onClick={() => setHorizon('5_years')}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 sm:gap-2 ${
+            className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 sm:gap-2 ${
               is5Year
                 ? 'bg-[#738541] text-white shadow-xs'
                 : 'text-[#6F6759] dark:text-[#9BAF90] hover:text-[#1D2516] dark:hover:text-[#F5F2EB] hover:bg-[#F2ECE0] dark:hover:bg-[#1E3027]'
             }`}
           >
             <FontAwesomeIcon icon={faStar} className="text-xs" />
-            <span>5-Year Horizon</span>
+            <span className="hidden xs:inline">5-Year Horizon</span>
+            <span className="xs:hidden">5 Years</span>
           </button>
         </div>
       </div>

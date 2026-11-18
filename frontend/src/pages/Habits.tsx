@@ -382,9 +382,9 @@ export function Habits() {
       </div>
 
       {/* 2. Filter Bar & Search Box */}
-      <div className="bg-white/95 dark:bg-[#0E1714] rounded-2xl border border-[#E8E2D5] dark:border-[#203024] p-2.5 sm:p-3 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 transition-colors">
+      <div className="bg-white/95 dark:bg-[#0E1714] rounded-2xl border border-[#E8E2D5] dark:border-[#203024] p-2.5 sm:p-3 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 transition-colors">
         {/* Category Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 touch-pan-x">
           {CATEGORY_FILTERS.map((tab) => {
             const isSelected = selectedCategory === tab.value
             return (
@@ -530,10 +530,10 @@ export function Habits() {
                       type="button"
                       disabled={actualVal <= 0}
                       onClick={() => handleStep(habit, -1)}
-                      className="w-7 h-7 sm:w-6 sm:h-6 rounded-full bg-[#1D2516]/10 hover:bg-[#1D2516]/20 dark:bg-white/15 dark:hover:bg-white/25 active:scale-95 disabled:opacity-40 text-[#2B351F] dark:text-white flex items-center justify-center font-bold text-xs transition-all cursor-pointer flex-shrink-0 border border-transparent dark:border-white/10"
+                      className="w-8 h-8 sm:w-6 sm:h-6 rounded-full bg-[#1D2516]/10 hover:bg-[#1D2516]/20 dark:bg-white/15 dark:hover:bg-white/25 active:scale-95 disabled:opacity-40 text-[#2B351F] dark:text-white flex items-center justify-center font-bold text-xs transition-all cursor-pointer flex-shrink-0 border border-transparent dark:border-white/10"
                       title="Decrease progress for today"
                     >
-                      <FontAwesomeIcon icon={faMinus} className="text-[10px] sm:text-[9px]" />
+                      <FontAwesomeIcon icon={faMinus} className="text-xs sm:text-[9px]" />
                     </button>
 
                     {/* Progress Bar Track & Fill */}
@@ -550,10 +550,10 @@ export function Habits() {
                     <button
                       type="button"
                       onClick={() => handleStep(habit, 1)}
-                      className="w-7 h-7 sm:w-6 sm:h-6 rounded-full bg-[#1D2516]/10 hover:bg-[#1D2516]/20 dark:bg-white/15 dark:hover:bg-white/25 active:scale-95 text-[#2B351F] dark:text-white flex items-center justify-center font-bold text-xs transition-all cursor-pointer flex-shrink-0 border border-transparent dark:border-white/10"
+                      className="w-8 h-8 sm:w-6 sm:h-6 rounded-full bg-[#1D2516]/10 hover:bg-[#1D2516]/20 dark:bg-white/15 dark:hover:bg-white/25 active:scale-95 text-[#2B351F] dark:text-white flex items-center justify-center font-bold text-xs transition-all cursor-pointer flex-shrink-0 border border-transparent dark:border-white/10"
                       title="Increase progress for today"
                     >
-                      <FontAwesomeIcon icon={faPlus} className="text-[10px] sm:text-[9px]" />
+                      <FontAwesomeIcon icon={faPlus} className="text-xs sm:text-[9px]" />
                     </button>
                   </div>
                 </div>

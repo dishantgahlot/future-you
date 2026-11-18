@@ -71,9 +71,9 @@ export function DailyProgressCard({
       </div>
 
       {/* Body: Circular Ring on Left + Legend on Right */}
-      <div className="flex items-center justify-between gap-5 py-3 relative z-10">
+      <div className="flex items-center justify-between gap-3 sm:gap-5 py-2.5 sm:py-3 relative z-10">
         {/* Radial Gauge with Centered Percent */}
-        <div className="relative w-24 h-24 sm:w-26 sm:h-26 flex items-center justify-center flex-shrink-0">
+        <div className="relative w-20 h-20 xs:w-22 xs:h-22 sm:w-26 sm:h-26 flex items-center justify-center flex-shrink-0">
           <svg className="w-full h-full -rotate-90" viewBox={`0 0 ${size} ${size}`}>
             {/* Background Track */}
             <circle
@@ -104,31 +104,31 @@ export function DailyProgressCard({
 
           {/* Centered Values with Strong Legibility */}
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="text-3xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums">
+            <span className="text-xl xs:text-2xl sm:text-3xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums">
               {percent}%
             </span>
-            <span className="text-xs font-bold text-[#52633E] dark:text-[#8FA387] mt-1 tabular-nums">
+            <span className="text-[10px] xs:text-[11px] sm:text-xs font-bold text-[#52633E] dark:text-[#8FA387] mt-0.5 sm:mt-1 tabular-nums">
               {completed} of {safeTotal} done
             </span>
           </div>
         </div>
 
         {/* Legend List with Detailed High Contrast Breakdown */}
-        <div className="flex flex-col gap-2 flex-1 pl-1">
-          <div className="flex items-center gap-2.5">
-            <span className="w-3 h-3 rounded-full bg-[#738541] dark:bg-[#22C55E] flex-shrink-0" />
+        <div className="flex flex-col gap-1.5 sm:gap-2 flex-1 pl-1">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#738541] dark:bg-[#22C55E] flex-shrink-0" />
             <span className="text-xs sm:text-sm font-bold text-[#1D2516] dark:text-[#F5F2EB] tabular-nums">
               {completed} completed
             </span>
           </div>
-          <div className="flex items-center gap-2.5">
-            <span className="w-3 h-3 rounded-full bg-[#E5B54F] dark:bg-amber-400 flex-shrink-0" />
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#E5B54F] dark:bg-amber-400 flex-shrink-0" />
             <span className="text-xs sm:text-sm font-bold text-[#1D2516] dark:text-[#F5F2EB] tabular-nums">
               {inProgress} in progress
             </span>
           </div>
-          <div className="flex items-center gap-2.5">
-            <span className="w-3 h-3 rounded-full bg-[#CBD5E1] dark:bg-[#2E4334] flex-shrink-0" />
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-[#CBD5E1] dark:bg-[#2E4334] flex-shrink-0" />
             <span className="text-xs sm:text-sm font-bold text-[#6D7B58] dark:text-[#8FA387] tabular-nums">
               {pending} pending
             </span>

@@ -90,18 +90,18 @@ export function QuickStatsBar({
   }, [habits, allLogs, currentStreak])
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
       {/* 1. Current Streak */}
-      <div className="bg-white dark:bg-[#0D1814] border border-[#E3DDCF] dark:border-[#223326] rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-xs flex items-center justify-between gap-2 min-w-0 transition-colors">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#FEF3E2] dark:bg-amber-950/40 flex items-center justify-center text-[#D97706] dark:text-amber-400 flex-shrink-0 shadow-2xs">
-            <FontAwesomeIcon icon={faFire} className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#D97706] dark:text-amber-400" />
+      <div className="bg-white dark:bg-[#0D1814] border border-[#E3DDCF] dark:border-[#223326] rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 shadow-xs flex items-center justify-between gap-1.5 sm:gap-2 min-w-0 transition-colors">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <div className="w-7 h-7 xs:w-8 xs:h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#FEF3E2] dark:bg-amber-950/40 flex items-center justify-center text-[#D97706] dark:text-amber-400 flex-shrink-0 shadow-2xs">
+            <FontAwesomeIcon icon={faFire} className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-[#D97706] dark:text-amber-400" />
           </div>
           <div className="min-w-0 flex-1">
-            <h4 className="text-base sm:text-lg lg:text-xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums truncate">
+            <h4 className="text-sm xs:text-base sm:text-lg lg:text-xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums truncate">
               {currentStreak} {currentStreak === 1 ? 'day' : 'days'}
             </h4>
-            <p className="text-[11px] sm:text-xs text-[#52633E] dark:text-[#8FA387] font-semibold mt-1 truncate">
+            <p className="text-[10px] xs:text-[11px] sm:text-xs text-[#52633E] dark:text-[#8FA387] font-semibold mt-0.5 sm:mt-1 truncate">
               Current Streak
             </p>
           </div>
@@ -112,16 +112,16 @@ export function QuickStatsBar({
       </div>
 
       {/* 2. Total Completions (All-Time Recorded) */}
-      <div className="bg-white dark:bg-[#0D1814] border border-[#E3DDCF] dark:border-[#223326] rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-xs flex items-center justify-between gap-2 min-w-0 transition-colors">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] flex-shrink-0 shadow-2xs">
-            <FontAwesomeIcon icon={faCircleCheck} className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#738541] dark:text-[#9EB868]" />
+      <div className="bg-white dark:bg-[#0D1814] border border-[#E3DDCF] dark:border-[#223326] rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 shadow-xs flex items-center justify-between gap-1.5 sm:gap-2 min-w-0 transition-colors">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <div className="w-7 h-7 xs:w-8 xs:h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] flex-shrink-0 shadow-2xs">
+            <FontAwesomeIcon icon={faCircleCheck} className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-[#738541] dark:text-[#9EB868]" />
           </div>
           <div className="min-w-0 flex-1">
-            <h4 className="text-base sm:text-lg lg:text-xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums truncate">
+            <h4 className="text-sm xs:text-base sm:text-lg lg:text-xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums truncate">
               {totalCompletions} logs
             </h4>
-            <p className="text-[11px] sm:text-xs text-[#52633E] dark:text-[#8FA387] font-semibold mt-1 truncate">
+            <p className="text-[10px] xs:text-[11px] sm:text-xs text-[#52633E] dark:text-[#8FA387] font-semibold mt-0.5 sm:mt-1 truncate">
               Total Completions
             </p>
           </div>
@@ -132,16 +132,16 @@ export function QuickStatsBar({
       </div>
 
       {/* 3. Weekly Average Adherence */}
-      <div className="bg-white dark:bg-[#0D1814] border border-[#E3DDCF] dark:border-[#223326] rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-xs flex items-center justify-between gap-2 min-w-0 transition-colors">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] flex-shrink-0 shadow-2xs">
-            <FontAwesomeIcon icon={faArrowTrendUp} className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#738541] dark:text-[#9EB868]" />
+      <div className="bg-white dark:bg-[#0D1814] border border-[#E3DDCF] dark:border-[#223326] rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 shadow-xs flex items-center justify-between gap-1.5 sm:gap-2 min-w-0 transition-colors">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <div className="w-7 h-7 xs:w-8 xs:h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] flex-shrink-0 shadow-2xs">
+            <FontAwesomeIcon icon={faArrowTrendUp} className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-[#738541] dark:text-[#9EB868]" />
           </div>
           <div className="min-w-0 flex-1">
-            <h4 className="text-base sm:text-lg lg:text-xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums truncate">
+            <h4 className="text-sm xs:text-base sm:text-lg lg:text-xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums truncate">
               {weeklyAvg}%
             </h4>
-            <p className="text-[11px] sm:text-xs text-[#52633E] dark:text-[#8FA387] font-semibold mt-1 truncate">
+            <p className="text-[10px] xs:text-[11px] sm:text-xs text-[#52633E] dark:text-[#8FA387] font-semibold mt-0.5 sm:mt-1 truncate">
               Weekly Adherence
             </p>
           </div>
@@ -151,27 +151,27 @@ export function QuickStatsBar({
         </span>
       </div>
 
-      {/* 4. Badges & Achievements Card (In Place of Grade) */}
+      {/* 4. Badges & Achievements Card */}
       <div
         onClick={() => navigate('/badges')}
-        className="bg-white dark:bg-[#0D1814] border border-[#E3DDCF] dark:border-[#223326] hover:border-[#CCD8B8] dark:hover:border-[#38592A] rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-xs hover:shadow-card transition-all flex items-center justify-between gap-2 min-w-0 cursor-pointer group select-none"
+        className="bg-white dark:bg-[#0D1814] border border-[#E3DDCF] dark:border-[#223326] hover:border-[#CCD8B8] dark:hover:border-[#38592A] rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 shadow-xs hover:shadow-card transition-all flex items-center justify-between gap-1.5 sm:gap-2 min-w-0 cursor-pointer group select-none"
         title="View your unlocked badges and achievements"
       >
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           {latestBadge ? (
-            <div className="shrink-0 scale-90 sm:scale-100 origin-left">
-              <GitHubBadgeMedallion badge={latestBadge} size={40} />
+            <div className="shrink-0 scale-75 xs:scale-90 sm:scale-100 origin-left">
+              <GitHubBadgeMedallion badge={latestBadge} size={36} />
             </div>
           ) : (
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] flex-shrink-0 shadow-2xs">
-              <FontAwesomeIcon icon={faCircleCheck} className="w-4 h-4 sm:w-5 sm:h-5 text-[#738541] dark:text-[#9EB868]" />
+            <div className="w-7 h-7 xs:w-8 xs:h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] flex-shrink-0 shadow-2xs">
+              <FontAwesomeIcon icon={faCircleCheck} className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#738541] dark:text-[#9EB868]" />
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <h4 className="text-base sm:text-lg lg:text-xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums group-hover:text-[#4A6225] dark:group-hover:text-[#A8D968] transition-colors truncate">
+            <h4 className="text-sm xs:text-base sm:text-lg lg:text-xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums group-hover:text-[#4A6225] dark:group-hover:text-[#A8D968] transition-colors truncate">
               {unlockedCount} {unlockedCount === 1 ? 'Badge' : 'Badges'}
             </h4>
-            <p className="text-[11px] sm:text-xs text-[#52633E] dark:text-[#8FA387] font-semibold mt-1 truncate">
+            <p className="text-[10px] xs:text-[11px] sm:text-xs text-[#52633E] dark:text-[#8FA387] font-semibold mt-0.5 sm:mt-1 truncate">
               {unlockedCount > 0 && latestBadge ? latestBadge.title : 'Start Tracking'}
             </p>
           </div>

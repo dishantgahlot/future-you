@@ -691,7 +691,7 @@ export function Onboarding() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
-          className="bg-white dark:bg-[#0E1714] border border-[#E8E2D5] dark:border-[#1E2E27] rounded-3xl p-6 sm:p-8 shadow-xs"
+          className="bg-white dark:bg-[#0E1714] border border-[#E8E2D5] dark:border-[#1E2E27] rounded-2xl sm:rounded-3xl p-4 sm:p-8 shadow-xs"
         >
           {renderStep()}
         </motion.div>

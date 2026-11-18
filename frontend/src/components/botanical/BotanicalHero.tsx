@@ -7,11 +7,13 @@ import {
   faBell,
   faChevronDown,
   faRotateRight,
+  faBars,
 } from '@fortawesome/free-solid-svg-icons'
 import { format, addDays, isSameDay, isToday } from 'date-fns'
 import { Link } from 'react-router-dom'
 import { useUserProfile } from '../../contexts/UserProfileContext'
 import { useNotifications } from '../../contexts/NotificationContext'
+import { useSidebar } from '../../contexts/SidebarContext'
 import { NotificationPopover } from '../notifications/NotificationPopover'
 import { BotanicalCalendarModal } from './BotanicalCalendarModal'
 import { ThemeToggle } from '../common/ThemeToggle'
@@ -121,6 +123,7 @@ export function BotanicalHero({
 }: BotanicalHeroProps) {
   const { avatarUrl, fullName } = useUserProfile()
   const { unreadCount, toggleOpen } = useNotifications()
+  const { openMobile } = useSidebar()
   const displayName = fullName || userName
 
   const [currentSceneIndex, setCurrentSceneIndex] = useState<number>(getInitialSceneIndex)
@@ -195,25 +198,36 @@ export function BotanicalHero({
         }`} />
       </div>
 
-      {/* 2. Top Bar Controls: LEFT Calendar Pill, RIGHT Avatar & Notification Bell */}
-      <div className="relative z-30 flex items-center justify-between gap-1.5 sm:gap-2.5 w-full">
-        {/* LEFT SIDE: Clickable Calendar Date & Number Widget */}
+      {/* 2. Top Bar Controls: LEFT Menu Toggle & Calendar Pill, RIGHT Avatar & Notification Bell */}
+      <div className="relative z-30 flex items-center justify-between gap-1 sm:gap-2.5 w-full">
+        {/* LEFT SIDE: Hamburger (mobile), Clickable Calendar Date & Jump to Today */}
         <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+          {/* Mobile Navigation Drawer Trigger */}
+          <button
+            type="button"
+            onClick={openMobile}
+            className="lg:hidden w-8 h-8 rounded-xl bg-white/95 hover:bg-white dark:bg-[#0D1814]/90 dark:hover:bg-[#15231C] backdrop-blur-md border border-botanical-border dark:border-[#223326] text-[#4A6225] dark:text-[#A8D968] flex items-center justify-center shadow-xs cursor-pointer flex-shrink-0 transition-colors"
+            aria-label="Open navigation menu"
+            title="Open navigation menu"
+          >
+            <FontAwesomeIcon icon={faBars} className="w-3.5 h-3.5" />
+          </button>
+
           <button
             type="button"
             onClick={() => setIsCalendarOpen(true)}
-            className="flex items-center gap-1.5 sm:gap-2.5 px-2 sm:px-3.5 py-1 sm:py-1.5 bg-white/95 hover:bg-white dark:bg-[#0D1814]/90 dark:hover:bg-[#15231C] backdrop-blur-md border border-botanical-border dark:border-[#223326] rounded-xl sm:rounded-2xl shadow-xs text-xs sm:text-sm font-semibold text-leaf-darkText dark:text-[#F5F2EB] hover:border-[#738541] dark:hover:border-[#4E6826] transition-all cursor-pointer group max-w-[210px] xs:max-w-none"
+            className="flex items-center gap-1.5 sm:gap-2.5 px-2 sm:px-3.5 py-1 sm:py-1.5 bg-white/95 hover:bg-white dark:bg-[#0D1814]/90 dark:hover:bg-[#15231C] backdrop-blur-md border border-botanical-border dark:border-[#223326] rounded-xl sm:rounded-2xl shadow-xs text-xs sm:text-sm font-semibold text-leaf-darkText dark:text-[#F5F2EB] hover:border-[#738541] dark:hover:border-[#4E6826] transition-all cursor-pointer group max-w-[155px] xs:max-w-[210px] sm:max-w-none"
             title="Click to open calendar and manually switch between dates"
           >
             <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-lg bg-[#EEF4E8] dark:bg-[#1D2D23] text-[#738541] dark:text-[#9EB868] flex items-center justify-center text-[10px] sm:text-xs group-hover:bg-[#738541] group-hover:text-white transition-colors flex-shrink-0">
               <FontAwesomeIcon icon={faCalendarDays} />
             </div>
             <div className="flex flex-col text-left min-w-0">
-              <span className="text-[11px] sm:text-[13px] font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight truncate">
+              <span className="text-[10px] sm:text-[13px] font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight truncate">
                 <span className="hidden sm:inline">{format(selectedDate, 'EEE, d MMM yyyy')}</span>
                 <span className="sm:hidden">{format(selectedDate, 'MMM d, yyyy')}</span>
               </span>
-              <span className="text-[9px] sm:text-[10px] text-[#738541] dark:text-[#9EB868] font-medium leading-none mt-0.5 truncate">
+              <span className="text-[8px] sm:text-[10px] text-[#738541] dark:text-[#9EB868] font-medium leading-none mt-0.5 truncate">
                 {isTodaySelected ? 'Today · Switch' : 'Switch date'}
               </span>
             </div>
@@ -228,17 +242,17 @@ export function BotanicalHero({
             <button
               type="button"
               onClick={() => onSelectDate(new Date())}
-              className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl bg-[#738541] dark:bg-[#4E6826] text-white hover:bg-[#607034] dark:hover:bg-[#41581F] text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs border border-[#5E6F34] dark:border-[#5E7E2E] flex-shrink-0"
+              className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl bg-[#738541] dark:bg-[#4E6826] text-white hover:bg-[#607034] dark:hover:bg-[#41581F] text-[10px] sm:text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-2xs border border-[#5E6F34] dark:border-[#5E7E2E] flex-shrink-0"
               title="Jump back to Today"
             >
-              <FontAwesomeIcon icon={faRotateRight} className="text-[10px]" />
+              <FontAwesomeIcon icon={faRotateRight} className="text-[9px] sm:text-[10px]" />
               <span className="hidden xs:inline sm:inline">Today</span>
             </button>
           )}
         </div>
 
         {/* RIGHT SIDE: Scene Switcher, Notification Bell, Avatar */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2.5 flex-shrink-0">
           {/* Scene Indicator / Switcher Pill */}
           <button
             type="button"
@@ -257,13 +271,13 @@ export function BotanicalHero({
             type="button"
             onClick={toggleOpen}
             data-notification-trigger="true"
-            className="w-9 h-9 rounded-2xl bg-white/95 dark:bg-[#0D1814]/90 dark:hover:bg-[#15231C] backdrop-blur-md border border-botanical-border dark:border-[#223326] text-leaf-darkText dark:text-[#E2EBD8] hover:bg-white transition-colors relative shadow-xs flex items-center justify-center cursor-pointer"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl sm:rounded-2xl bg-white/95 dark:bg-[#0D1814]/90 dark:hover:bg-[#15231C] backdrop-blur-md border border-botanical-border dark:border-[#223326] text-leaf-darkText dark:text-[#E2EBD8] hover:bg-white transition-colors relative shadow-xs flex items-center justify-center cursor-pointer"
             aria-label="Notifications"
             title={unreadCount > 0 ? `${unreadCount} unread routine notifications` : 'Routine Notifications'}
           >
             <FontAwesomeIcon icon={faBell} className="w-3.5 h-3.5 text-leaf-darkText dark:text-[#E2EBD8]" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#E57342] text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white dark:ring-[#0D1814]">
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] px-1 rounded-full bg-[#E57342] text-white text-[9px] sm:text-[10px] font-bold flex items-center justify-center ring-2 ring-white dark:ring-[#0D1814]">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
@@ -272,7 +286,7 @@ export function BotanicalHero({
           {/* User Avatar */}
           <Link
             to="/profile"
-            className="w-9 h-9 rounded-full overflow-hidden border-2 border-white dark:border-[#223326] shadow-xs cursor-pointer flex-shrink-0 bg-leaf-pill hover:ring-2 hover:ring-leaf-1 transition-all"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full overflow-hidden border-2 border-white dark:border-[#223326] shadow-xs cursor-pointer flex-shrink-0 bg-leaf-pill hover:ring-2 hover:ring-leaf-1 transition-all"
             title="Open Profile"
           >
             <img
@@ -311,7 +325,7 @@ export function BotanicalHero({
         </p>
 
         {/* Middle Green Weekdays Strip (Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday) */}
-        <div className="mt-2 sm:mt-2.5 inline-flex items-center gap-0.5 sm:gap-1 p-0.5 sm:p-1.5 bg-[#202816]/95 dark:bg-[#0D1814]/95 backdrop-blur-md border border-[#384628] dark:border-[#223326] rounded-xl sm:rounded-2xl shadow-md text-white max-w-full overflow-hidden">
+        <div className="mt-2 sm:mt-2.5 inline-flex items-center justify-between w-full max-w-sm sm:max-w-xl md:max-w-2xl gap-0.5 sm:gap-1 p-0.5 sm:p-1.5 bg-[#202816]/95 dark:bg-[#0D1814]/95 backdrop-blur-md border border-[#384628] dark:border-[#223326] rounded-xl sm:rounded-2xl shadow-md text-white">
           <button
             onClick={handlePrevWeek}
             className="p-1 sm:p-1.5 rounded-lg sm:rounded-xl text-[#B7C2A1] dark:text-[#8FA387] hover:text-white dark:hover:text-white hover:bg-white/10 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
@@ -321,7 +335,7 @@ export function BotanicalHero({
             <FontAwesomeIcon icon={faChevronLeft} className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
           </button>
 
-          <div className="flex items-center gap-0.5 sm:gap-1.5 overflow-x-auto no-scrollbar max-w-[calc(100vw-68px)] sm:max-w-full">
+          <div className="flex-1 flex items-center justify-between gap-0.5 sm:gap-1.5 min-w-0">
             {weekDays.map((day, idx) => {
               const isSelected = isSameDay(day, selectedDate)
               const isCurrentDay = isToday(day)
@@ -330,23 +344,23 @@ export function BotanicalHero({
                 <button
                   key={idx}
                   onClick={() => onSelectDate(day)}
-                  className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-1.5 sm:px-3 min-w-[30px] sm:min-w-[48px] rounded-lg sm:rounded-2xl transition-all duration-200 cursor-pointer ${
+                  className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 xs:px-1 sm:px-3 flex-1 min-w-[26px] xs:min-w-[32px] sm:min-w-[44px] rounded-lg sm:rounded-2xl transition-all duration-200 cursor-pointer ${
                     isSelected
-                      ? 'bg-[#738541] dark:bg-[#4E6826] text-white shadow-md shadow-[#738541]/40 dark:shadow-[#4E6826]/40 scale-102 font-bold ring-2 ring-white/30 dark:ring-[#A8D968]/40'
+                      ? 'bg-[#738541] dark:bg-[#4E6826] text-white shadow-md shadow-[#738541]/40 dark:shadow-[#4E6826]/40 scale-102 font-bold ring-1.5 sm:ring-2 ring-white/30 dark:ring-[#A8D968]/40'
                       : 'text-[#D0DAC0] dark:text-[#CBD8BF] hover:text-white dark:hover:text-white hover:bg-white/10 dark:hover:bg-white/10'
                   }`}
                   title={`${WEEK_DAYS[idx]}, ${format(day, 'd MMMM yyyy')}`}
                 >
                   {/* Full Weekday name on large screens, short on mobile */}
                   <span
-                    className={`text-[9px] sm:text-[11px] font-medium hidden md:inline ${
+                    className={`text-[8px] xs:text-[9px] sm:text-[11px] font-medium hidden md:inline ${
                       isSelected ? 'text-white' : 'text-[#A0B086] dark:text-slate-400'
                     }`}
                   >
                     {WEEK_DAYS[idx]}
                   </span>
                   <span
-                    className={`text-[9px] sm:text-[11px] font-medium md:hidden ${
+                    className={`text-[8px] xs:text-[9px] sm:text-[11px] font-medium md:hidden ${
                       isSelected ? 'text-white' : 'text-[#A0B086] dark:text-slate-400'
                     }`}
                   >
@@ -355,7 +369,7 @@ export function BotanicalHero({
 
                   {/* Day number */}
                   <span
-                    className={`text-xs sm:text-base font-bold leading-tight mt-0.5 flex items-center gap-0.5 ${
+                    className={`text-[11px] xs:text-xs sm:text-base font-bold leading-tight mt-0.5 flex items-center gap-0.5 ${
                       isSelected ? 'text-white' : 'text-[#E8EFCF] dark:text-slate-100'
                     }`}
                   >
@@ -371,11 +385,11 @@ export function BotanicalHero({
 
           <button
             onClick={handleNextWeek}
-            className="p-1 sm:p-1.5 rounded-xl text-[#B7C2A1] dark:text-slate-400 hover:text-white dark:hover:text-white hover:bg-white/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-1 sm:p-1.5 rounded-lg sm:rounded-xl text-[#B7C2A1] dark:text-slate-400 hover:text-white dark:hover:text-white hover:bg-white/10 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
             aria-label="Next week"
             title="Next week"
           >
-            <FontAwesomeIcon icon={faChevronRight} className="w-3.5 h-3.5" />
+            <FontAwesomeIcon icon={faChevronRight} className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
           </button>
         </div>
       </div>

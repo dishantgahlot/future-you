@@ -121,7 +121,7 @@ export function Register() {
         </div>
 
         {/* Auth Card Container */}
-        <div className="bg-white dark:bg-[#0E1714] border border-[#E8E2D5] dark:border-[#1E2E27] rounded-3xl p-7 sm:p-8 shadow-xl shadow-black/5 dark:shadow-black/40">
+        <div className="bg-white dark:bg-[#0E1714] border border-[#E8E2D5] dark:border-[#1E2E27] rounded-3xl p-5 sm:p-8 shadow-xl shadow-black/5 dark:shadow-black/40">
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}

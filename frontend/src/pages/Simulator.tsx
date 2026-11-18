@@ -401,40 +401,41 @@ export function Simulator() {
   return (
     <div className="max-w-6xl mx-auto space-y-4 pb-8">
       {/* 1. Minimalist Top Bar */}
-      <div className="bg-[#FAF7F0] dark:bg-[#0E1714] rounded-2xl border border-[#E8E2D5] dark:border-[#1E2E27] px-5 py-3.5 shadow-xs flex items-center justify-between gap-3 transition-colors">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-[#EEF4E8] dark:bg-[#16271D] text-[#4A6225] dark:text-[#A8D968] flex items-center justify-center text-sm shadow-2xs">
+      <div className="bg-[#FAF7F0] dark:bg-[#0E1714] rounded-2xl border border-[#E8E2D5] dark:border-[#1E2E27] px-3.5 sm:px-5 py-2.5 sm:py-3.5 shadow-xs flex items-center justify-between gap-2.5 sm:gap-3 transition-colors">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#EEF4E8] dark:bg-[#16271D] text-[#4A6225] dark:text-[#A8D968] flex items-center justify-center text-xs sm:text-sm shadow-2xs flex-shrink-0">
             <FontAwesomeIcon icon={faCompass} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-serif font-bold text-lg text-[#1D2516] dark:text-[#F5F2EB] tracking-tight">
-                What-If & Life Intelligence
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <h1 className="font-serif font-bold text-base sm:text-lg text-[#1D2516] dark:text-[#F5F2EB] tracking-tight truncate">
+                What-If Intelligence
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#EEF4E8] dark:bg-[#16271D] text-[#4A6225] dark:text-[#A8D968] border border-[#CCD8B8] dark:border-[#22352B]">
-                AI Companion
+              <span className="hidden xs:inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#EEF4E8] dark:bg-[#16271D] text-[#4A6225] dark:text-[#A8D968] border border-[#CCD8B8] dark:border-[#22352B]">
+                AI
               </span>
             </div>
-            <p className="text-[11px] text-[#7A8C74] dark:text-[#83967D] flex items-center gap-1.5 flex-wrap">
-              <span>Full conversational AI · {habits.length} habits tracked</span>
+            <p className="text-[10px] sm:text-[11px] text-[#7A8C74] dark:text-[#83967D] flex items-center gap-1.5 flex-wrap truncate">
+              <span>Conversational AI · {habits.length} habits tracked</span>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             type="button"
             onClick={handleNewChat}
-            className="px-3.5 py-1.5 rounded-xl bg-[#4A6225] hover:bg-[#3D521E] dark:bg-[#4E6826] dark:hover:bg-[#41581F] text-xs font-semibold text-white transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+            className="px-3 sm:px-3.5 py-1.5 rounded-xl bg-[#4A6225] hover:bg-[#3D521E] dark:bg-[#4E6826] dark:hover:bg-[#41581F] text-xs font-semibold text-white transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
           >
-            <FontAwesomeIcon icon={faPlus} className="text-[11px]" />
-            <span>New Chat</span>
+            <FontAwesomeIcon icon={faPlus} className="text-[10px] sm:text-[11px]" />
+            <span className="hidden xs:inline">New Chat</span>
+            <span className="xs:hidden">New</span>
           </button>
         </div>
       </div>
 
       {/* 2. Main Container: ChatGPT-Style Saved Chats Sidebar + Chat Area */}
-      <div className="bg-white dark:bg-[#0E1714] rounded-3xl border border-[#E8E2D5] dark:border-[#1E2E27] shadow-xs flex h-[640px] overflow-hidden relative transition-colors">
+      <div className="bg-white dark:bg-[#0E1714] rounded-2xl sm:rounded-3xl border border-[#E8E2D5] dark:border-[#1E2E27] shadow-xs flex h-[calc(100dvh-175px)] min-h-[460px] max-h-[720px] sm:h-[640px] overflow-hidden relative transition-colors">
         {/* Mobile Backdrop for Saved Chats Drawer */}
         {isSidebarOpen && (
           <div
@@ -448,7 +449,7 @@ export function Simulator() {
         <aside
           className={`${
             isSidebarOpen
-              ? 'w-72 sm:w-72 md:w-80 border-r border-[#E8E2D5] dark:border-[#1E2E27] shadow-2xl sm:shadow-none'
+              ? 'w-[84vw] max-w-xs sm:w-72 md:w-80 border-r border-[#E8E2D5] dark:border-[#1E2E27] shadow-2xl sm:shadow-none'
               : 'w-0 border-r-0 pointer-events-none'
           } transition-all duration-200 ease-in-out bg-[#F8F5ED] dark:bg-[#0C1615] flex flex-col h-full overflow-hidden flex-shrink-0 absolute sm:relative inset-y-0 left-0 z-30 sm:z-10`}
         >

@@ -127,25 +127,25 @@ export function WeeklyInsightsCard({
 
   return (
     <div className="bg-white dark:bg-[#0D1814] border border-[#E3DDCF] dark:border-[#223326] rounded-2xl sm:rounded-3xl p-3.5 sm:p-4.5 shadow-xs flex flex-col justify-between h-full group overflow-hidden transition-colors">
-      {/* Header with Navigation Controls (No Wrap, No Overflow) */}
-      <div className="flex items-center justify-between pb-2.5 border-b border-[#E8E3D7] dark:border-[#223326] gap-2 min-w-0">
+      {/* Header with Navigation Controls (Responsive Wrap for Mobile) */}
+      <div className="flex flex-wrap sm:flex-nowrap items-center justify-between pb-2.5 border-b border-[#E8E3D7] dark:border-[#223326] gap-2 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] shadow-2xs flex-shrink-0">
-            <FontAwesomeIcon icon={faArrowTrendUp} className="w-4 h-4 text-[#738541] dark:text-[#9EB868]" />
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] shadow-2xs flex-shrink-0">
+            <FontAwesomeIcon icon={faArrowTrendUp} className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#738541] dark:text-[#9EB868]" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-base sm:text-lg font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight truncate whitespace-nowrap">
+            <h3 className="text-sm xs:text-base sm:text-lg font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight truncate whitespace-nowrap">
               Weekly Insights
             </h3>
-            <p className="text-[11px] text-[#52633E] dark:text-[#8FA387] font-semibold truncate whitespace-nowrap mt-0.5">
+            <p className="text-[10px] sm:text-[11px] text-[#52633E] dark:text-[#8FA387] font-semibold truncate whitespace-nowrap mt-0.5">
               {format(weekStart, 'MMM d')} – {format(weekEnd, 'MMM d, yyyy')}
             </p>
           </div>
         </div>
 
         {/* Weekly Avg Pill, Prev/Next Arrows & Expand Button */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#EEF4E8] dark:bg-[#1D2D23] text-[#415525] dark:text-[#B6CDB0] border border-[#D5E3C4] dark:border-[#2E4334] tabular-nums whitespace-nowrap">
+        <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+          <span className="text-[11px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 rounded-full bg-[#EEF4E8] dark:bg-[#1D2D23] text-[#415525] dark:text-[#B6CDB0] border border-[#D5E3C4] dark:border-[#2E4334] tabular-nums whitespace-nowrap">
             {weeklyAvg}% avg
           </span>
           <div className="flex items-center bg-[#FAF7F0] dark:bg-[#15231C] rounded-xl p-0.5 border border-[#E5DFD1] dark:border-[#223326]">
@@ -156,12 +156,12 @@ export function WeeklyInsightsCard({
               title="Previous week"
               aria-label="Previous week"
             >
-              <FontAwesomeIcon icon={faChevronLeft} className="w-3 h-3" />
+              <FontAwesomeIcon icon={faChevronLeft} className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
             </button>
             <button
               type="button"
               onClick={() => setWeekOffset(0)}
-              className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-md transition-colors whitespace-nowrap ${
+              className={`px-1 sm:px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold rounded-md transition-colors whitespace-nowrap ${
                 weekOffset === 0
                   ? 'bg-white dark:bg-[#1D2D23] text-leaf-1 dark:text-[#A8D968] shadow-xs'
                   : 'text-botanical-mutedText dark:text-[#8FA387]'
@@ -176,7 +176,7 @@ export function WeeklyInsightsCard({
               title="Next week"
               aria-label="Next week"
             >
-              <FontAwesomeIcon icon={faChevronRight} className="w-3 h-3" />
+              <FontAwesomeIcon icon={faChevronRight} className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
             </button>
           </div>
 
@@ -184,7 +184,7 @@ export function WeeklyInsightsCard({
             <button
               type="button"
               onClick={onExpand}
-              className="p-1.5 rounded-xl bg-[#FAF7F0] dark:bg-[#15231C] border border-[#E5DFD1] dark:border-[#223326] text-[#52633E] dark:text-[#CBD8BF] hover:text-[#1D2516] dark:hover:text-white hover:bg-white dark:hover:bg-[#1D2D23] transition-all shadow-2xs ml-0.5 cursor-pointer"
+              className="p-1 sm:p-1.5 rounded-xl bg-[#FAF7F0] dark:bg-[#15231C] border border-[#E5DFD1] dark:border-[#223326] text-[#52633E] dark:text-[#CBD8BF] hover:text-[#1D2516] dark:hover:text-white hover:bg-white dark:hover:bg-[#1D2D23] transition-all shadow-2xs ml-0.5 cursor-pointer"
               title="Expand full graph & AI Progress Report"
               aria-label="Expand graph"
             >
@@ -196,7 +196,7 @@ export function WeeklyInsightsCard({
 
       {/* SVG Line Chart (Full Length: Stretches Across Full Height and Width) */}
       <div
-        className="w-full h-44 sm:h-48 relative my-2 cursor-pointer flex-1"
+        className="w-full h-36 xs:h-40 sm:h-48 relative my-2 cursor-pointer flex-1"
         onClick={() => onExpand?.()}
         title="Click to view expanded analytics & AI Progress Report"
       >
