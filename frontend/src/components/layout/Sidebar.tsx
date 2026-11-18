@@ -80,28 +80,42 @@ export function Sidebar() {
         <div
           className={`hidden ${
             !isOpen ? 'lg:flex' : ''
-          } flex-col justify-start h-full py-4 px-2.5 w-full relative z-20`}
+          } flex-col justify-between h-full py-4 px-2 w-full relative z-20`}
         >
-          {/* Top: Logo & Sidebar Expand Trigger */}
-          <div className="flex flex-col items-center pb-3 border-b border-slate-200 dark:border-[#1E2E27]">
+          {/* Top: Logo & Website Name "FUTURE YOU" + Sidebar Expand Trigger */}
+          <div className="flex flex-col items-center pb-2.5 border-b border-slate-200 dark:border-[#1E2E27] w-full">
             <button
               type="button"
               onClick={openSidebar}
-              className="w-11 h-11 rounded-2xl flex items-center justify-center bg-emerald-50 dark:bg-[#1E2F1A] text-emerald-600 dark:text-[#A8D968] shadow-2xs hover:bg-emerald-100 dark:hover:bg-[#283F23] hover:scale-105 transition-all cursor-pointer group relative"
-              title="Expand sidebar (Ctrl+B)"
-              aria-label="Expand sidebar"
+              className="flex flex-col items-center group cursor-pointer w-full py-1 rounded-2xl hover:bg-slate-100/70 dark:hover:bg-[#15231C] transition-all relative"
+              title="Future You — Expand sidebar (Ctrl+B)"
+              aria-label="Future You — Expand sidebar"
             >
-              <FontAwesomeIcon
-                icon={faLeaf}
-                className="w-4 h-4 transform -rotate-12 group-hover:hidden transition-all text-emerald-600 dark:text-[#A8D968]"
-              />
-              <FontAwesomeIcon
-                icon={faAnglesRight}
-                className="w-4 h-4 hidden group-hover:block text-slate-800 dark:text-slate-100 transition-all"
-              />
+              {/* Leaf Icon Squircle */}
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-emerald-50 dark:bg-[#1E2F1A] text-emerald-600 dark:text-[#A8D968] shadow-2xs group-hover:bg-emerald-100 dark:group-hover:bg-[#283F23] group-hover:scale-105 transition-all">
+                <FontAwesomeIcon
+                  icon={faLeaf}
+                  className="w-4 h-4 transform -rotate-12 group-hover:hidden transition-all text-emerald-600 dark:text-[#A8D968]"
+                />
+                <FontAwesomeIcon
+                  icon={faAnglesRight}
+                  className="w-4 h-4 hidden group-hover:block text-slate-800 dark:text-slate-100 transition-all"
+                />
+              </div>
+
+              {/* Website Name "FUTURE YOU" in Collapsed Sidebar */}
+              <div className="flex flex-col items-center mt-1.5 text-center leading-[1.15] select-none">
+                <span className="font-serif font-bold text-[9px] tracking-wider text-slate-900 dark:text-[#F5F2EB] uppercase">
+                  Future
+                </span>
+                <span className="font-serif font-bold text-[9px] tracking-wider text-emerald-600 dark:text-[#A8D968] uppercase">
+                  You
+                </span>
+              </div>
+
               {/* Floating Tooltip to the right */}
               <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-900 dark:bg-[#16221C] text-slate-100 text-xs font-semibold rounded-xl shadow-xl border border-slate-700 dark:border-[#22352B] pointer-events-none whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-150 transform -translate-x-1 group-hover:translate-x-0 z-50">
-                Expand sidebar (Ctrl+B)
+                Future You · Expand (Ctrl+B)
               </span>
             </button>
           </div>
@@ -136,6 +150,25 @@ export function Sidebar() {
               )
             })}
           </nav>
+
+          {/* Bottom Section in Collapsed Rail: User Profile Avatar */}
+          <div className="pt-2 border-t border-slate-200 dark:border-[#1E2E27] flex flex-col items-center">
+            <NavLink
+              to="/profile"
+              className="group relative w-10 h-10 rounded-2xl overflow-hidden border border-emerald-500/30 bg-emerald-50 dark:bg-[#1E2F1A] flex items-center justify-center hover:scale-105 transition-all shadow-2xs"
+              title="Profile Settings"
+              aria-label="Profile Settings"
+            >
+              <img
+                src={avatarUrl}
+                alt={fullName || 'User'}
+                className="w-full h-full object-cover"
+              />
+              <span className="absolute left-full ml-3 px-3 py-1.5 bg-slate-900 dark:bg-[#16221C] text-slate-100 text-xs font-semibold rounded-xl shadow-xl border border-slate-700 dark:border-[#22352B] pointer-events-none whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-150 transform -translate-x-1 group-hover:translate-x-0 z-50">
+                {fullName || 'Profile Settings'}
+              </span>
+            </NavLink>
+          </div>
         </div>
 
         {/* ========================================================
