@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faFire, faCircleCheck, faArrowTrendUp } from '@fortawesome/free-solid-svg-icons'
-import { parseISO, differenceInCalendarDays, subDays, format } from 'date-fns'
+import { faFire, faCircleCheck, faCalendarCheck } from '@fortawesome/free-solid-svg-icons'
+import { parseISO, differenceInCalendarDays, format, getDaysInMonth } from 'date-fns'
 import type { Habit, HabitLog } from '../../types'
 import { calculateUserBadges } from '../../utils/achievementBadges'
 import { GitHubBadgeMedallion } from '../profile/GitHubBadgeItem'
+import { getLoggedInDates } from '../../utils/habitStorage'
 
 interface QuickStatsBarProps {
   allLogs: HabitLog[]
@@ -63,26 +64,26 @@ export function QuickStatsBar({
     return allLogs.filter((l) => l.completion_status).length
   }, [allLogs])
 
-  // 3. Weekly average completion rate across 7 days
-  const weeklyAvg = useMemo(() => {
-    if (habits.length === 0 || allLogs.length === 0) return 0
+  // 3. Monthly Attendance Percentage (resets every month)
+  // Calculated based on the number of days in the month and how many days the user has logged in
+  const { monthlyAttendancePercent, loggedInDaysCount, daysInMonth, monthLabel } = useMemo(() => {
+    const daysCount = getDaysInMonth(selectedDate)
+    const monthPrefix = format(selectedDate, 'yyyy-MM')
+    const monthShort = format(selectedDate, 'MMM')
 
-    let progressSum = 0
-    for (let i = 0; i < 7; i++) {
-      const dStr = format(subDays(selectedDate, i), 'yyyy-MM-dd')
-      let daySum = 0
-      habits.forEach((h) => {
-        const log = allLogs.find((l) => l.habit_id === h.id && l.log_date === dStr)
-        const target = h.target_value || 1
-        const actual =
-          log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
-        daySum += Math.min(actual / target, 1)
-      })
-      progressSum += daySum / habits.length
+    const loggedDates = getLoggedInDates()
+    const thisMonthDates = loggedDates.filter((d) => d.startsWith(monthPrefix))
+    const loggedCount = thisMonthDates.length
+
+    const percent = daysCount > 0 ? Math.round((loggedCount / daysCount) * 100) : 0
+
+    return {
+      monthlyAttendancePercent: percent,
+      loggedInDaysCount: loggedCount,
+      daysInMonth: daysCount,
+      monthLabel: monthShort,
     }
-
-    return Math.round((progressSum / 7) * 100)
-  }, [allLogs, selectedDate, habits])
+  }, [selectedDate, allLogs])
 
   // 4. Dynamic Badges calculation based on user progress
   const { unlockedCount, latestBadge } = useMemo(() => {
@@ -131,23 +132,23 @@ export function QuickStatsBar({
         </span>
       </div>
 
-      {/* 3. Weekly Average Adherence */}
+      {/* 3. Monthly Attendance Percentage */}
       <div className="bg-white dark:bg-[#0D1814] border border-[#E3DDCF] dark:border-[#223326] rounded-2xl sm:rounded-3xl p-2.5 sm:p-4 shadow-xs flex items-center justify-between gap-1.5 sm:gap-2 min-w-0 transition-colors">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <div className="w-7 h-7 xs:w-8 xs:h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] flex-shrink-0 shadow-2xs">
-            <FontAwesomeIcon icon={faArrowTrendUp} className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-[#738541] dark:text-[#9EB868]" />
+            <FontAwesomeIcon icon={faCalendarCheck} className="w-3 h-3 xs:w-3.5 xs:h-3.5 sm:w-4 sm:h-4 text-[#738541] dark:text-[#9EB868]" />
           </div>
           <div className="min-w-0 flex-1">
             <h4 className="text-sm xs:text-base sm:text-lg lg:text-xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-none tabular-nums truncate">
-              {weeklyAvg}%
+              {monthlyAttendancePercent}%
             </h4>
             <p className="text-[10px] xs:text-[11px] sm:text-xs text-[#52633E] dark:text-[#8FA387] font-semibold mt-0.5 sm:mt-1 truncate">
-              Weekly Adherence
+              Monthly Attendance
             </p>
           </div>
         </div>
-        <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] shrink-0 font-bold bg-[#EEF4E8] dark:bg-[#1D2D23] text-[#415525] dark:text-[#B6CDB0] border border-[#D5E3C4] dark:border-[#2E4334]">
-          7 Days
+        <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] shrink-0 font-bold bg-[#EEF4E8] dark:bg-[#1D2D23] text-[#415525] dark:text-[#B6CDB0] border border-[#D5E3C4] dark:border-[#2E4334] tabular-nums">
+          {loggedInDaysCount}/{daysInMonth}d · {monthLabel}
         </span>
       </div>
 

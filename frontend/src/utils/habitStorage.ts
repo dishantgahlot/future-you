@@ -68,6 +68,58 @@ export function getLogsStorageKey(userId?: string): string {
   return `future-you-habit-logs-v3_${uid}`
 }
 
+export function getLoginDatesStorageKey(userId?: string): string {
+  const uid = userId || getActiveUserId()
+  return `future-you-login-dates-v3_${uid}`
+}
+
+/**
+ * Records a day that the user logged in / accessed the application.
+ */
+export function recordLoginDate(dateStr?: string, userId?: string): void {
+  try {
+    const uid = userId || getActiveUserId()
+    const today = dateStr || new Date().toISOString().slice(0, 10)
+    const key = getLoginDatesStorageKey(uid)
+    const raw = localStorage.getItem(key)
+    const dates: string[] = raw ? JSON.parse(raw) : []
+    if (!dates.includes(today)) {
+      dates.push(today)
+      localStorage.setItem(key, JSON.stringify(dates))
+      window.dispatchEvent(new CustomEvent('future-you-storage-updated'))
+    }
+  } catch {}
+}
+
+/**
+ * Returns all distinct dates the user has logged in or tracked habits.
+ */
+export function getLoggedInDates(userId?: string): string[] {
+  try {
+    const uid = userId || getActiveUserId()
+    const key = getLoginDatesStorageKey(uid)
+    const raw = localStorage.getItem(key)
+    const stored: string[] = raw ? JSON.parse(raw) : []
+
+    // Also automatically include dates from logs where actual_value > 0 or completion_status is true
+    const logs = getAllLocalLogs(uid)
+    const logDates = logs
+      .filter((l) => (l.actual_value !== undefined && l.actual_value > 0) || l.completion_status)
+      .map((l) => l.log_date)
+
+    return Array.from(new Set([...stored, ...logDates])).sort()
+  } catch {
+    return []
+  }
+}
+
+// Automatically record today's login session on app load
+try {
+  if (typeof window !== 'undefined') {
+    recordLoginDate()
+  }
+} catch {}
+
 /**
  * Returns an empty habits array by default.
  * Users must manually add and configure their own habits.

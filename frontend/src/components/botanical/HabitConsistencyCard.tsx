@@ -3,9 +3,11 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faCalendarDays,
   faFire,
+  faCalendarCheck,
 } from '@fortawesome/free-solid-svg-icons'
-import { format, subDays, eachDayOfInterval, startOfWeek, endOfWeek } from 'date-fns'
+import { format, subDays, eachDayOfInterval, startOfWeek, endOfWeek, getDaysInMonth } from 'date-fns'
 import type { Habit, HabitLog } from '../../types'
+import { getLoggedInDates } from '../../utils/habitStorage'
 
 interface HabitConsistencyCardProps {
   allLogs: HabitLog[]
@@ -159,6 +161,22 @@ export function HabitConsistencyCard({
     return count
   }, [adherenceByDate])
 
+  // Monthly Attendance percentage (resets every month based on days in month and days logged in)
+  const { monthlyAttendancePercent, monthLabel } = useMemo(() => {
+    const totalDays = getDaysInMonth(selectedDate)
+    const monthPrefix = format(selectedDate, 'yyyy-MM')
+    const monthShort = format(selectedDate, 'MMM')
+
+    const loggedDates = getLoggedInDates()
+    const activeThisMonth = loggedDates.filter((d) => d.startsWith(monthPrefix))
+    const percent = totalDays > 0 ? Math.round((activeThisMonth.length / totalDays) * 100) : 0
+
+    return {
+      monthlyAttendancePercent: percent,
+      monthLabel: monthShort,
+    }
+  }, [selectedDate, allLogs])
+
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd')
 
   const getCellColor = (percent: number, completed: number) => {
@@ -269,8 +287,13 @@ export function HabitConsistencyCard({
         </div>
 
         {/* Badges */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#EEF4E8] dark:bg-[#1D2D23] border border-[#CCD8B8] dark:border-[#2E4334] rounded-xl text-xs font-semibold text-[#415525] dark:text-[#B6CDB0]">
+            <FontAwesomeIcon icon={faCalendarCheck} className="text-[#556E2B] dark:text-[#A8D968] text-xs" />
+            <span>{monthlyAttendancePercent}% attendance ({monthLabel})</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FAF8F3] dark:bg-[#15231C] border border-[#E8E2D5] dark:border-[#223326] rounded-xl text-xs font-semibold text-[#415525] dark:text-[#B6CDB0]">
             <FontAwesomeIcon icon={faFire} className="text-[#D97706] text-xs" />
             <span>{activeDaysCount} active days</span>
           </div>
