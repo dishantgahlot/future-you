@@ -84,7 +84,7 @@ const DEFAULT_OPTIONS: Required<Omit<GeminiClientOptions, 'apiKey' | 'systemInst
   noCache?: boolean
 } = {
   apiKey: undefined,
-  model: config.gemini.model || 'gemini-3.5-flash-lite',
+  model: config.gemini.model || 'gemini-2.5-flash',
   temperature: 0.7,
   maxOutputTokens: 800,
   topP: 0.95,
@@ -96,9 +96,10 @@ const DEFAULT_OPTIONS: Required<Omit<GeminiClientOptions, 'apiKey' | 'systemInst
 }
 
 const CANDIDATE_MODELS = [
-  'gemini-3.5-flash-lite',
   'gemini-2.5-flash',
-  'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
+  'gemini-2.5-pro',
+  'gemini-flash-lite-latest',
 ]
 
 /**

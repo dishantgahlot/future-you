@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { supabase } from '../services/supabase'
+import { API_BASE } from '../services/api'
 import type { User } from '@supabase/supabase-js'
 
 interface AuthContextType {
@@ -12,6 +13,7 @@ interface AuthContextType {
   signInAsGuest: () => void
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<{ error: Error | null }>
+  resendConfirmationEmail: (email: string) => Promise<{ error: Error | null }>
   checkOnboarding: () => Promise<void>
   setOnboardingCompleted: (completed: boolean) => void
 }
@@ -109,9 +111,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const trimmedEmail = email.trim()
     const cleanName = fullName?.trim() || trimmedEmail.split('@')[0]
 
-    // 1. Try our backend signup API first (auto-confirms email and creates user session)
+    let createdUserId: string | null = null
+
+    // 1. Try our backend signup API first (auto-confirms email so user can sign in)
     try {
-      const response = await fetch('/api/auth/signup', {
+      const response = await fetch(`${API_BASE}/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -123,16 +127,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json()
-        if (data?.session && data?.user) {
-          await supabase.auth.setSession({
-            access_token: data.session.access_token,
-            refresh_token: data.session.refresh_token,
-          })
-          setUser(data.user)
-          localStorage.setItem('future_you_active_user', JSON.stringify(data.user))
-          localStorage.removeItem(`future_you_onboarded_${data.user.id}`)
-          setOnboardingCompleted(false)
-          return { error: null }
+        if (data?.user?.id) {
+          createdUserId = data.user.id
         }
       }
     } catch (apiErr) {
@@ -140,64 +136,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // 2. Direct Supabase Client SignUp fallback
-    const { data, error } = await supabase.auth.signUp({
-      email: trimmedEmail,
-      password,
-      options: {
-        data: {
-          full_name: cleanName,
-        },
-      },
-    })
-
-    if (error) {
-      return { error: new Error(error.message) }
-    }
-
-    if (data?.user) {
-      let finalUser = data.user
-      setOnboardingCompleted(false)
-      localStorage.removeItem(`future_you_onboarded_${finalUser.id}`)
-
-      // If Supabase returned an active session, use it
-      if (data.session) {
-        setUser(finalUser)
-        localStorage.setItem('future_you_active_user', JSON.stringify(finalUser))
-        return { error: null }
-      }
-
-      // If Supabase required email verification, auto-confirm via backend endpoint
-      try {
-        await fetch('/api/auth/confirm-user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: trimmedEmail }),
-        })
-      } catch (confirmErr) {
-        console.warn('Auto-confirm attempt failed:', confirmErr)
-      }
-
-      // Attempt to immediately sign in with password now that user exists
-      const signInRes = await supabase.auth.signInWithPassword({
+    if (!createdUserId) {
+      const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
         password,
+        options: {
+          data: {
+            full_name: cleanName,
+          },
+        },
       })
 
-      if (signInRes.data?.user && signInRes.data?.session) {
-        finalUser = signInRes.data.user
-        setUser(finalUser)
-        localStorage.setItem('future_you_active_user', JSON.stringify(finalUser))
-        return { error: null }
+      if (error) {
+        return { error: new Error(error.message) }
       }
 
-      // Always establish the active user so the user directly proceeds to Onboarding!
-      setUser(finalUser)
-      localStorage.setItem('future_you_active_user', JSON.stringify(finalUser))
+      if (data?.user) {
+        createdUserId = data.user.id
 
+        // Auto-confirm via backend endpoint so user can log in without email lock
+        try {
+          await fetch(`${API_BASE}/auth/confirm-user`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: trimmedEmail }),
+          })
+        } catch (confirmErr) {
+          console.warn('Auto-confirm attempt failed:', confirmErr)
+        }
+      }
+    }
+
+    if (createdUserId) {
       try {
         await supabase.from('profiles').upsert({
-          id: finalUser.id,
-          email: finalUser.email || trimmedEmail,
+          id: createdUserId,
+          email: trimmedEmail,
           full_name: cleanName,
           preferences: {
             theme: 'system',
@@ -210,15 +184,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (upsertErr) {
         console.warn('Profile upsert warning:', upsertErr)
       }
-
-      return { error: null }
     }
+
+    // Explicitly do NOT log in after creating account.
+    // Clear any active session so user is redirected to sign in manually.
+    try {
+      await supabase.auth.signOut()
+    } catch {
+      // ignore
+    }
+    setUser(null)
+    localStorage.removeItem('future_you_active_user')
+    localStorage.removeItem('future_you_demo_user')
+    setOnboardingCompleted(false)
 
     return { error: null }
   }
 
   const signIn = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    const trimmedEmail = email.trim()
+    let { data, error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password })
+
+    // Auto-heal unconfirmed email if encountered
+    if (error && error.message?.toLowerCase().includes('email not confirmed')) {
+      try {
+        const confirmRes = await fetch(`${API_BASE}/auth/confirm-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: trimmedEmail }),
+        })
+        if (confirmRes.ok) {
+          const retry = await supabase.auth.signInWithPassword({ email: trimmedEmail, password })
+          if (!retry.error && retry.data?.user) {
+            data = retry.data
+            error = null
+          }
+        }
+      } catch (confirmErr) {
+        console.warn('Auto-confirm attempt failed on sign in:', confirmErr)
+      }
+    }
+
     if (!error && data?.user) {
       // Existing user signing in - mark onboarding completed so they go straight to dashboard
       setOnboardingCompleted(true)
@@ -247,6 +253,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('Profile sync check warning:', e)
       }
     }
+    return { error: error ? new Error(error.message) : null }
+  }
+
+  const resendConfirmationEmail = async (email: string) => {
+    const trimmedEmail = email.trim()
+    try {
+      const confirmRes = await fetch(`${API_BASE}/auth/confirm-user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail }),
+      })
+      if (confirmRes.ok) {
+        return { error: null }
+      }
+    } catch {
+      // Fallback to Supabase resend
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: trimmedEmail,
+    })
     return { error: error ? new Error(error.message) : null }
   }
 
@@ -298,6 +326,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInAsGuest,
       signOut,
       resetPassword,
+      resendConfirmationEmail,
       checkOnboarding,
       setOnboardingCompleted: setOnboardingCompletedState
     }}>

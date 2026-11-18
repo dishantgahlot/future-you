@@ -1,25 +1,45 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Mail, Lock, Eye, EyeOff, Loader2, AlertCircle, ArrowRight } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Mail, Lock, Eye, EyeOff, Loader2, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserProfile } from '../contexts/UserProfileContext'
 
 export function Login() {
   const navigate = useNavigate()
-  const { signIn, onboardingCompleted } = useAuth()
+  const location = useLocation()
+  const { signIn, onboardingCompleted, resendConfirmationEmail } = useAuth()
   const { recordNewLogin } = useUserProfile()
   
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(() => (location.state as any)?.email || '')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [resendSuccess, setResendSuccess] = useState('')
+  const [infoMessage, setInfoMessage] = useState(() => (location.state as any)?.message || '')
+
+  const handleResend = async () => {
+    if (!email.trim()) return
+    setResending(true)
+    setResendSuccess('')
+    const { error: resendErr } = await resendConfirmationEmail(email.trim())
+    setResending(false)
+    if (resendErr) {
+      setError(resendErr.message)
+    } else {
+      setResendSuccess('Account verified or confirmation link dispatched! Try signing in now.')
+      setError('')
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setInfoMessage('')
+    setResendSuccess('')
 
     const trimmed = email.trim()
     if (!trimmed.includes('@')) {
@@ -90,14 +110,52 @@ export function Login() {
 
         {/* Auth Card Container */}
         <div className="bg-white dark:bg-[#0E1714] border border-[#E8E2D5] dark:border-[#1E2E27] rounded-3xl p-7 sm:p-8 shadow-xl shadow-black/5 dark:shadow-black/40">
+          {infoMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-5 p-3.5 bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300 rounded-2xl flex items-start gap-2.5 text-xs sm:text-sm font-medium"
+            >
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+              <p>{infoMessage}</p>
+            </motion.div>
+          )}
+
+          {resendSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-5 p-3.5 bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300 rounded-2xl flex items-start gap-2.5 text-xs sm:text-sm font-medium"
+            >
+              <ArrowRight className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+              <p>{resendSuccess}</p>
+            </motion.div>
+          )}
+
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-5 p-3.5 bg-rose-50/90 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 rounded-2xl flex items-start gap-2.5"
+              className="mb-5 p-3.5 bg-rose-50/90 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-300 rounded-2xl flex flex-col gap-2"
             >
-              <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
-              <p className="text-xs sm:text-sm font-medium">{error}</p>
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs sm:text-sm font-medium">{error}</p>
+              </div>
+
+              {error.toLowerCase().includes('email not confirmed') && (
+                <div className="pt-2 border-t border-rose-200/60 dark:border-rose-900/40 flex items-center justify-between">
+                  <span className="text-[11px] text-rose-700 dark:text-rose-400">Need verification?</span>
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={resending}
+                    className="text-xs font-semibold underline text-rose-900 dark:text-rose-200 hover:text-rose-950 cursor-pointer disabled:opacity-50"
+                  >
+                    {resending ? 'Verifying...' : 'Verify Email & Sign In'}
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
 

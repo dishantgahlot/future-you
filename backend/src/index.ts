@@ -42,17 +42,27 @@ const limiter = rateLimit({
 app.use('/api/', limiter)
 
 app.use('/api/health', healthRoutes)
+app.use('/health', healthRoutes)
 app.use('/api/auth', authRoutes)
+app.use('/auth', authRoutes)
 app.use('/api/habits', authMiddleware, habitRoutes)
+app.use('/habits', authMiddleware, habitRoutes)
 app.use('/api/predictions', authMiddleware, predictionRoutes)
+app.use('/predictions', authMiddleware, predictionRoutes)
 app.use('/api/simulations', authMiddleware, simulationRoutes)
+app.use('/simulations', authMiddleware, simulationRoutes)
 app.use('/api/profile', authMiddleware, profileRoutes)
+app.use('/profile', authMiddleware, profileRoutes)
 app.use('/api/analytics', authMiddleware, analyticsRoutes)
+app.use('/analytics', authMiddleware, analyticsRoutes)
 app.use('/api/ai', optionalAuthMiddleware, aiRoutes)
+app.use('/ai', optionalAuthMiddleware, aiRoutes)
 
 app.use(errorHandler)
 
-if (!process.env.VERCEL) {
+const isServerless = !!(process.env.VERCEL || process.env.NOW_REGION || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT)
+
+if (!isServerless) {
   app.listen(PORT, () => {
     console.log(`🚀 Backend server running on http://localhost:${PORT}`)
   })

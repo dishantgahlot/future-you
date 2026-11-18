@@ -27,10 +27,10 @@ import type {
   UserHabitProgressSummary,
 } from '../types'
 
-const RAW_API = import.meta.env.VITE_API_URL !== undefined
+export const RAW_API = import.meta.env.VITE_API_URL !== undefined
   ? import.meta.env.VITE_API_URL
   : (import.meta.env.PROD ? '' : 'http://localhost:9000')
-const API_BASE = !RAW_API ? '/api' : (RAW_API.endsWith('/api') ? RAW_API : `${RAW_API}/api`)
+export const API_BASE = !RAW_API ? '/api' : (RAW_API.endsWith('/api') ? RAW_API : `${RAW_API}/api`)
 
 async function getAuthHeaders(): Promise<HeadersInit> {
   const { data: { session } } = await supabase.auth.getSession()
@@ -46,11 +46,31 @@ async function getAuthHeaders(): Promise<HeadersInit> {
 }
 
 async function handleResponse<T>(response: Response): Promise<{ data: T | null; error: string | null }> {
-  const data = await response.json()
-  if (!response.ok) {
-    return { data: null, error: data.message || data.error || 'Request failed' }
+  let data: any = null
+  const contentType = response.headers.get('content-type') || ''
+  
+  if (contentType.includes('application/json')) {
+    try {
+      data = await response.json()
+    } catch {
+      data = null
+    }
+  } else {
+    const rawText = await response.text().catch(() => '')
+    if (!response.ok) {
+      return {
+        data: null,
+        error: rawText && rawText.length < 200
+          ? rawText.trim()
+          : `Server error (${response.status} ${response.statusText || 'Internal Error'}). Please check server logs or configuration.`,
+      }
+    }
   }
-  return { data: data.data ?? data, error: null }
+
+  if (!response.ok) {
+    return { data: null, error: data?.message || data?.error || `Request failed with status ${response.status}` }
+  }
+  return { data: data?.data ?? data, error: null }
 }
 
 // ============================================================================

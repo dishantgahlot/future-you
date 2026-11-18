@@ -3,12 +3,10 @@ import { motion } from 'framer-motion'
 import { Mail, Lock, User, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { useUserProfile } from '../contexts/UserProfileContext'
 
 export function Register() {
   const navigate = useNavigate()
   const { signUp } = useAuth()
-  const { recordNewLogin, updateProfile } = useUserProfile()
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -53,12 +51,12 @@ export function Register() {
       setError(signUpError.message)
       setLoading(false)
     } else {
-      updateProfile({
-        fullName: formData.full_name.trim(),
-        email: formData.email.trim(),
+      navigate('/login', {
+        state: {
+          email: formData.email.trim(),
+          message: 'Account created successfully! Please sign in with your password.',
+        },
       })
-      recordNewLogin('Registration & Account Creation')
-      navigate('/onboarding')
     }
   }
 
