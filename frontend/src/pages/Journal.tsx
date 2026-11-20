@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -9,51 +9,44 @@ import {
   faCheck,
   faXmark,
   faCalendarDay,
+  faCalendarDays,
   faFeatherPointed,
+  faClockRotateLeft,
+  faRotateLeft,
 } from '@fortawesome/free-solid-svg-icons'
+import { format, subDays } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
-
-interface JournalEntry {
-  id: string
-  date: string
-  title: string
-  content: string
-  updatedAt?: string
-}
-
-const STORAGE_KEY = 'future_you_journal_entries'
-
-const DEFAULT_ENTRIES: JournalEntry[] = [
-  {
-    id: 'entry-1',
-    date: 'Mon, 16 Nov 2026',
-    title: 'Morning Clarity & Fresh Focus',
-    content:
-      'Woke up early after a consistent 8-hour sleep. Completed the morning run with high energy. Kept notifications silenced for the first two hours of deep work, which noticeably improved concentration.',
-  },
-  {
-    id: 'entry-2',
-    date: 'Sun, 15 Nov 2026',
-    title: 'Digital Fasting Reflection',
-    content:
-      'Kept screen time under 2 hours today. Spent the evening reading instead of scrolling. Feeling grounded and ready for the week ahead.',
-  },
-]
+import { useAppDate } from '../contexts/DateContext'
+import {
+  type JournalEntry,
+  JOURNAL_STORAGE_KEY,
+  DEFAULT_JOURNAL_ENTRIES,
+  filterEntriesForDate,
+  getDatesWithEntries,
+  createJournalEntry,
+} from '../utils/journalStorage'
 
 export function Journal() {
   const { user } = useAuth()
-  const userStorageKey = user?.id ? `future_you_journal_entries_${user.id}` : STORAGE_KEY
+  const { selectedDate, selectedDateStr, setSelectedDate, isToday, todayStr, resetToToday } = useAppDate()
+  const userStorageKey = user?.id ? `${JOURNAL_STORAGE_KEY}_${user.id}` : JOURNAL_STORAGE_KEY
 
   const [entries, setEntries] = useState<JournalEntry[]>(() => {
     try {
       const specific = localStorage.getItem(userStorageKey)
-      if (specific) return JSON.parse(specific)
-      const legacy = localStorage.getItem(STORAGE_KEY)
-      if (legacy) return JSON.parse(legacy)
+      if (specific) {
+        const parsed = JSON.parse(specific)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+      const legacy = localStorage.getItem(JOURNAL_STORAGE_KEY)
+      if (legacy) {
+        const parsed = JSON.parse(legacy)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
     } catch {
       // Fallback
     }
-    return DEFAULT_ENTRIES
+    return DEFAULT_JOURNAL_ENTRIES
   })
 
   const [isAdding, setIsAdding] = useState(false)
@@ -70,16 +63,22 @@ export function Journal() {
     try {
       const specific = localStorage.getItem(userStorageKey)
       if (specific) {
-        setEntries(JSON.parse(specific))
-        return
+        const parsed = JSON.parse(specific)
+        if (Array.isArray(parsed)) {
+          setEntries(parsed)
+          return
+        }
       }
-      const legacy = localStorage.getItem(STORAGE_KEY)
+      const legacy = localStorage.getItem(JOURNAL_STORAGE_KEY)
       if (legacy) {
-        setEntries(JSON.parse(legacy))
-        return
+        const parsed = JSON.parse(legacy)
+        if (Array.isArray(parsed)) {
+          setEntries(parsed)
+          return
+        }
       }
     } catch {}
-    setEntries(DEFAULT_ENTRIES)
+    setEntries(DEFAULT_JOURNAL_ENTRIES)
   }, [userStorageKey])
 
   // Persist entries to localStorage
@@ -89,23 +88,46 @@ export function Journal() {
     } catch {}
   }, [entries, userStorageKey])
 
+  // Quick Day navigation pills (matching Habits Studio)
+  const quickDayOptions = useMemo(() => {
+    const opts = [{ dateStr: todayStr, label: 'Today' }]
+    const now = new Date()
+    for (let i = 1; i <= 6; i++) {
+      const d = subDays(now, i)
+      const dStr = format(d, 'yyyy-MM-dd')
+      opts.push({
+        dateStr: dStr,
+        label: i === 1 ? 'Yesterday' : format(d, 'd MMM'),
+      })
+    }
+    return opts
+  }, [todayStr])
+
+  // Filter entries strictly for the selected date (no carryover across days)
+  const dayEntries = useMemo(() => {
+    return filterEntriesForDate(entries, selectedDateStr)
+  }, [entries, selectedDateStr])
+
+  // List of all dates that currently have recorded reflections
+  const datesWithEntries = useMemo(() => {
+    return getDatesWithEntries(entries)
+  }, [entries])
+
+  const handleSelectDate = (dateStr: string) => {
+    setSelectedDate(dateStr)
+    // If inline editing was active, cancel it when switching days
+    if (editingId) {
+      setEditingId(null)
+      setEditTitle('')
+      setEditContent('')
+    }
+  }
+
   const handleSaveEntry = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !content.trim()) return
 
-    const todayStr = new Intl.DateTimeFormat('en-US', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    }).format(new Date())
-
-    const newEntry: JournalEntry = {
-      id: `entry-${Date.now()}`,
-      date: todayStr,
-      title: title.trim(),
-      content: content.trim(),
-    }
+    const newEntry = createJournalEntry(title, content, selectedDate, selectedDateStr)
 
     setEntries([newEntry, ...entries])
     setTitle('')
@@ -150,6 +172,8 @@ export function Journal() {
     setEntries((prev) => prev.filter((e) => e.id !== id))
   }
 
+  const formattedSelectedDate = format(selectedDate, 'EEEE, d MMMM yyyy')
+
   return (
     <div className="space-y-4">
       {/* 1. Header Card */}
@@ -157,13 +181,13 @@ export function Journal() {
         <div>
           <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#EAEFE2] dark:bg-[#1D2D23] text-[#4E6228] dark:text-[#B6CDB0] text-xs font-semibold uppercase tracking-wider mb-2">
             <FontAwesomeIcon icon={faBookOpen} className="w-3 h-3 text-[#738541] dark:text-[#9EB868]" />
-            <span>Daily Reflections</span>
+            <span>Daily Reflections & Journal</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] tracking-tight">
-            Journal & Notes
+            Journal Studio
           </h1>
           <p className="text-xs sm:text-sm text-[#4E5642] dark:text-[#9BAF90] mt-1">
-            Capture thoughts, track mindset, and write reflections to your future self.
+            Capture thoughts, track mindset, and write reflections unique to each day.
           </p>
         </div>
 
@@ -176,7 +200,66 @@ export function Journal() {
         </button>
       </div>
 
-      {/* 2. New Entry Composer */}
+      {/* 2. Date Switcher & Historical Day Navigator */}
+      <div className="bg-[#FAF7F0] dark:bg-[#101C16] rounded-2xl border border-[#E8E2D5] dark:border-[#22352B] p-3 sm:p-3.5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-3 transition-colors">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#DFEACF] dark:bg-[#203423] text-[#3D5220] dark:text-[#B6DB8A] text-xs font-bold shrink-0">
+            <FontAwesomeIcon icon={faCalendarDays} className="text-[11px]" />
+            <span>Day:</span>
+          </div>
+
+          {/* Quick Dates: Today, Yesterday, 2d ago, etc. */}
+          {quickDayOptions.map((opt) => {
+            const isSelected = selectedDateStr === opt.dateStr
+            return (
+              <button
+                key={opt.dateStr}
+                type="button"
+                onClick={() => handleSelectDate(opt.dateStr)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#738541] text-white shadow-xs'
+                    : 'bg-white dark:bg-[#16271D] text-[#4E5642] dark:text-[#9BAF90] hover:bg-[#EEF4E8] dark:hover:bg-[#1E3024] border border-[#E0D7C6] dark:border-[#22352B]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+
+          {/* Custom Date Input */}
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white dark:bg-[#16271D] border border-[#E0D7C6] dark:border-[#22352B] text-xs text-[#556244] dark:text-[#A8BCA0]">
+            <input
+              type="date"
+              value={selectedDateStr}
+              onChange={(e) => {
+                if (e.target.value) handleSelectDate(e.target.value)
+              }}
+              className="bg-transparent text-xs font-semibold text-[#1D2516] dark:text-[#F5F2EB] focus:outline-none cursor-pointer"
+            />
+          </div>
+        </div>
+
+        {/* Date status / Return to Today */}
+        <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
+          {!isToday ? (
+            <button
+              type="button"
+              onClick={resetToToday}
+              className="px-3 py-1.5 rounded-xl bg-white dark:bg-[#16271D] text-[#556244] dark:text-[#A8BCA0] hover:text-[#1D2516] dark:hover:text-white border border-[#E0D7C6] dark:border-[#22352B] text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+            >
+              <FontAwesomeIcon icon={faRotateLeft} className="text-[10px]" />
+              <span>Back to Today</span>
+            </button>
+          ) : (
+            <span className="text-[11px] font-medium text-[#7A8C74] dark:text-[#8FA387]">
+              Today's reflection space
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* 3. New Entry Composer */}
       <AnimatePresence>
         {isAdding && (
           <motion.div
@@ -189,9 +272,17 @@ export function Journal() {
               onSubmit={handleSaveEntry}
               className="bg-white/95 dark:bg-[#0D1814] rounded-3xl border border-[#E8E2D5] dark:border-[#223326] p-5 sm:p-6 shadow-[0_2px_12px_rgba(29,37,22,0.03)] space-y-3.5 transition-colors"
             >
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#738541] dark:text-[#9EB868]">
-                <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5" />
-                <span>Write Today's Reflection</span>
+              <div className="flex items-center justify-between pb-1 border-b border-[#ECE7DC] dark:border-[#1E2E27]">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#738541] dark:text-[#9EB868]">
+                  <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5" />
+                  <span>
+                    Writing reflection for: {isToday ? 'Today, ' : ''}
+                    {formattedSelectedDate}
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-[#8A9280] dark:text-[#6E8268]">
+                  {selectedDateStr}
+                </span>
               </div>
 
               <input
@@ -237,18 +328,52 @@ export function Journal() {
         )}
       </AnimatePresence>
 
-      {/* 3. Reflection Feed */}
+      {/* 4. Active Day Banner */}
+      <div className="flex items-center justify-between px-1 text-xs text-[#5E6750] dark:text-[#8E9F84]">
+        <div className="flex items-center gap-2">
+          <FontAwesomeIcon icon={faCalendarDay} className="w-3.5 h-3.5 text-[#738541] dark:text-[#9EB868]" />
+          <span className="font-semibold text-[#1D2516] dark:text-[#F5F2EB]">
+            {isToday ? `Today's Log: ${formattedSelectedDate}` : `Historical Log: ${formattedSelectedDate}`}
+          </span>
+          <span className="text-[11px] text-[#8A9280] dark:text-[#6E8268]">
+            ({dayEntries.length} {dayEntries.length === 1 ? 'entry' : 'entries'})
+          </span>
+        </div>
+
+        {datesWithEntries.length > 0 && (
+          <span className="hidden sm:inline text-[11px] text-[#7A8C74] dark:text-[#8FA387]">
+            {datesWithEntries.length} {datesWithEntries.length === 1 ? 'day recorded' : 'days recorded'} in journal
+          </span>
+        )}
+      </div>
+
+      {/* 5. Date-Specific Reflection Feed */}
       <div className="space-y-3">
-        {entries.length === 0 ? (
-          <div className="bg-white/95 dark:bg-[#0D1814] rounded-3xl border border-[#E8E2D5] dark:border-[#223326] p-10 text-center space-y-2 transition-colors">
-            <FontAwesomeIcon icon={faFeatherPointed} className="w-7 h-7 text-[#8A9280] dark:text-[#6E8268] mx-auto mb-2" />
-            <h3 className="font-serif font-bold text-base text-[#1D2516] dark:text-[#F5F2EB]">No reflections yet</h3>
-            <p className="text-xs text-[#4E5642] dark:text-[#9BAF90]">
-              Tap "New Entry" above to write down your first reflection.
+        {dayEntries.length === 0 ? (
+          <div className="bg-white/95 dark:bg-[#0D1814] rounded-3xl border border-[#E8E2D5] dark:border-[#223326] p-10 text-center space-y-3 transition-colors">
+            <FontAwesomeIcon icon={faFeatherPointed} className="w-8 h-8 text-[#8A9280] dark:text-[#6E8268] mx-auto mb-1" />
+            <h3 className="font-serif font-bold text-base sm:text-lg text-[#1D2516] dark:text-[#F5F2EB]">
+              {isToday
+                ? 'Fresh Canvas for Today'
+                : `No reflection recorded for ${formattedSelectedDate}`}
+            </h3>
+            <p className="text-xs text-[#4E5642] dark:text-[#9BAF90] max-w-md mx-auto leading-relaxed">
+              {isToday
+                ? 'Each new day starts with a fresh canvas. Capture what felt effortless today, how habits felt, and thoughts for your future self.'
+                : 'Journal entries are unique to each date. Past entries stay preserved in their original day, leaving this day empty until you write one.'}
             </p>
+
+            <button
+              type="button"
+              onClick={() => setIsAdding(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#738541] hover:bg-[#5E6D34] dark:bg-[#4E6826] dark:hover:bg-[#41581F] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer mt-2"
+            >
+              <FontAwesomeIcon icon={faPlus} className="w-3 h-3" />
+              <span>Write reflection for this day</span>
+            </button>
           </div>
         ) : (
-          entries.map((entry) => (
+          dayEntries.map((entry) => (
             <div
               key={entry.id}
               className="bg-white/95 dark:bg-[#0D1814] rounded-3xl border border-[#E8E2D5] dark:border-[#223326] p-5 sm:p-6 shadow-[0_2px_12px_rgba(29,37,22,0.03)] hover:border-[#D6CEBE] dark:hover:border-[#38592A] transition-colors group"
@@ -267,7 +392,7 @@ export function Journal() {
                       <span>Edit Reflection</span>
                     </div>
                     <span className="text-[11px] text-[#8A9280] dark:text-[#6E8268]">
-                      Original: {entry.date}
+                      Date: {entry.date} ({entry.dateStr || selectedDateStr})
                     </span>
                   </div>
 
@@ -389,6 +514,46 @@ export function Journal() {
           ))
         )}
       </div>
+
+      {/* 6. Past Days with Recorded Entries (Quick Jump Archive) */}
+      {datesWithEntries.length > 0 && (
+        <div className="bg-white/60 dark:bg-[#0D1814]/60 rounded-2xl border border-[#E8E2D5]/70 dark:border-[#223326]/70 p-4 transition-colors">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#4E6228] dark:text-[#B6CDB0] mb-2.5">
+            <FontAwesomeIcon icon={faClockRotateLeft} className="w-3 h-3 text-[#738541]" />
+            <span>Dates with Recorded Entries:</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {datesWithEntries.map((dStr) => {
+              const isSelected = selectedDateStr === dStr
+              const count = filterEntriesForDate(entries, dStr).length
+              return (
+                <button
+                  key={dStr}
+                  type="button"
+                  onClick={() => handleSelectDate(dStr)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-[#738541] text-white shadow-2xs'
+                      : 'bg-[#F2ECE1]/80 dark:bg-[#16271D] text-[#4E5642] dark:text-[#A8BCA0] hover:bg-[#E5DDCF] dark:hover:bg-[#1F3325] border border-[#E0D7C6] dark:border-[#22352B]'
+                  }`}
+                >
+                  <span>{dStr}</span>
+                  <span
+                    className={`px-1 py-0.2 rounded-full text-[9px] ${
+                      isSelected
+                        ? 'bg-white/20 text-white'
+                        : 'bg-black/5 dark:bg-white/10 text-[#4E5642] dark:text-[#A8BCA0]'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

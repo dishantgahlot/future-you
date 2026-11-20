@@ -204,7 +204,7 @@ Key tables:
 
 The project features a full-stack test suite powered by **Vitest**:
 
-- **20 test suites** with **208+ assertions passing** with 0 failures
+- **21 test suites** with **218+ assertions passing** with 0 failures
 - Comprehensive coverage across backend routes, prediction engines, AI services, frontend contexts, utilities, and end-to-end flows
 - **Continuous Integration**: Automated GitHub Actions CI workflow (`.github/workflows/ci.yml`) executes type checks, tests, and production builds on every push
 
@@ -216,7 +216,7 @@ The project features a full-stack test suite powered by **Vitest**:
 | **Prediction Engine** | `backend/src/services/prediction-engine/*.test.ts` | Life score projections, scenario simulation, Monte Carlo uncertainty bounds, profile builder |
 | **AI Services & Security** | `backend/src/services/ai/*.test.ts` | Prompt builder injection, XSS sanitization, Zod AI schema validation, markdown JSON parsing |
 | **API Routes & Schemas** | `backend/src/routes/*.test.ts` | Health endpoints (`/health`, `/ready`, `/live`), Habit routes, Auth schemas, Simulation params |
-| **Frontend State & Utilities** | `frontend/src/**/*.test.ts` | DateContext timezone precision, habit storage isolation, dynamic achievement badges, color palettes, API clients |
+| **Frontend State & Utilities** | `frontend/src/**/*.test.ts` | DateContext timezone precision, habit storage isolation, journal multi-day isolation & date normalization, dynamic achievement badges, color palettes, API clients |
 
 ### Running Tests
 
