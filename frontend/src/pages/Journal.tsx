@@ -118,6 +118,24 @@ export function Journal() {
     }
   }, [userStorageKey, user?.id])
 
+  // Synchronize entries if storage is updated externally
+  useEffect(() => {
+    const handleSync = () => {
+      try {
+        const specific = localStorage.getItem(userStorageKey)
+        if (specific) {
+          const parsed = JSON.parse(specific)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setEntries(parsed)
+          }
+        }
+      } catch {}
+    }
+
+    window.addEventListener('future-you-storage-updated', handleSync)
+    return () => window.removeEventListener('future-you-storage-updated', handleSync)
+  }, [userStorageKey])
+
   // Persist entries to localStorage and sync to Supabase
   useEffect(() => {
     try {

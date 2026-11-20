@@ -10,8 +10,13 @@ import {
 } from '../utils/habitStorage'
 import { JOURNAL_STORAGE_KEY, type JournalEntry } from '../utils/journalStorage'
 
-// Prevent overlapping concurrent sync runs
-let isSyncing = false
+// Prevent overlapping concurrent sync runs - reuse in-flight sync promise
+let activeSyncPromise: Promise<{ success: boolean; habits: Habit[]; logs: HabitLog[] }> | null = null
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+function isUuid(str?: string | null): boolean {
+  return typeof str === 'string' && UUID_REGEX.test(str)
+}
 
 export function getUserJournalKey(userId?: string): string {
   const uid = userId || getActiveUserId()
@@ -53,12 +58,24 @@ export function saveLocalJournalEntries(entries: JournalEntry[], userId?: string
 export async function syncUserData(
   targetUserId?: string
 ): Promise<{ success: boolean; habits: Habit[]; logs: HabitLog[] }> {
-  if (isSyncing) {
-    const uid = targetUserId || getActiveUserId()
-    return { success: true, habits: getLocalHabits(uid), logs: getAllLocalLogs(uid) }
+  if (activeSyncPromise) {
+    return activeSyncPromise
   }
 
-  isSyncing = true
+  activeSyncPromise = (async () => {
+    try {
+      return await executeSyncUserData(targetUserId)
+    } finally {
+      activeSyncPromise = null
+    }
+  })()
+
+  return activeSyncPromise
+}
+
+async function executeSyncUserData(
+  targetUserId?: string
+): Promise<{ success: boolean; habits: Habit[]; logs: HabitLog[] }> {
   try {
     let uid = targetUserId?.trim()
 
@@ -82,6 +99,13 @@ export async function syncUserData(
       supabase.from('habit_logs').select('*').eq('user_id', uid).order('log_date', { ascending: false }),
       supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
     ])
+
+    if (habitsRes.error) {
+      console.warn('Supabase habits fetch note:', habitsRes.error.message)
+    }
+    if (logsRes.error) {
+      console.warn('Supabase habit_logs fetch note:', logsRes.error.message)
+    }
 
     const remoteHabitsRaw = habitsRes.data || []
     const remoteLogsRaw = logsRes.data || []
@@ -115,12 +139,16 @@ export async function syncUserData(
     const remoteHabitIds = new Set(remoteHabits.map((h) => h.id))
 
     // Local-only habits: push to remote Supabase database so they aren't lost
-    const localOnlyHabits = localHabits.filter((lh) => !remoteHabitIds.has(lh.id))
+    const localOnlyHabits = localHabits.filter(
+      (lh) =>
+        !remoteHabitIds.has(lh.id) &&
+        !remoteHabits.some((rh) => rh.name.trim().toLowerCase() === lh.name.trim().toLowerCase() && rh.target_date === lh.target_date)
+    )
+
     if (localOnlyHabits.length > 0) {
       for (const loh of localOnlyHabits) {
         try {
-          await supabase.from('habits').upsert({
-            id: loh.id,
+          const habitPayload: any = {
             user_id: uid,
             name: loh.name,
             description: loh.description || null,
@@ -135,7 +163,11 @@ export async function syncUserData(
             target_date: loh.target_date || loh.created_at?.slice(0, 10),
             created_at: loh.created_at,
             updated_at: loh.updated_at,
-          }, { onConflict: 'id' })
+          }
+          if (isUuid(loh.id)) {
+            habitPayload.id = loh.id
+          }
+          await supabase.from('habits').upsert(habitPayload, { onConflict: 'id' })
         } catch (e) {
           console.warn('Could not sync local-only habit to remote:', loh.name, e)
         }
@@ -145,10 +177,12 @@ export async function syncUserData(
     // Merge: Remote habits take precedence, plus any local-only
     const mergedHabits: Habit[] = [
       ...remoteHabits,
-      ...localOnlyHabits.filter((lh) => !remoteHabits.some((rh) => rh.id === lh.id || (rh.name === lh.name && rh.target_date === lh.target_date))),
+      ...localOnlyHabits.filter((lh) => !remoteHabits.some((rh) => rh.id === lh.id || (rh.name.trim().toLowerCase() === lh.name.trim().toLowerCase() && rh.target_date === lh.target_date))),
     ]
 
-    saveLocalHabits(mergedHabits, uid)
+    // If remote had an error and local habits exist, keep local habits
+    const finalHabits = habitsRes.error && remoteHabits.length === 0 && localHabits.length > 0 ? localHabits : mergedHabits
+    saveLocalHabits(finalHabits, uid)
 
     // 4. Process and normalize remote logs
     const remoteLogs: HabitLog[] = remoteLogsRaw.map((rl: any) => ({
@@ -175,8 +209,7 @@ export async function syncUserData(
     if (localOnlyLogs.length > 0) {
       for (const lol of localOnlyLogs) {
         try {
-          await supabase.from('habit_logs').upsert({
-            id: lol.id,
+          const logPayload: any = {
             habit_id: lol.habit_id,
             user_id: uid,
             log_date: lol.log_date,
@@ -186,7 +219,11 @@ export async function syncUserData(
             completion_status: lol.completion_status,
             notes: lol.notes || null,
             updated_at: lol.updated_at,
-          }, { onConflict: 'habit_id,log_date' })
+          }
+          if (isUuid(lol.id)) {
+            logPayload.id = lol.id
+          }
+          await supabase.from('habit_logs').upsert(logPayload, { onConflict: 'habit_id,log_date' })
         } catch (e) {
           console.warn('Could not sync local-only log to remote:', lol.habit_id, e)
         }
@@ -207,14 +244,15 @@ export async function syncUserData(
       }
     }
     const mergedLogs = Array.from(mergedLogsMap.values())
+    const finalLogs = logsRes.error && remoteLogs.length === 0 && localLogs.length > 0 ? localLogs : mergedLogs
 
-    saveAllLocalLogs(mergedLogs, uid)
+    saveAllLocalLogs(finalLogs, uid)
 
     // Record login/activity dates in local history
-    for (const h of mergedHabits) {
+    for (const h of finalHabits) {
       if (h.target_date) recordLoginDate(h.target_date, uid)
     }
-    for (const l of mergedLogs) {
+    for (const l of finalLogs) {
       if (l.log_date && (l.actual_value > 0 || l.completion_status)) {
         recordLoginDate(l.log_date, uid)
       }
@@ -274,8 +312,6 @@ export async function syncUserData(
     console.error('Data sync failed:', err)
     const uid = targetUserId || getActiveUserId()
     return { success: false, habits: getLocalHabits(uid), logs: getAllLocalLogs(uid) }
-  } finally {
-    isSyncing = false
   }
 }
 

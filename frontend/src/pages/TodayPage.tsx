@@ -89,10 +89,13 @@ export function TodayPage() {
     }
   }, [user?.id])
 
-  // Persist habits to local storage whenever they change
+  // Persist habits to local storage whenever they change, if we have an active user and habits
   useEffect(() => {
-    saveLocalHabits(habits)
-  }, [habits])
+    const uid = user?.id || getActiveUserId()
+    if (uid && habits.length > 0) {
+      saveLocalHabits(habits, uid)
+    }
+  }, [habits, user?.id])
 
   // Habits active on the selected date (omits habits created on later dates)
   const habitsForSelectedDate = useMemo(() => {

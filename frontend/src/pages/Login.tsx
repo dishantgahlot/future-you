@@ -8,7 +8,7 @@ import { useUserProfile } from '../contexts/UserProfileContext'
 export function Login() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { signIn, onboardingCompleted, resendConfirmationEmail } = useAuth()
+  const { signIn, resendConfirmationEmail } = useAuth()
   const { recordNewLogin } = useUserProfile()
   
   const [email, setEmail] = useState(() => (location.state as any)?.email || '')
@@ -55,7 +55,7 @@ export function Login() {
       setLoading(false)
     } else {
       recordNewLogin('Account Sign In')
-      navigate(onboardingCompleted ? '/dashboard' : '/onboarding')
+      navigate('/dashboard', { replace: true })
     }
   }
 

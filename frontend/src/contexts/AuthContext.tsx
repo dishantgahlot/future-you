@@ -62,11 +62,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
         localStorage.setItem('future_you_active_user_id', session.user.id)
+        localStorage.setItem(`future_you_onboarded_${session.user.id}`, 'true')
         setUser(session.user)
-        syncUserData(session.user.id).catch(() => {})
+        setOnboardingCompleted(true)
+        try {
+          await syncUserData(session.user.id)
+        } catch {}
       } else {
         const savedActive = localStorage.getItem('future_you_active_user')
         const savedDemo = localStorage.getItem('future_you_demo_user')
@@ -95,11 +99,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         localStorage.setItem('future_you_active_user_id', session.user.id)
+        localStorage.setItem(`future_you_onboarded_${session.user.id}`, 'true')
         setUser(session.user)
-        syncUserData(session.user.id).catch(() => {})
+        setOnboardingCompleted(true)
+        try {
+          await syncUserData(session.user.id)
+        } catch {}
       } else {
         localStorage.removeItem('future_you_active_user_id')
         setUser(null)
@@ -243,7 +251,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOnboardingCompleted(true)
       localStorage.setItem(`future_you_onboarded_${data.user.id}`, 'true')
       localStorage.setItem('future_you_active_user_id', data.user.id)
-      syncUserData(data.user.id).catch(() => {})
+      try {
+        await syncUserData(data.user.id)
+      } catch (syncErr) {
+        console.warn('Sign-in sync note:', syncErr)
+      }
       try {
         const { data: profile } = await supabase
           .from('profiles')

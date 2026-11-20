@@ -202,7 +202,9 @@ export function Habits() {
 
   useEffect(() => {
     const uid = user?.id || getActiveUserId()
-    saveLocalHabits(habits, uid)
+    if (uid && habits.length > 0) {
+      saveLocalHabits(habits, uid)
+    }
   }, [habits, user?.id])
 
   // Sync logs and habits from storage if changed externally

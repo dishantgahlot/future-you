@@ -203,4 +203,18 @@ describe('Cross-Browser Data Sync Service', () => {
     expect(loaded.length).toBe(1)
     expect(loaded[0].title).toBe('Daily Reflection')
   })
+
+  it('handles concurrent sync calls gracefully by sharing the in-flight promise', async () => {
+    const testUserId = 'user-cross-browser'
+    const [res1, res2] = await Promise.all([
+      syncUserData(testUserId),
+      syncUserData(testUserId),
+    ])
+    expect(res1.success).toBe(true)
+    expect(res2.success).toBe(true)
+    expect(res1.habits.length).toBe(1)
+    expect(res2.habits.length).toBe(1)
+    expect(res1.habits[0].name).toBe('Hydration')
+    expect(res2.habits[0].name).toBe('Hydration')
+  })
 })

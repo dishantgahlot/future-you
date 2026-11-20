@@ -27,10 +27,26 @@ import type {
   UserHabitProgressSummary,
 } from '../types'
 
-export const RAW_API = import.meta.env.VITE_API_URL !== undefined
-  ? import.meta.env.VITE_API_URL
-  : (import.meta.env.PROD ? '' : 'http://localhost:9000')
-export const API_BASE = !RAW_API ? '/api' : (RAW_API.endsWith('/api') ? RAW_API : `${RAW_API}/api`)
+function resolveApiBase(): string {
+  const isBrowser = typeof window !== 'undefined'
+  const isLocalHost = isBrowser && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  const envUrl = (import.meta.env.VITE_API_URL || '').trim()
+
+  // On production or on remote hosts (like mobile / vercel.app), never point to localhost
+  if (import.meta.env.PROD || !isLocalHost) {
+    if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+      return envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`
+    }
+    return '/api'
+  }
+
+  // Local development
+  const raw = envUrl || 'http://localhost:9000'
+  return raw.endsWith('/api') ? raw : `${raw}/api`
+}
+
+export const API_BASE = resolveApiBase()
+export const RAW_API = API_BASE.replace(/\/api$/, '')
 
 async function getAuthHeaders(): Promise<HeadersInit> {
   const { data: { session } } = await supabase.auth.getSession()

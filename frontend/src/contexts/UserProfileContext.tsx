@@ -204,6 +204,34 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
     loadProfileFromDB()
   }, [user])
 
+  // Synchronize state when storage is updated externally (e.g. from cloud dataSync)
+  useEffect(() => {
+    const handleSync = () => {
+      try {
+        const saved = localStorage.getItem(PROFILE_KEY)
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (parsed.fullName) setFullName(parsed.fullName)
+          if (parsed.email) setEmail(parsed.email)
+        }
+        const savedAvatar = localStorage.getItem(AVATAR_KEY)
+        if (savedAvatar) setAvatarUrl(savedAvatar)
+        const savedStyle = localStorage.getItem(AVATAR_STYLE_KEY)
+        if (savedStyle) setAvatarStyle(savedStyle)
+        const savedSeed = localStorage.getItem(AVATAR_SEED_KEY)
+        if (savedSeed) setAvatarSeed(savedSeed)
+        const savedLogins = localStorage.getItem(LOGIN_HISTORY_KEY)
+        if (savedLogins) {
+          const parsed = JSON.parse(savedLogins)
+          if (Array.isArray(parsed) && parsed.length > 0) setLoginHistory(parsed)
+        }
+      } catch {}
+    }
+
+    window.addEventListener('future-you-storage-updated', handleSync)
+    return () => window.removeEventListener('future-you-storage-updated', handleSync)
+  }, [])
+
   const lastLoginDate = loginHistory.length > 0 ? loginHistory[0].date : 'Today'
 
   const recordNewLogin = (method = 'Web Session Login') => {
