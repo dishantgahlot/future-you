@@ -7,6 +7,7 @@ import {
   getLocalHabits,
   saveLocalHabits,
   getAllLocalLogs,
+  saveLocalLog,
   getActiveUserId,
   getHabitsForDate,
   isLogForDate,
@@ -162,10 +163,8 @@ export function TodayPage() {
         // Saved locally
       }
     } else {
-      // Create new habit
-      // If user adds habit while viewing a historical date, anchor created_at to that date
-      const isHistorical = selectedDateStr < format(new Date(), 'yyyy-MM-dd')
-      const habitCreatedAt = isHistorical ? `${selectedDateStr}T12:00:00.000Z` : new Date().toISOString()
+      // Create new habit anchored to the currently viewed date
+      const habitCreatedAt = `${selectedDateStr}T${new Date().toISOString().slice(11)}`
 
       const newHabit: Habit = {
         id: crypto.randomUUID(),
@@ -184,6 +183,9 @@ export function TodayPage() {
       }
 
       setHabits((prev) => [...prev, newHabit])
+      // Initialize zero-progress log for this date so it's tied to this day
+      saveLocalLog(newHabit.id, selectedDateStr, 0, newHabit.target_value, undefined, newHabit.user_id)
+      setAllLogs(getAllLocalLogs(user?.id))
 
       try {
         await createHabit({

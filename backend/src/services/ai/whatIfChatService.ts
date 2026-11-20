@@ -725,7 +725,29 @@ export async function simulateWhatIfScenario(
     let missedCount = 0
     let progressSum = 0
 
-    const habitDetails = habits.map((h: any) => {
+    // Filter habits relevant to dateStr
+    const relevantHabits = habits.filter((h: any) => {
+      const hId = String(h.id)
+      const hasLog = logs.some((l: any) => {
+        const rawDate = String(l.log_date || l.date || '')
+        return String(l.habit_id || l.habitId || '') === hId && rawDate.slice(0, 10) === dateStr
+      })
+      if (hasLog) return true
+
+      const createdDate = String(h.created_at || '').slice(0, 10)
+      if (createdDate && createdDate === dateStr) return true
+
+      return false
+    })
+
+    const effectiveHabits =
+      relevantHabits.length > 0
+        ? relevantHabits
+        : habits.every((h: any) => !h.created_at)
+        ? habits
+        : []
+
+    const habitDetails = effectiveHabits.map((h: any) => {
       const hId = String(h.id)
       const habitLogs = logs.filter((l: any) => String(l.habit_id || l.habitId || '') === hId)
       const log = habitLogs.find((l: any) => {
@@ -781,7 +803,7 @@ export async function simulateWhatIfScenario(
       }
     })
 
-    const overallProgress = habits.length > 0 ? Math.round(progressSum / habits.length) : 0
+    const overallProgress = effectiveHabits.length > 0 ? Math.round(progressSum / effectiveHabits.length) : 0
     return {
       dateStr,
       overallProgress,

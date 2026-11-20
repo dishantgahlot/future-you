@@ -212,9 +212,13 @@ export function TodaysHabitsCard({
               <FontAwesomeIcon icon={faSeedling} />
             </div>
             <div>
-              <h4 className="font-serif font-bold text-base text-[#1D2516] dark:text-[#F5F2EB]">No habits set</h4>
+              <h4 className="font-serif font-bold text-base text-[#1D2516] dark:text-[#F5F2EB]">
+                {isToday ? 'A Fresh Start for Today' : 'No habits recorded'}
+              </h4>
               <p className="text-xs text-[#6F6759] dark:text-[#A8BCA0] mt-0.5 max-w-xs mx-auto">
-                Open the Habits section in the sidebar to create and configure your routines.
+                {isToday
+                  ? "Every day begins fresh. Open Habit Studio to configure today's habits or copy your routine."
+                  : 'No habits were active or logged on this specific date.'}
               </p>
             </div>
             <button
@@ -222,7 +226,7 @@ export function TodaysHabitsCard({
               onClick={() => onManageHabits()}
               className="py-2 px-4 rounded-xl bg-[#738541] dark:bg-[#4E6826] text-white text-xs font-bold shadow-xs hover:bg-[#5E6F34] dark:hover:bg-[#41581F] cursor-pointer inline-flex items-center gap-1.5"
             >
-              <span>Go to Habits</span>
+              <span>{isToday ? "Add Today's Habits" : 'Go to Habits'}</span>
               <FontAwesomeIcon icon={faArrowRight} className="text-[11px]" />
             </button>
           </div>

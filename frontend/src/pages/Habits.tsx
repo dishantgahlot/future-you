@@ -28,6 +28,7 @@ import {
   faXmark,
   faCalendarDays,
   faCodeBranch,
+  faCopy,
 } from '@fortawesome/free-solid-svg-icons'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import type { Habit, HabitCategory, HabitLog } from '../types'
@@ -42,6 +43,7 @@ import {
   setDayTarget,
   resetDayTarget,
   getHabitsForDate,
+  copyHabitsToDate,
   isLogForDate,
   findLogForHabitAndDate,
 } from '../utils/habitStorage'
@@ -220,6 +222,28 @@ export function Habits() {
     return getHabitsForDate(filteredCategoryHabits, selectedDateStr, logs)
   }, [filteredCategoryHabits, selectedDateStr, logs])
 
+  // Yesterday date and habits (for quick copy option on a fresh start day)
+  const yesterdayDateStr = useMemo(() => {
+    try {
+      const d = subDays(parseISO(selectedDateStr), 1)
+      return format(d, 'yyyy-MM-dd')
+    } catch {
+      return ''
+    }
+  }, [selectedDateStr])
+
+  const yesterdayHabits = useMemo(() => {
+    if (!yesterdayDateStr) return []
+    return getHabitsForDate(habits, yesterdayDateStr, logs)
+  }, [habits, yesterdayDateStr, logs])
+
+  const handleCopyYesterday = () => {
+    if (!yesterdayDateStr) return
+    copyHabitsToDate(yesterdayDateStr, selectedDateStr)
+    setHabits(getLocalHabits())
+    setLogs(getAllLocalLogs())
+  }
+
   const activeCount = displayedHabits.filter((h) => h.is_active).length
   const completedTodayCount = displayedHabits.filter((h) => {
     const log = findLogForHabitAndDate(logs, h.id, selectedDateStr)
@@ -386,9 +410,8 @@ export function Habits() {
         data.color_theme ||
         STICKY_THEMES[habits.length % STICKY_THEMES.length]
 
-      // If user adds habit while inspecting a historical day, anchor created_at to that day
-      const isHistorical = selectedDateStr < todayStr
-      const habitCreatedAt = isHistorical ? `${selectedDateStr}T12:00:00.000Z` : new Date().toISOString()
+      // Anchor created_at to the currently viewed date
+      const habitCreatedAt = `${selectedDateStr}T${new Date().toISOString().slice(11)}`
 
       const newHabit: Habit = {
         id: crypto.randomUUID(),
@@ -407,6 +430,10 @@ export function Habits() {
         updated_at: new Date().toISOString(),
       }
       setHabits((prev) => [...prev, newHabit])
+      // Initialize zero-progress log for this date so it's tied to this day
+      saveLocalLog(newHabit.id, selectedDateStr, 0, newHabit.target_value)
+      setLogs(getAllLocalLogs())
+
       try {
         await createHabit({
           name: newHabit.name,
@@ -571,7 +598,7 @@ export function Habits() {
             </div>
           ) : (
             <span className="text-xs text-[#6F6759] dark:text-[#9BAF90] font-medium hidden sm:inline">
-              Daily habit routines carry forward each day; progress resets at midnight.
+              Fresh daily start · Add routines for today or review previous days' progress.
             </span>
           )}
         </div>
@@ -866,27 +893,49 @@ export function Habits() {
         </div>
       ) : (
         /* Empty State */
-        <div className="text-center py-12 px-4 rounded-3xl border-2 border-dashed border-[#E3DCCE] dark:border-[#223326] bg-white/95 dark:bg-[#0D1814] space-y-3 transition-colors">
+        <div className="text-center py-12 px-4 rounded-3xl border-2 border-dashed border-[#E3DCCE] dark:border-[#223326] bg-white/95 dark:bg-[#0D1814] space-y-3.5 transition-colors">
           <div className="w-12 h-12 rounded-full bg-[#EEF4E8] dark:bg-[#1D2D23] text-[#738541] dark:text-[#9EB868] flex items-center justify-center mx-auto text-xl shadow-2xs">
             <FontAwesomeIcon icon={faSeedling} />
           </div>
-          <h3 className="font-serif font-bold text-lg text-[#1D2516] dark:text-[#F5F2EB]">No habits found</h3>
-          <p className="text-xs text-[#6F6759] dark:text-[#9BAF90] max-w-sm mx-auto">
-            {searchQuery
-              ? `No habits matching "${searchQuery}". Clear your search to see all routines.`
-              : 'Add your first daily routine to begin tracking progress.'}
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingHabit(null)
-              setShowModal(true)
-            }}
-            className="py-2 px-4 rounded-full bg-[#4A6225] text-white text-xs font-bold shadow-xs hover:bg-[#3D521E] cursor-pointer inline-flex items-center gap-1.5"
-          >
-            <FontAwesomeIcon icon={faPlus} className="text-xs" />
-            <span>Create Habit</span>
-          </button>
+          <div>
+            <h3 className="font-serif font-bold text-lg text-[#1D2516] dark:text-[#F5F2EB]">
+              {searchQuery
+                ? 'No habits found'
+                : isToday
+                ? 'A Fresh Start for Today'
+                : `No habits recorded for ${format(parseISO(selectedDateStr), 'MMMM d')}`}
+            </h3>
+            <p className="text-xs text-[#6F6759] dark:text-[#9BAF90] max-w-md mx-auto mt-1">
+              {searchQuery
+                ? `No habits matching "${searchQuery}". Clear your search to see all routines.`
+                : isToday
+                ? 'Every new day begins with a clean slate. Add your habits for today, or copy your routines from yesterday with one click.'
+                : 'No habits were logged or active on this specific date.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setEditingHabit(null)
+                setShowModal(true)
+              }}
+              className="py-2.5 px-5 rounded-full bg-[#4A6225] hover:bg-[#3D521E] text-white text-xs font-bold shadow-xs cursor-pointer inline-flex items-center gap-2 transition-all active:scale-98"
+            >
+              <FontAwesomeIcon icon={faPlus} className="text-xs" />
+              <span>{isToday ? 'Add Habit for Today' : 'Add Habit for this Date'}</span>
+            </button>
+            {isToday && yesterdayHabits.length > 0 && (
+              <button
+                type="button"
+                onClick={handleCopyYesterday}
+                className="py-2.5 px-5 rounded-full bg-[#EEF4E8] hover:bg-[#DFEACF] dark:bg-[#1C2C1D] dark:hover:bg-[#253A26] text-[#3D5220] dark:text-[#B6DB8A] border border-[#CCD8B8] dark:border-[#2F4532] text-xs font-bold shadow-2xs cursor-pointer inline-flex items-center gap-2 transition-all active:scale-98"
+              >
+                <FontAwesomeIcon icon={faCopy} className="text-xs" />
+                <span>Copy Yesterday's Habits ({yesterdayHabits.length})</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 
