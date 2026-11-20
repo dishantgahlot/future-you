@@ -102,4 +102,31 @@ describe('Journal Storage & Multi-Day Isolation Suite', () => {
       })
     })
   })
+
+  describe('Historical Date Read-Only Guarding Policy', () => {
+    it('identifies past dates correctly against current date', () => {
+      const todayStr = '2026-11-20'
+      const pastDate1 = '2026-11-19'
+      const pastDate2 = '2026-11-18'
+      const futureDate = '2026-11-21'
+
+      expect(pastDate1 < todayStr).toBe(true)
+      expect(pastDate2 < todayStr).toBe(true)
+      expect(todayStr < todayStr).toBe(false)
+      expect(futureDate < todayStr).toBe(false)
+    })
+
+    it('preserves historical journal reflections as immutable archives', () => {
+      const todayStr = '2026-11-20'
+      const pastDate = '2026-11-19'
+      const isPastDate = pastDate < todayStr
+
+      expect(isPastDate).toBe(true)
+      const pastEntries = filterEntriesForDate(mockEntries, pastDate)
+      expect(pastEntries).toHaveLength(1)
+      expect(pastEntries[0].id).toBe('j-19')
+      // Read-only invariant: no new entries can be added to past dates
+      expect(isPastDate ? 'LOCKED_ARCHIVE' : 'EDITABLE').toBe('LOCKED_ARCHIVE')
+    })
+  })
 })

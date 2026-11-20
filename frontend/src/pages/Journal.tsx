@@ -13,6 +13,7 @@ import {
   faFeatherPointed,
   faClockRotateLeft,
   faRotateLeft,
+  faLock,
 } from '@fortawesome/free-solid-svg-icons'
 import { format, subDays } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
@@ -29,6 +30,7 @@ import {
 export function Journal() {
   const { user } = useAuth()
   const { selectedDate, selectedDateStr, setSelectedDate, isToday, todayStr, resetToToday } = useAppDate()
+  const isPastDate = selectedDateStr < todayStr
   const userStorageKey = user?.id ? `${JOURNAL_STORAGE_KEY}_${user.id}` : JOURNAL_STORAGE_KEY
 
   const [entries, setEntries] = useState<JournalEntry[]>(() => {
@@ -115,6 +117,7 @@ export function Journal() {
 
   const handleSelectDate = (dateStr: string) => {
     setSelectedDate(dateStr)
+    setIsAdding(false)
     // If inline editing was active, cancel it when switching days
     if (editingId) {
       setEditingId(null)
@@ -125,6 +128,7 @@ export function Journal() {
 
   const handleSaveEntry = (e: React.FormEvent) => {
     e.preventDefault()
+    if (isPastDate) return
     if (!title.trim() || !content.trim()) return
 
     const newEntry = createJournalEntry(title, content, selectedDate, selectedDateStr)
@@ -136,6 +140,7 @@ export function Journal() {
   }
 
   const handleStartEdit = (entry: JournalEntry) => {
+    if (isPastDate) return
     setEditingId(entry.id)
     setEditTitle(entry.title)
     setEditContent(entry.content)
@@ -148,6 +153,7 @@ export function Journal() {
   }
 
   const handleSaveEdit = (id: string) => {
+    if (isPastDate) return
     if (!editTitle.trim() || !editContent.trim()) return
 
     setEntries((prev) =>
@@ -166,6 +172,7 @@ export function Journal() {
   }
 
   const handleDeleteEntry = (id: string) => {
+    if (isPastDate) return
     if (editingId === id) {
       handleCancelEdit()
     }
@@ -191,13 +198,20 @@ export function Journal() {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsAdding(!isAdding)}
-          className="self-start sm:self-center inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#738541] hover:bg-[#5E6D34] dark:bg-[#4E6826] dark:hover:bg-[#41581F] text-white text-xs sm:text-sm font-semibold shadow-xs transition-colors cursor-pointer"
-        >
-          <FontAwesomeIcon icon={isAdding ? faXmark : faPlus} className="w-3.5 h-3.5" />
-          <span>{isAdding ? 'Close Composer' : 'New Entry'}</span>
-        </button>
+        {!isPastDate ? (
+          <button
+            onClick={() => setIsAdding(!isAdding)}
+            className="self-start sm:self-center inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#738541] hover:bg-[#5E6D34] dark:bg-[#4E6826] dark:hover:bg-[#41581F] text-white text-xs sm:text-sm font-semibold shadow-xs transition-colors cursor-pointer"
+          >
+            <FontAwesomeIcon icon={isAdding ? faXmark : faPlus} className="w-3.5 h-3.5" />
+            <span>{isAdding ? 'Close Composer' : 'New Entry'}</span>
+          </button>
+        ) : (
+          <div className="self-start sm:self-center inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#EAEFE2] dark:bg-[#1A2A20] text-[#4E6228] dark:text-[#A8C7A0] border border-[#D5E3C4] dark:border-[#2B4232] text-xs font-bold">
+            <FontAwesomeIcon icon={faLock} className="text-[11px]" />
+            <span>Past Date (Read-Only)</span>
+          </div>
+        )}
       </div>
 
       {/* 2. Date Switcher & Historical Day Navigator */}
@@ -360,17 +374,19 @@ export function Journal() {
             <p className="text-xs text-[#4E5642] dark:text-[#9BAF90] max-w-md mx-auto leading-relaxed">
               {isToday
                 ? 'Each new day starts with a fresh canvas. Capture what felt effortless today, how habits felt, and thoughts for your future self.'
-                : 'Journal entries are unique to each date. Past entries stay preserved in their original day, leaving this day empty until you write one.'}
+                : 'This date has already passed. Past days are preserved as read-only historical records, so new journal reflections cannot be added retroactively.'}
             </p>
 
-            <button
-              type="button"
-              onClick={() => setIsAdding(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#738541] hover:bg-[#5E6D34] dark:bg-[#4E6826] dark:hover:bg-[#41581F] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer mt-2"
-            >
-              <FontAwesomeIcon icon={faPlus} className="w-3 h-3" />
-              <span>Write reflection for this day</span>
-            </button>
+            {!isPastDate && (
+              <button
+                type="button"
+                onClick={() => setIsAdding(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#738541] hover:bg-[#5E6D34] dark:bg-[#4E6826] dark:hover:bg-[#41581F] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer mt-2"
+              >
+                <FontAwesomeIcon icon={faPlus} className="w-3 h-3" />
+                <span>Write reflection for today</span>
+              </button>
+            )}
           </div>
         ) : (
           dayEntries.map((entry) => (
@@ -470,28 +486,35 @@ export function Journal() {
                       </h3>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(entry)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EEF4E8] hover:bg-[#DFEACF] dark:bg-[#1E2F1A] dark:hover:bg-[#283F23] text-[#415525] dark:text-[#A8D968] text-xs font-bold transition-all border border-[#D5E3C4] dark:border-[#385926] shadow-2xs cursor-pointer"
-                        title="Edit this journal entry"
-                        aria-label="Edit this journal entry"
-                      >
-                        <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 text-[#5A732E] dark:text-[#A8D968]" />
-                        <span>Edit</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteEntry(entry.id)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-medium transition-colors cursor-pointer"
-                        title="Delete this journal entry"
-                        aria-label="Delete this journal entry"
-                      >
-                        <FontAwesomeIcon icon={faTrash} className="w-3 h-3" />
-                        <span className="hidden sm:inline">Delete</span>
-                      </button>
-                    </div>
+                    {!isPastDate ? (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleStartEdit(entry)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EEF4E8] hover:bg-[#DFEACF] dark:bg-[#1E2F1A] dark:hover:bg-[#283F23] text-[#415525] dark:text-[#A8D968] text-xs font-bold transition-all border border-[#D5E3C4] dark:border-[#385926] shadow-2xs cursor-pointer"
+                          title="Edit this journal entry"
+                          aria-label="Edit this journal entry"
+                        >
+                          <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 text-[#5A732E] dark:text-[#A8D968]" />
+                          <span>Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteEntry(entry.id)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-medium transition-colors cursor-pointer"
+                          title="Delete this journal entry"
+                          aria-label="Delete this journal entry"
+                        >
+                          <FontAwesomeIcon icon={faTrash} className="w-3 h-3" />
+                          <span className="hidden sm:inline">Delete</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[#EEF4E8] dark:bg-[#1E2F1A] text-[#415525] dark:text-[#A8D968] text-xs font-semibold shrink-0 border border-[#D5E3C4] dark:border-[#385926]">
+                        <FontAwesomeIcon icon={faLock} className="text-[10px]" />
+                        <span>Archived</span>
+                      </div>
+                    )}
                   </div>
 
                   <p className="text-xs sm:text-sm text-[#4E5642] dark:text-[#9BAF90] leading-relaxed whitespace-pre-wrap break-words">

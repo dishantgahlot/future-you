@@ -29,6 +29,7 @@ import {
   faCalendarDays,
   faCodeBranch,
   faCopy,
+  faLock,
 } from '@fortawesome/free-solid-svg-icons'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import type { Habit, HabitCategory, HabitLog } from '../types'
@@ -136,6 +137,7 @@ export function Habits() {
   const [searchParams] = useSearchParams()
   const habitIdParam = searchParams.get('habitId')
   const { setSelectedDate, selectedDateStr, isToday, resetToToday, todayStr } = useAppDate()
+  const isPastDate = selectedDateStr < todayStr
 
   const { notifyHabitMilestone } = useNotifications()
   const [habits, setHabits] = useState<Habit[]>(() => getLocalHabits())
@@ -254,6 +256,7 @@ export function Habits() {
 
   // Update progress value for selected date (respects day-specific goal)
   const handleUpdateProgress = async (habit: Habit, nextVal: number) => {
+    if (isPastDate) return
     const target = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
     const clampedVal = Math.max(0, Math.round(nextVal * 10) / 10)
 
@@ -287,6 +290,7 @@ export function Habits() {
 
   // Plus / Minus step handlers
   const handleStep = (habit: Habit, deltaMultiplier: number) => {
+    if (isPastDate) return
     const targetVal = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
     const log = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
     const actualVal =
@@ -302,6 +306,7 @@ export function Habits() {
 
   // Toggle Mark as Done (0 <-> 100%)
   const handleToggleDone = (habit: Habit) => {
+    if (isPastDate) return
     const targetVal = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
     const log = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
     const isDone = Boolean(log?.completion_status) || (log?.actual_value !== undefined && log.actual_value >= targetVal && targetVal > 0)
@@ -311,6 +316,7 @@ export function Habits() {
 
   // Open Day-Specific Target customizer modal
   const handleOpenDayTarget = (habit: Habit) => {
+    if (isPastDate) return
     const currentTarget = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
     setAdjustingDayTargetHabit(habit)
     setCustomDayTargetInput(String(currentTarget))
@@ -358,6 +364,7 @@ export function Habits() {
 
   // Toggle Active / Paused
   const handleToggleActive = async (habit: Habit) => {
+    if (isPastDate) return
     const updated = { ...habit, is_active: !habit.is_active, updated_at: new Date().toISOString() }
     setHabits((prev) => prev.map((h) => (h.id === habit.id ? updated : h)))
     try {
@@ -369,6 +376,7 @@ export function Habits() {
 
   // Delete Habit
   const handleDelete = async (id: string) => {
+    if (isPastDate) return
     deleteLocalHabit(id)
     setHabits((prev) => prev.filter((h) => h.id !== id))
     setDeletingConfirmId(null)
@@ -381,6 +389,7 @@ export function Habits() {
 
   // Save (Create or Edit) Habit Modal Handler
   const handleSaveModalHabit = async (data: Partial<Habit>) => {
+    if (isPastDate) return
     if (editingHabit) {
       const updated: Habit = {
         ...editingHabit,
@@ -524,17 +533,24 @@ export function Habits() {
         </div>
 
         {/* Action Button */}
-        <button
-          type="button"
-          onClick={() => {
-            setEditingHabit(null)
-            setShowModal(true)
-          }}
-          className="self-start md:self-center relative z-10 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#4A6225] hover:bg-[#3D521E] dark:bg-[#4E6826] dark:hover:bg-[#41581F] active:scale-98 text-white text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer border border-transparent dark:border-[#5E7E2E]"
-        >
-          <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
-          <span>New Habit</span>
-        </button>
+        {!isPastDate ? (
+          <button
+            type="button"
+            onClick={() => {
+              setEditingHabit(null)
+              setShowModal(true)
+            }}
+            className="self-start md:self-center relative z-10 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#4A6225] hover:bg-[#3D521E] dark:bg-[#4E6826] dark:hover:bg-[#41581F] active:scale-98 text-white text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer border border-transparent dark:border-[#5E7E2E]"
+          >
+            <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
+            <span>New Habit</span>
+          </button>
+        ) : (
+          <div className="self-start md:self-center relative z-10 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#DFEACF] dark:bg-[#203423] text-[#3D5220] dark:text-[#B6DB8A] text-xs font-bold shadow-2xs border border-[#CCD8B8] dark:border-[#385926]">
+            <FontAwesomeIcon icon={faLock} className="text-[10px]" />
+            <span>Past Date (Read-Only)</span>
+          </div>
+        )}
       </div>
 
       {/* 1.5 Date Switcher & Historical Day Navigator */}
@@ -617,7 +633,9 @@ export function Habits() {
                 Inspecting Record for {format(parseISO(selectedDateStr), 'EEEE, MMMM d, yyyy')}
               </h4>
               <p className="text-xs text-[#556244] dark:text-[#A8BCA0]">
-                Showing habits of this day. Logged progress applies only to this date. Habits added here carry forward.
+                {isPastDate
+                  ? 'This date has already passed. Past habit records are preserved as read-only historical archives and cannot be edited, deleted, or added.'
+                  : 'Showing habits for this day. Logged progress applies only to this date.'}
               </p>
             </div>
           </div>
@@ -747,16 +765,19 @@ export function Habits() {
                     {/* Right side: Mark Done Toggle Pill */}
                     <button
                       type="button"
+                      disabled={isPastDate}
                       onClick={() => handleToggleDone(habit)}
-                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer inline-flex items-center gap-1 shadow-2xs flex-shrink-0 ${
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all inline-flex items-center gap-1 shadow-2xs flex-shrink-0 ${
+                        isPastDate ? 'cursor-default opacity-85' : 'cursor-pointer'
+                      } ${
                         isDone
                           ? 'bg-[#4A6225] hover:bg-[#3D521E] dark:bg-[#4E6826] dark:hover:bg-[#41581F] text-white border border-[#3D521E]'
                           : 'bg-white/85 hover:bg-white dark:bg-black/35 dark:hover:bg-black/55 text-[#2B351F] dark:text-[#E2EBD6] border border-[#DDD3BF] dark:border-white/20 backdrop-blur-xs'
                       }`}
-                      title={isDone ? 'Mark as pending' : 'Mark complete for today'}
+                      title={isPastDate ? 'Historical record (read-only)' : isDone ? 'Mark as pending' : 'Mark complete for today'}
                     >
-                      <FontAwesomeIcon icon={faCheck} className="text-[9px]" />
-                      <span>{isDone ? 'Done' : 'Mark Done'}</span>
+                      <FontAwesomeIcon icon={isDone ? faCheck : (isPastDate ? faLock : faCheck)} className="text-[9px]" />
+                      <span>{isDone ? 'Done' : (isPastDate ? 'Missed' : 'Mark Done')}</span>
                     </button>
                   </div>
                 </div>
@@ -772,13 +793,16 @@ export function Habits() {
                       {/* Today's Custom Goal Pill / Trigger */}
                       <button
                         type="button"
+                        disabled={isPastDate}
                         onClick={() => handleOpenDayTarget(habit)}
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] transition-all cursor-pointer ${
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] transition-all ${
+                          isPastDate ? 'cursor-default opacity-85' : 'cursor-pointer'
+                        } ${
                           hasCustomDayTarget
                             ? 'bg-[#4A6225] text-white font-bold shadow-2xs'
                             : 'bg-black/6 hover:bg-black/12 dark:bg-white/10 dark:hover:bg-white/20 text-[#43522C] dark:text-[#CBD8BF] font-semibold'
                         }`}
-                        title={selectedDateStr === todayStr ? "Set or adjust how much you have to do today" : `Set or adjust goal for ${selectedDateStr}`}
+                        title={isPastDate ? `Day goal for ${selectedDateStr} (locked)` : selectedDateStr === todayStr ? "Set or adjust how much you have to do today" : `Set or adjust goal for ${selectedDateStr}`}
                       >
                         <FontAwesomeIcon icon={faBullseye} className="text-[9px]" />
                         <span>
@@ -800,10 +824,14 @@ export function Habits() {
                     {/* Minus Button */}
                     <button
                       type="button"
-                      disabled={actualVal <= 0}
+                      disabled={isPastDate || actualVal <= 0}
                       onClick={() => handleStep(habit, -1)}
-                      className="w-8 h-8 sm:w-6 sm:h-6 rounded-full bg-[#1D2516]/10 hover:bg-[#1D2516]/20 dark:bg-white/15 dark:hover:bg-white/25 active:scale-95 disabled:opacity-40 text-[#2B351F] dark:text-white flex items-center justify-center font-bold text-xs transition-all cursor-pointer flex-shrink-0 border border-transparent dark:border-white/10"
-                      title="Decrease progress for today"
+                      className={`w-8 h-8 sm:w-6 sm:h-6 rounded-full active:scale-95 text-[#2B351F] dark:text-white flex items-center justify-center font-bold text-xs transition-all flex-shrink-0 border border-transparent dark:border-white/10 ${
+                        isPastDate || actualVal <= 0
+                          ? 'bg-[#1D2516]/5 dark:bg-white/5 opacity-40 cursor-not-allowed'
+                          : 'bg-[#1D2516]/10 hover:bg-[#1D2516]/20 dark:bg-white/15 dark:hover:bg-white/25 cursor-pointer'
+                      }`}
+                      title={isPastDate ? "Historical record is read-only" : "Decrease progress for today"}
                     >
                       <FontAwesomeIcon icon={faMinus} className="text-xs sm:text-[9px]" />
                     </button>
@@ -821,9 +849,14 @@ export function Habits() {
                     {/* Plus Button */}
                     <button
                       type="button"
+                      disabled={isPastDate}
                       onClick={() => handleStep(habit, 1)}
-                      className="w-8 h-8 sm:w-6 sm:h-6 rounded-full bg-[#1D2516]/10 hover:bg-[#1D2516]/20 dark:bg-white/15 dark:hover:bg-white/25 active:scale-95 text-[#2B351F] dark:text-white flex items-center justify-center font-bold text-xs transition-all cursor-pointer flex-shrink-0 border border-transparent dark:border-white/10"
-                      title="Increase progress for today"
+                      className={`w-8 h-8 sm:w-6 sm:h-6 rounded-full active:scale-95 text-[#2B351F] dark:text-white flex items-center justify-center font-bold text-xs transition-all flex-shrink-0 border border-transparent dark:border-white/10 ${
+                        isPastDate
+                          ? 'bg-[#1D2516]/5 dark:bg-white/5 opacity-40 cursor-not-allowed'
+                          : 'bg-[#1D2516]/10 hover:bg-[#1D2516]/20 dark:bg-white/15 dark:hover:bg-white/25 cursor-pointer'
+                      }`}
+                      title={isPastDate ? "Historical record is read-only" : "Increase progress for today"}
                     >
                       <FontAwesomeIcon icon={faPlus} className="text-xs sm:text-[9px]" />
                     </button>
@@ -832,61 +865,76 @@ export function Habits() {
 
                 {/* Bottom Footer Row: Active/Pause, Edit, Delete (with pr-2 on mobile, pr-9 on desktop) */}
                 <div className="relative z-10 flex items-center justify-between mt-2 sm:mt-0 pt-2 sm:pt-1.5 border-t border-[#1D2516]/10 dark:border-white/10 text-[11px] pr-2 sm:pr-9">
-                  {/* Pause / Resume Toggle */}
-                  <button
-                    type="button"
-                    onClick={() => handleToggleActive(habit)}
-                    className="text-[#556244] dark:text-[#CBD8BF] hover:text-[#1D2516] dark:hover:text-white font-medium inline-flex items-center gap-1.5 cursor-pointer transition-colors"
-                  >
-                    <FontAwesomeIcon icon={habit.is_active ? faPause : faPlay} className="text-[9px]" />
-                    <span>{habit.is_active ? 'Active' : 'Paused'}</span>
-                  </button>
-
-                  <div className="flex items-center gap-2.5">
-                    {/* Edit Modal Trigger */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingHabit(habit)
-                        setShowModal(true)
-                      }}
-                      className="text-[#556244] dark:text-[#CBD8BF] hover:text-[#1D2516] dark:hover:text-white font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
-                    >
-                      <FontAwesomeIcon icon={faPenToSquare} className="text-[9px]" />
-                      <span>Edit</span>
-                    </button>
-
-                    {/* Delete Trigger */}
-                    {deletingConfirmId === habit.id ? (
-                      <div className="inline-flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(habit.id)}
-                          className="text-white bg-rose-600 px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer"
-                        >
-                          Confirm
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeletingConfirmId(null)}
-                          className="text-[#6F6759] dark:text-slate-400 hover:bg-black/5 dark:hover:bg-white/10 p-1 rounded text-[10px] cursor-pointer"
-                          title="Cancel"
-                          aria-label="Cancel"
-                        >
-                          <FontAwesomeIcon icon={faXmark} className="text-[10px]" />
-                        </button>
-                      </div>
-                    ) : (
+                  {!isPastDate ? (
+                    <>
+                      {/* Pause / Resume Toggle */}
                       <button
                         type="button"
-                        onClick={() => setDeletingConfirmId(habit.id)}
-                        className="text-[#7A856D] dark:text-[#CBD8BF] hover:text-rose-600 dark:hover:text-rose-400 p-1 rounded transition-colors cursor-pointer"
-                        title="Delete habit"
+                        onClick={() => handleToggleActive(habit)}
+                        className="text-[#556244] dark:text-[#CBD8BF] hover:text-[#1D2516] dark:hover:text-white font-medium inline-flex items-center gap-1.5 cursor-pointer transition-colors"
                       >
-                        <FontAwesomeIcon icon={faTrash} className="text-[10px]" />
+                        <FontAwesomeIcon icon={habit.is_active ? faPause : faPlay} className="text-[9px]" />
+                        <span>{habit.is_active ? 'Active' : 'Paused'}</span>
                       </button>
-                    )}
-                  </div>
+
+                      <div className="flex items-center gap-2.5">
+                        {/* Edit Modal Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingHabit(habit)
+                            setShowModal(true)
+                          }}
+                          className="text-[#556244] dark:text-[#CBD8BF] hover:text-[#1D2516] dark:hover:text-white font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <FontAwesomeIcon icon={faPenToSquare} className="text-[9px]" />
+                          <span>Edit</span>
+                        </button>
+
+                        {/* Delete Trigger */}
+                        {deletingConfirmId === habit.id ? (
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(habit.id)}
+                              className="text-white bg-rose-600 px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingConfirmId(null)}
+                              className="text-[#6F6759] dark:text-slate-400 hover:bg-black/5 dark:hover:bg-white/10 p-1 rounded text-[10px] cursor-pointer"
+                              title="Cancel"
+                              aria-label="Cancel"
+                            >
+                              <FontAwesomeIcon icon={faXmark} className="text-[10px]" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setDeletingConfirmId(habit.id)}
+                            className="text-[#7A856D] dark:text-[#CBD8BF] hover:text-rose-600 dark:hover:text-rose-400 p-1 rounded transition-colors cursor-pointer"
+                            title="Delete habit"
+                          >
+                            <FontAwesomeIcon icon={faTrash} className="text-[10px]" />
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="w-full flex items-center justify-between text-[11px] text-[#7A8C74] dark:text-[#8FA387]">
+                      <div className="inline-flex items-center gap-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full ${habit.is_active ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                        <span>{habit.is_active ? 'Active on this day' : 'Paused on this day'}</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#556244] dark:text-[#A8BCA0]">
+                        <FontAwesomeIcon icon={faLock} className="text-[8px]" />
+                        <span>Historical Record (Locked)</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )
@@ -915,26 +963,35 @@ export function Habits() {
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                setEditingHabit(null)
-                setShowModal(true)
-              }}
-              className="py-2.5 px-5 rounded-full bg-[#4A6225] hover:bg-[#3D521E] text-white text-xs font-bold shadow-xs cursor-pointer inline-flex items-center gap-2 transition-all active:scale-98"
-            >
-              <FontAwesomeIcon icon={faPlus} className="text-xs" />
-              <span>{isToday ? 'Add Habit for Today' : 'Add Habit for this Date'}</span>
-            </button>
-            {isToday && yesterdayHabits.length > 0 && (
-              <button
-                type="button"
-                onClick={handleCopyYesterday}
-                className="py-2.5 px-5 rounded-full bg-[#EEF4E8] hover:bg-[#DFEACF] dark:bg-[#1C2C1D] dark:hover:bg-[#253A26] text-[#3D5220] dark:text-[#B6DB8A] border border-[#CCD8B8] dark:border-[#2F4532] text-xs font-bold shadow-2xs cursor-pointer inline-flex items-center gap-2 transition-all active:scale-98"
-              >
-                <FontAwesomeIcon icon={faCopy} className="text-xs" />
-                <span>Copy Yesterday's Habits ({yesterdayHabits.length})</span>
-              </button>
+            {!isPastDate ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingHabit(null)
+                    setShowModal(true)
+                  }}
+                  className="py-2.5 px-5 rounded-full bg-[#4A6225] hover:bg-[#3D521E] text-white text-xs font-bold shadow-xs cursor-pointer inline-flex items-center gap-2 transition-all active:scale-98"
+                >
+                  <FontAwesomeIcon icon={faPlus} className="text-xs" />
+                  <span>Add Habit for Today</span>
+                </button>
+                {isToday && yesterdayHabits.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleCopyYesterday}
+                    className="py-2.5 px-5 rounded-full bg-[#EEF4E8] hover:bg-[#DFEACF] dark:bg-[#1C2C1D] dark:hover:bg-[#253A26] text-[#3D5220] dark:text-[#B6DB8A] border border-[#CCD8B8] dark:border-[#2F4532] text-xs font-bold shadow-2xs cursor-pointer inline-flex items-center gap-2 transition-all active:scale-98"
+                  >
+                    <FontAwesomeIcon icon={faCopy} className="text-xs" />
+                    <span>Copy Yesterday's Habits ({yesterdayHabits.length})</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#DFEACF] dark:bg-[#203423] text-[#3D5220] dark:text-[#B6DB8A] text-xs font-bold shadow-2xs border border-[#CCD8B8] dark:border-[#385926]">
+                <FontAwesomeIcon icon={faLock} className="text-[10px]" />
+                <span>Past Date (Cannot add habits retroactively)</span>
+              </div>
             )}
           </div>
         </div>

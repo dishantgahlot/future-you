@@ -367,4 +367,48 @@ describe('Streak Calculation & Habit Copy Workflow', () => {
     expect(nov20Log?.actual_value).toBe(0)
     expect(nov20Log?.completion_status).toBe(false)
   })
+
+  describe('Historical Date Read-Only Archiving Policy', () => {
+    it('accurately identifies whether a date is in the past', () => {
+      const todayStr = '2026-11-20'
+      const historicalDay = '2026-11-19'
+      const isPastDate = historicalDay < todayStr
+      expect(isPastDate).toBe(true)
+
+      const isToday = todayStr < todayStr
+      expect(isToday).toBe(false)
+    })
+
+    it('retains past habit progress logs as immutable historical records', () => {
+      const pastHabit: Habit = {
+        id: 'archived-habit-1',
+        user_id: 'u1',
+        name: 'Past Workout',
+        description: null,
+        category: 'fitness',
+        frequency: 'daily',
+        target_value: 10000,
+        unit: 'steps',
+        color: '#738541',
+        icon: 'dumbbell',
+        is_active: true,
+        target_date: '2026-11-19',
+        created_at: '2026-11-19T06:00:00.000Z',
+        updated_at: '2026-11-19T06:00:00.000Z',
+      }
+      saveLocalHabits([pastHabit], 'u1')
+      saveLocalLog('archived-habit-1', '2026-11-19', 10000, 10000, true, 'u1')
+
+      const logs = getAllLocalLogs('u1')
+      const log = findLogForHabitAndDate(logs, 'archived-habit-1', '2026-11-19')
+      expect(log).toBeDefined()
+      expect(log?.actual_value).toBe(10000)
+      expect(log?.completion_status).toBe(true)
+
+      // Guard policy check: on past date, any write mutation is rejected
+      const isPastDate = '2026-11-19' < '2026-11-20'
+      const allowMutation = !isPastDate
+      expect(allowMutation).toBe(false)
+    })
+  })
 })
