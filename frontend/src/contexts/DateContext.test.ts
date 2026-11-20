@@ -28,8 +28,8 @@ describe('DateContext & Timezone Precision Logic', () => {
   })
 
   it('detects today versus historical inspection date', () => {
-    const todayStr = '2026-11-20'
-    const testDateStr = '2026-11-19'
+    const todayStr: string = '2026-11-20'
+    const testDateStr: string = '2026-11-19'
 
     const isToday = testDateStr === todayStr
     expect(isToday).toBe(false)

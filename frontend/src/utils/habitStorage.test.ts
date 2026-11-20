@@ -13,7 +13,6 @@ import {
   getLocalHabits,
   saveLocalHabits,
   getAllLocalLogs,
-  saveAllLocalLogs,
 } from './habitStorage'
 import type { Habit, HabitLog } from '../types'
 

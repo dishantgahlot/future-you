@@ -200,6 +200,40 @@ Key tables:
 - 📱 **Responsive** - Mobile-first design
 - ⚡ **Real-time** - Live updates with Supabase
 
+## 🧪 Testing & Quality Assurance
+
+The project features a full-stack test suite powered by **Vitest**:
+
+- **20 test suites** with **208+ assertions passing** with 0 failures
+- Comprehensive coverage across backend routes, prediction engines, AI services, frontend contexts, utilities, and end-to-end flows
+- **Continuous Integration**: Automated GitHub Actions CI workflow (`.github/workflows/ci.yml`) executes type checks, tests, and production builds on every push
+
+### Test Breakdown
+
+| Category | Files Covered | What's Tested |
+|---|---|---|
+| **E2E & Integration Flows** | `backend/src/tests/e2eHabitFlow.test.ts` | Multi-day isolation, date-specific progress calculations, What-If date queries, fresh day resets |
+| **Prediction Engine** | `backend/src/services/prediction-engine/*.test.ts` | Life score projections, scenario simulation, Monte Carlo uncertainty bounds, profile builder |
+| **AI Services & Security** | `backend/src/services/ai/*.test.ts` | Prompt builder injection, XSS sanitization, Zod AI schema validation, markdown JSON parsing |
+| **API Routes & Schemas** | `backend/src/routes/*.test.ts` | Health endpoints (`/health`, `/ready`, `/live`), Habit routes, Auth schemas, Simulation params |
+| **Frontend State & Utilities** | `frontend/src/**/*.test.ts` | DateContext timezone precision, habit storage isolation, dynamic achievement badges, color palettes, API clients |
+
+### Running Tests
+
+```bash
+# Run all tests across the repository
+npm test
+
+# Run tests with code coverage
+npm run test:coverage
+
+# Run frontend-specific tests
+npm run test:frontend
+
+# Run backend-specific tests
+npm run test:backend
+```
+
 ## Scripts
 
 ```bash
@@ -207,6 +241,8 @@ Key tables:
 npm run dev              # Run both frontend & backend
 npm run dev:frontend     # Frontend only
 npm run dev:backend      # Backend only
+npm run test             # Run full test suite (Vitest)
+npm run test:coverage    # Run test coverage
 npm run build            # Build all workspaces
 npm run install:all      # Install all dependencies
 
@@ -221,6 +257,7 @@ npm run dev              # Start with hot reload
 npm run build            # Compile TypeScript
 npm run start            # Run compiled JS
 npm run lint             # Run ESLint
+npm run test             # Run backend test suite
 ```
 
 ## Deployment

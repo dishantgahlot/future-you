@@ -11,6 +11,8 @@
   "scripts": {
     "test": "npm run test --prefix backend",
     "test:all": "npm run test --prefix backend",
+    "test:coverage": "npm run test --prefix backend -- --coverage",
+    "test:watch": "npm run test --prefix backend -- --watch",
     "test:frontend": "npm run test --prefix backend -- ../frontend/src",
     "test:backend": "npm run test --prefix backend -- src",
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",

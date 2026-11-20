@@ -182,9 +182,9 @@ export function validateCoachResponse(data: unknown) {
  */
 export function sanitizeString(str: string): string {
   return str
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
     .replace(/\//g, '&#x2F;')
 }
 

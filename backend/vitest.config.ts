@@ -6,5 +6,10 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', '../frontend/src/**/*.test.ts'],
     exclude: ['node_modules/**', 'dist/**', '.git/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      exclude: ['node_modules/**', 'dist/**', '**/*.test.ts', '**/*.d.ts'],
+    },
   },
 })

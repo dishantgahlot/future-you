@@ -55073,7 +55073,7 @@ function validateCoachResponse(data) {
   return validateResponse(CoachResponseSchema, data, "Coach");
 }
 function sanitizeString(str) {
-  return str.replace(/</g, "<").replace(/>/g, ">").replace(/"/g, '"').replace(/\//g, "&#x2F;");
+  return str.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/\//g, "&#x2F;");
 }
 function sanitizeLetterContent(content) {
   return content.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "").replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "").replace(/on\w+="[^"]*"/gi, "").replace(/javascript:/gi, "");
@@ -59542,7 +59542,7 @@ async function getUserHabitProgress(userId) {
           startedCount,
           unstartedCount
         },
-        recentLogs: allRecentLogs.slice(0, 10),
+        recentLogs: allRecentLogs.slice(0, 200),
         generatedAt: (/* @__PURE__ */ new Date()).toISOString()
       };
       progressCache.set(userId, { summary, expiry: Date.now() + 6e4 });
@@ -63689,6 +63689,68 @@ async function clearWhatIfChatHistory(userId) {
     return false;
   }
 }
+function extractDateFromQuery(message, currentYear = 2026) {
+  const msg = message.toLowerCase();
+  const isoMatch = message.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/);
+  if (isoMatch) {
+    const y = isoMatch[1];
+    const m = isoMatch[2].padStart(2, "0");
+    const d = isoMatch[3].padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  const monthNames = {
+    jan: "01",
+    january: "01",
+    feb: "02",
+    february: "02",
+    mar: "03",
+    march: "03",
+    apr: "04",
+    april: "04",
+    may: "05",
+    jun: "06",
+    june: "06",
+    jul: "07",
+    july: "07",
+    aug: "08",
+    august: "08",
+    sep: "09",
+    sept: "09",
+    september: "09",
+    oct: "10",
+    october: "10",
+    nov: "11",
+    november: "11",
+    dec: "12",
+    december: "12"
+  };
+  const dayMonthMatch = msg.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+(20\d{2}))?\b/);
+  if (dayMonthMatch) {
+    const day = String(dayMonthMatch[1]).padStart(2, "0");
+    const month = monthNames[dayMonthMatch[2]];
+    const year = dayMonthMatch[3] ? dayMonthMatch[3] : String(currentYear);
+    if (month) return `${year}-${month}-${day}`;
+  }
+  const monthDayMatch = msg.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?(?:\s+(20\d{2}))?\b/);
+  if (monthDayMatch) {
+    const month = monthNames[monthDayMatch[1]];
+    const day = String(monthDayMatch[2]).padStart(2, "0");
+    const year = monthDayMatch[3] ? monthDayMatch[3] : String(currentYear);
+    if (month) return `${year}-${month}-${day}`;
+  }
+  const bareDayMatch = msg.match(/\b(?:on\s+the\s+|on\s+|the\s+)?(\d{1,2})(?:st|nd|rd|th)\b/);
+  if (bareDayMatch) {
+    const dayNum = parseInt(bareDayMatch[1], 10);
+    if (dayNum >= 1 && dayNum <= 31) {
+      const day = String(dayNum).padStart(2, "0");
+      const now = /* @__PURE__ */ new Date();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const y = String(currentYear || now.getFullYear());
+      return `${y}-${m}-${day}`;
+    }
+  }
+  return null;
+}
 async function simulateWhatIfScenario(options) {
   let {
     userId,
@@ -63699,7 +63761,8 @@ async function simulateWhatIfScenario(options) {
     habits = [],
     logs = [],
     userName = "Friend",
-    apiKey
+    apiKey,
+    targetDate
   } = options;
   if (!sessionId) {
     sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -63895,6 +63958,118 @@ async function simulateWhatIfScenario(options) {
     const habit = habits.find((h) => h.id === l.habit_id);
     return `[${l.log_date || "Recent"}] ${habit?.name || "Habit"}: ${l.actual_value || 0}/${habit?.target_value || 1} ${habit?.unit || ""} (${l.completion_status ? "DONE" : "MISSED"})`;
   }).join("\n");
+  const yesterday = new Date(now.getTime() - 864e5);
+  const yesterdayStr = [yesterday.getFullYear(), String(yesterday.getMonth() + 1).padStart(2, "0"), String(yesterday.getDate()).padStart(2, "0")].join("-");
+  const qLower = message.toLowerCase();
+  const explicitMentionedDate = extractDateFromQuery(message, now.getFullYear());
+  let resolvedTargetDateStr = explicitMentionedDate || "";
+  if (!resolvedTargetDateStr && targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+    resolvedTargetDateStr = targetDate;
+  }
+  if (!resolvedTargetDateStr) {
+    if (qLower.includes("yesterday") || qLower.includes("previous day") || qLower.includes("past day") || qLower.includes("prior day") || qLower.includes("last day") || qLower.includes("day before")) {
+      resolvedTargetDateStr = yesterdayStr;
+    } else if (qLower.includes("today")) {
+      resolvedTargetDateStr = todayStr;
+    } else {
+      resolvedTargetDateStr = yesterdayStr;
+    }
+  }
+  const computeDaySummary = (dateStr) => {
+    let completedCount = 0;
+    let inProgressCount = 0;
+    let missedCount = 0;
+    let progressSum = 0;
+    const relevantHabits = habits.filter((h) => {
+      const targetDate2 = String(h.target_date || h.date || "").slice(0, 10);
+      if (targetDate2 && targetDate2 === dateStr) return true;
+      const hId = String(h.id);
+      const hasLog = logs.some((l) => {
+        const rawDate = String(l.log_date || l.date || "");
+        return String(l.habit_id || l.habitId || "") === hId && rawDate.slice(0, 10) === dateStr;
+      });
+      if (hasLog) return true;
+      const createdDate = String(h.created_at || "").slice(0, 10);
+      if (createdDate && createdDate === dateStr) return true;
+      return false;
+    });
+    const effectiveHabits = relevantHabits.length > 0 ? relevantHabits : habits.every((h) => !h.created_at) ? habits : [];
+    const habitDetails = effectiveHabits.map((h) => {
+      const hId = String(h.id);
+      const habitLogs = logs.filter((l) => String(l.habit_id || l.habitId || "") === hId);
+      const log = habitLogs.find((l) => {
+        const rawDate = String(l.log_date || l.date || "");
+        return rawDate.slice(0, 10) === dateStr;
+      });
+      const target = Number(h.target_value || h.targetValue) || 1;
+      let actual = 0;
+      let pct = 0;
+      if (log) {
+        if (log.actual_value !== void 0 && log.actual_value !== null) {
+          actual = Number(log.actual_value);
+        } else if (log.value !== void 0 && log.value !== null) {
+          actual = Number(log.value);
+        }
+        if (log.progress_percentage !== void 0 && log.progress_percentage !== null) {
+          pct = Number(log.progress_percentage);
+        } else if (target > 0) {
+          pct = Math.min(Math.round(actual / target * 100 * 10) / 10, 100);
+        }
+        if (log.completion_status || pct >= 100) {
+          if (pct < 100) pct = 100;
+          if (actual < target) actual = target;
+        }
+      }
+      const isCompleted = pct >= 100 || Boolean(log?.completion_status) || actual >= target && target > 0;
+      const isInProgress = !isCompleted && (pct > 0 || actual > 0);
+      const isMissed = !isCompleted && !isInProgress;
+      progressSum += pct;
+      if (isCompleted) completedCount++;
+      else if (isInProgress) inProgressCount++;
+      else missedCount++;
+      return {
+        id: h.id,
+        name: h.name,
+        category: h.category || "General",
+        target,
+        actual,
+        unit: h.unit || "times",
+        pct: Math.round(pct * 10) / 10,
+        isCompleted,
+        isInProgress,
+        isMissed,
+        hasLog: Boolean(log)
+      };
+    });
+    const overallProgress = effectiveHabits.length > 0 ? Math.round(progressSum / effectiveHabits.length) : 0;
+    return {
+      dateStr,
+      overallProgress,
+      completedCount,
+      inProgressCount,
+      missedCount,
+      habits: habitDetails,
+      hasAnyLogs: habitDetails.some((h) => h.hasLog || h.actual > 0)
+    };
+  };
+  const yesterdaySummary = computeDaySummary(yesterdayStr);
+  const targetDaySummary = computeDaySummary(resolvedTargetDateStr);
+  const recentDaysSummary = Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date(now.getTime() - (6 - i) * 864e5);
+    const dStr = [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-");
+    const summary = computeDaySummary(dStr);
+    const isYest = dStr === yesterdayStr;
+    const isTod = dStr === todayStr;
+    const dayLabel = isTod ? "Today" : isYest ? "Yesterday" : daysOfWeek[d.getDay()];
+    return {
+      dateStr: dStr,
+      dayLabel,
+      overallProgress: summary.overallProgress,
+      completedCount: summary.completedCount,
+      totalCount: habits.length,
+      habits: summary.habits
+    };
+  });
   const activeKey = apiKey || config.gemini.apiKey;
   const canUseGemini = activeKey && activeKey !== "your_gemini_api_key";
   if (canUseGemini) {
@@ -63929,6 +64104,14 @@ async function simulateWhatIfScenario(options) {
    - When asked about today's progress, cite their exact numbers: ${todayCompletedCount} completed, ${todayInProgressCount} in progress, ${todayPendingCount} pending.
    - Recognize partial completions (${habits.map((h) => h.name).join(", ")}) as meaningful momentum.
 
+4. PREVIOUS DAY & HISTORICAL DATA INQUIRIES (CRITICAL):
+   - When ${userName} asks to see previous day data, what they did yesterday, how much was completed on a previous day, or asks a What-If question about a past day:
+     * Mention the date clearly (${resolvedTargetDateStr} or yesterday ${yesterdayStr}).
+     * Explicitly list EVERY habit from that day: habit name, actual vs target amount, percentage completed, and completion status (Completed / In Progress / Missed).
+     * Provide the total day completion percentage (${targetDaySummary.overallProgress}%).
+     * Run the What-If simulation: Project what would happen if ${userName} had completed 100% of those habits or fixed missed ones, how that shifts rolling adherence and 6-month trajectory, and how the 70% rule preserved momentum.
+     * Pivot into an actionable, encouraging next step for TODAY.
+
 === LIVE DATABASE CONTEXT FOR ${userName.toUpperCase()} ===
 [TODAY'S LIVE STATUS - ${todayStr}]:
 - Overall Today Progress: ${todayOverallProgress}%
@@ -63937,6 +64120,25 @@ async function simulateWhatIfScenario(options) {
 - Habits Pending / Not Started: ${todayPendingCount}
 - Detailed Today Status By Habit:
 ${habitAnalytics.map((h) => `  * **${h.name}**: Today's Progress: **${h.todayProgressPct}%** (${h.todayActual}/${h.target} ${h.unit}) | Status: ${h.todayCompleted ? "COMPLETED" : h.todayInProgress ? "IN PROGRESS" : "NOT STARTED / PENDING"}`).join("\n")}
+
+[YESTERDAY'S HISTORICAL RECORD - ${yesterdayStr}]:
+- Overall Yesterday Progress: ${yesterdaySummary.overallProgress}%
+- Habits Completed: ${yesterdaySummary.completedCount} of ${habits.length}
+- Habits In Progress: ${yesterdaySummary.inProgressCount}
+- Habits Missed / Not Completed: ${yesterdaySummary.missedCount}
+- Detailed Breakdown For Yesterday:
+${yesterdaySummary.habits.map((h) => `  * **${h.name}**: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) | Status: ${h.isCompleted ? "COMPLETED" : h.isInProgress ? "IN PROGRESS (70% Win)" : "MISSED / NOT STARTED"}`).join("\n")}
+${resolvedTargetDateStr !== yesterdayStr && resolvedTargetDateStr !== todayStr ? `
+[REQUESTED HISTORICAL DAY DATA - ${resolvedTargetDateStr}]:
+- Overall Progress: ${targetDaySummary.overallProgress}%
+- Habits Completed: ${targetDaySummary.completedCount} of ${habits.length}
+- Habits In Progress: ${targetDaySummary.inProgressCount}
+- Habits Missed: ${targetDaySummary.missedCount}
+- Detailed Breakdown For ${resolvedTargetDateStr}:
+${targetDaySummary.habits.map((h) => `  * **${h.name}**: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) | Status: ${h.isCompleted ? "COMPLETED" : h.isInProgress ? "IN PROGRESS" : "MISSED / NOT STARTED"}`).join("\n")}
+` : ""}
+[RECENT 7-DAY TIMELINE LOGS]:
+${recentDaysSummary.map((d) => `- ${d.dayLabel} (${d.dateStr}): ${d.overallProgress}% overall (${d.completedCount}/${d.totalCount} completed)`).join("\n")}
 
 [WEEKLY & MONTHLY ADHERENCE (REAL LOGGED DATA)]:
 - Last 7-Day Adherence: ${overallWeeklyRate}% (${habitAnalytics.map((h) => `${h.name}: ${h.weeklyCompletedDays}/7 days [${h.weeklyRate}%]`).join(", ")})
@@ -63978,37 +64180,37 @@ Assistant:`;
       });
       const res = await client.generateContent(promptText);
       if (res.success && res.data) {
-        const qLower = message.toLowerCase();
+        const qLower2 = message.toLowerCase();
         let suggestedFollowUps = [
           "Where am I lagging the most right now?",
           "What if I stay disciplined for 6 months?",
           "How can I turn 70% completions into 100%?"
         ];
-        if (qLower.includes("fat") || qLower.includes("weight") || qLower.includes("excer") || qLower.includes("exerc") || qLower.includes("workout") || qLower.includes("fitness") || qLower.includes("gym")) {
+        if (qLower2.includes("fat") || qLower2.includes("weight") || qLower2.includes("excer") || qLower2.includes("exerc") || qLower2.includes("workout") || qLower2.includes("fitness") || qLower2.includes("gym")) {
           suggestedFollowUps = [
             "What is the ideal weekly workout split for fat loss?",
             "How much does nutrition matter compared to exercise for fat loss?",
             "How do I stay consistent with workouts on low-energy days?"
           ];
-        } else if (qLower.includes("prompt") || qLower.includes("ai") || qLower.includes("llm") || qLower.includes("gpt")) {
+        } else if (qLower2.includes("prompt") || qLower2.includes("ai") || qLower2.includes("llm") || qLower2.includes("gpt")) {
           suggestedFollowUps = [
             "Can you give me an example of few-shot prompting?",
             "How does Chain-of-Thought (CoT) prompting work?",
             "What are the most common prompt engineering mistakes to avoid?"
           ];
-        } else if (qLower.includes("code") || qLower.includes("program") || qLower.includes("python") || qLower.includes("tech") || qLower.includes("api")) {
+        } else if (qLower2.includes("code") || qLower2.includes("program") || qLower2.includes("python") || qLower2.includes("tech") || qLower2.includes("api")) {
           suggestedFollowUps = [
             "How should I structure a 90-minute deep work coding block?",
             "What if I build projects 1 hour daily for 6 months?",
             "How do I avoid burnout while learning complex technologies?"
           ];
-        } else if (qLower.includes("stress") || qLower.includes("anxiety") || qLower.includes("overwhelm") || qLower.includes("burnout")) {
+        } else if (qLower2.includes("stress") || qLower2.includes("anxiety") || qLower2.includes("overwhelm") || qLower2.includes("burnout")) {
           suggestedFollowUps = [
             "What is the 5-minute rule for low-energy days?",
             "How does sleep affect my next-day anxiety levels?",
             "Give me a 2-minute physiological reset exercise."
           ];
-        } else if (qLower.includes("stoic") || qLower.includes("philosophy") || qLower.includes("mindset")) {
+        } else if (qLower2.includes("stoic") || qLower2.includes("philosophy") || qLower2.includes("mindset")) {
           suggestedFollowUps = [
             "How do I apply the Stoic Dichotomy of Control to daily habits?",
             "What if I practice 5 minutes of daily evening reflection?",
@@ -64066,7 +64268,11 @@ Assistant:`;
     todayInProgressCount,
     todayPendingCount,
     overallWeeklyRate,
-    overallMonthlyRate
+    overallMonthlyRate,
+    yesterdaySummary,
+    targetDaySummary,
+    resolvedTargetDateStr,
+    yesterdayStr
   );
   const fallbackResponse = {
     ...baseFallback,
@@ -64121,7 +64327,7 @@ function tryEvaluateMathExpression(input) {
   }
   return null;
 }
-function generateDatabaseAwareFallback(message, userName, overallRate, allHabits, laggingHabits, leadingHabits, highPartialHabits, weekendRate, weekdayRate, todayStr, todayOverallProgress, todayCompletedCount, todayInProgressCount, todayPendingCount, overallWeeklyRate, overallMonthlyRate) {
+function generateDatabaseAwareFallback(message, userName, overallRate, allHabits, laggingHabits, leadingHabits, highPartialHabits, weekendRate, weekdayRate, todayStr, todayOverallProgress, todayCompletedCount, todayInProgressCount, todayPendingCount, overallWeeklyRate, overallMonthlyRate, yesterdaySummary, targetDaySummary, resolvedTargetDateStr, yesterdayStr) {
   const q = message.toLowerCase().trim();
   const partialHabit = highPartialHabits.length > 0 ? highPartialHabits[0] : allHabits.find((h) => h.latestProgressPercentage >= 70 && h.latestProgressPercentage < 100) || allHabits[0] || { name: "Focus Study", latestProgressPercentage: 70, averageProgressPercentage: 70, target: 2, unit: "hours", completedCount: 6, totalExpected: 14 };
   const primaryLag = laggingHabits.length > 0 ? laggingHabits[0] : allHabits[0] || { name: "Focus Study", adherenceRate: 65, averageProgressPercentage: 70, missedCount: 4, target: 2, unit: "hours", completedCount: 6, totalExpected: 14 };
@@ -64132,6 +64338,7 @@ function generateDatabaseAwareFallback(message, userName, overallRate, allHabits
     "How do I convert in-progress habits into 100%?",
     "What if I stay disciplined for 6 months?"
   ];
+  const isAskingPreviousDay = q.includes("yesterday") || q.includes("previous day") || q.includes("past day") || q.includes("last day") || q.includes("prior day") || q.includes("day before") || q.includes("previous data") || q.includes("before today") || Boolean(resolvedTargetDateStr) && resolvedTargetDateStr !== todayStr;
   const mathResult = tryEvaluateMathExpression(message);
   if (mathResult) {
     reply = `**${mathResult.expr} = ${mathResult.result}**
@@ -64145,6 +64352,34 @@ function generateDatabaseAwareFallback(message, userName, overallRate, allHabits
       "How does compounding apply to my habits?",
       "What if I stay consistent for 6 months?",
       "How is my habit progress today?"
+    ];
+  } else if (isAskingPreviousDay && (targetDaySummary || yesterdaySummary)) {
+    const focusSummary = targetDaySummary && targetDaySummary.habits && targetDaySummary.habits.length > 0 ? targetDaySummary : yesterdaySummary || targetDaySummary;
+    const isYest = focusSummary.dateStr === yesterdayStr || q.includes("yesterday");
+    const dateLabel = isYest ? `Yesterday (${focusSummary.dateStr})` : `Historical Record (${focusSummary.dateStr})`;
+    const missedHabits = focusSummary.habits.filter((h) => h.isMissed);
+    const inProgressHabits = focusSummary.habits.filter((h) => h.isInProgress);
+    const completedHabits = focusSummary.habits.filter((h) => h.isCompleted);
+    const isWhatIf = q.includes("what if") || q.includes("if i ") || q.includes("scenario") || q.includes("would") || q.includes("suppose");
+    reply = `\u2022 **Previous Day Habit Record: ${dateLabel}**:
+  - **Overall Day Completion**: **${focusSummary.overallProgress}%**
+  - **Summary**: **${focusSummary.completedCount}** completed, **${focusSummary.inProgressCount}** in progress, and **${focusSummary.missedCount}** missed out of **${focusSummary.habits.length}** tracked habits.
+
+\u2022 **Habit-by-Habit Data & Execution**:
+${focusSummary.habits.length > 0 ? focusSummary.habits.map((h) => `  * **${h.name}**: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) \u2014 *${h.isCompleted ? "Completed" : h.isInProgress ? "In Progress (70% Win)" : "Missed / Not Started"}*`).join("\n") : "  * No habits were active on this date."}
+
+\u2022 **What-If Simulation for ${dateLabel}**:
+${isWhatIf ? `  - **Scenario Analysis**: If you had achieved 100% on every habit on ${dateLabel}, your rolling 7-day adherence would surge from **${overallWeeklyRate}%** to **${Math.min(overallWeeklyRate + 14, 100)}%**.
+  - **Compounding Trajectory**: Hitting 100% on that day would have completely eliminated cognitive friction, locking in compound momentum. Over 6 months, avoiding those slips compounds into 45+ extra hours of deep work and vital rest.` : `  - **What If 100% Completed?**: If you had turned those missed habits into 100% completions, your weekly consistency would be **${Math.min(overallWeeklyRate + 14, 100)}%** instead of **${overallWeeklyRate}%**.
+  - **The 70% Progress Win**: ${inProgressHabits.length > 0 ? `Your partial effort on **${inProgressHabits[0].name}** preserved your habit loop\u201470% beats 0% every single time.` : completedHabits.length > 0 ? `Your discipline on **${completedHabits[0].name}** held the line and maintained your positive momentum.` : "Even on tough days, putting down a 5-minute vote preserves identity."}`}
+
+\u2022 **Future You Behavioral Compass for Today**:
+  - Do not carry past friction into today. Daily compounding is about today's vote.
+  - ${missedHabits.length > 0 ? `Kickstart today with a 5-minute micro-start on **${missedHabits[0].name}** to reclaim total control.` : `Take that positive momentum and protect your focus blocks today!`}`;
+    suggestedFollowUps = [
+      "What if I hit 100% on all habits today?",
+      "Why did I miss my habits on that day?",
+      "Compare this day with today's progress"
     ];
   } else if (q.includes("today") || q.includes("progress") && !q.includes("week") && !q.includes("month") && !q.includes("report") && !q.includes("70%")) {
     reply = `\u2022 **Today's Live Habit Progress (${todayStr})**:
@@ -64718,7 +64953,7 @@ router8.post("/progress-report", asyncHandler(async (req, res) => {
 }));
 router8.post("/what-if-chat", asyncHandler(async (req, res) => {
   const userId = requireAuth(req);
-  const { message, sessionId, sessionTitle, conversationHistory = [], habits = [], logs = [], userName = "Friend", apiKey } = req.body;
+  const { message, sessionId, sessionTitle, conversationHistory = [], habits = [], logs = [], userName = "Friend", apiKey, targetDate } = req.body;
   if (!message || typeof message !== "string" || !message.trim()) {
     throw new AppError(400, "Message is required for what-if simulation");
   }
@@ -64731,7 +64966,8 @@ router8.post("/what-if-chat", asyncHandler(async (req, res) => {
     habits,
     logs,
     userName,
-    apiKey
+    apiKey,
+    targetDate
   });
   res.json({
     success: true,
