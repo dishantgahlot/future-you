@@ -255,7 +255,7 @@ export function Habits() {
   }).length
 
   // Update progress value for selected date (respects day-specific goal)
-  const handleUpdateProgress = async (habit: Habit, nextVal: number) => {
+  const handleUpdateProgress = (habit: Habit, nextVal: number) => {
     if (isPastDate) return
     const target = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
     const clampedVal = Math.max(0, Math.round(nextVal * 10) / 10)
@@ -281,11 +281,8 @@ export function Habits() {
       return [...filtered, updatedLog]
     })
 
-    try {
-      await upsertHabitLog(habit.id, selectedDateStr, clampedVal, undefined, target)
-    } catch {
-      // Local copy saved safely
-    }
+    // Instantaneous non-blocking background sync
+    upsertHabitLog(habit.id, selectedDateStr, clampedVal, undefined, target).catch(() => {})
   }
 
   // Plus / Minus step handlers
@@ -322,8 +319,8 @@ export function Habits() {
     setCustomDayTargetInput(String(currentTarget))
   }
 
-  // Save Day-Specific Target for selected date
-  const handleSaveDayTarget = async () => {
+  // Save Day-Specific Target for selected date (Instantaneous UI update)
+  const handleSaveDayTarget = () => {
     if (!adjustingDayTargetHabit) return
     const habit = adjustingDayTargetHabit
     const newTarget = Math.max(1, Math.round(Number(customDayTargetInput) * 10) / 10 || 1)
@@ -335,15 +332,14 @@ export function Habits() {
     saveLocalLog(habit.id, selectedDateStr, actualVal, newTarget)
     setLogs(getAllLocalLogs())
 
-    try {
-      await upsertHabitLog(habit.id, selectedDateStr, actualVal, undefined, newTarget)
-    } catch {}
-
     setAdjustingDayTargetHabit(null)
+
+    // Non-blocking background sync
+    upsertHabitLog(habit.id, selectedDateStr, actualVal, undefined, newTarget).catch(() => {})
   }
 
-  // Reset Day-Specific Target back to default habit baseline
-  const handleResetDayTarget = async () => {
+  // Reset Day-Specific Target back to default habit baseline (Instantaneous UI update)
+  const handleResetDayTarget = () => {
     if (!adjustingDayTargetHabit) return
     const habit = adjustingDayTargetHabit
     const baseTarget = habit.target_value || 1
@@ -355,41 +351,35 @@ export function Habits() {
     saveLocalLog(habit.id, selectedDateStr, actualVal, baseTarget)
     setLogs(getAllLocalLogs())
 
-    try {
-      await upsertHabitLog(habit.id, selectedDateStr, actualVal, undefined, baseTarget)
-    } catch {}
-
     setAdjustingDayTargetHabit(null)
+
+    // Non-blocking background sync
+    upsertHabitLog(habit.id, selectedDateStr, actualVal, undefined, baseTarget).catch(() => {})
   }
 
-  // Toggle Active / Paused
-  const handleToggleActive = async (habit: Habit) => {
+  // Toggle Active / Paused (Instantaneous UI update)
+  const handleToggleActive = (habit: Habit) => {
     if (isPastDate) return
     const updated = { ...habit, is_active: !habit.is_active, updated_at: new Date().toISOString() }
-    setHabits((prev) => prev.map((h) => (h.id === habit.id ? updated : h)))
-    try {
-      await updateHabit(habit.id, { is_active: updated.is_active } as any)
-    } catch {
-      // Local state preserved
-    }
+    const nextHabits = habits.map((h) => (h.id === habit.id ? updated : h))
+    saveLocalHabits(nextHabits)
+    setHabits(nextHabits)
+    updateHabit(habit.id, { is_active: updated.is_active } as any).catch(() => {})
   }
 
-  // Delete Habit
-  const handleDelete = async (id: string) => {
+  // Delete Habit (Instantaneous UI update)
+  const handleDelete = (id: string) => {
     if (isPastDate) return
     deleteLocalHabit(id)
     setHabits((prev) => prev.filter((h) => h.id !== id))
     setDeletingConfirmId(null)
-    try {
-      await deleteHabit(id)
-    } catch {
-      // Local deletion completed
-    }
+    deleteHabit(id).catch(() => {})
   }
 
-  // Save (Create or Edit) Habit Modal Handler
-  const handleSaveModalHabit = async (data: Partial<Habit>) => {
+  // Save (Create or Edit) Habit Modal Handler - 100% Instantaneous & Optimistic
+  const handleSaveModalHabit = (data: Partial<Habit>) => {
     if (isPastDate) return
+
     if (editingHabit) {
       const updated: Habit = {
         ...editingHabit,
@@ -397,23 +387,28 @@ export function Habits() {
         color_theme: data.color_theme || editingHabit.color_theme,
         updated_at: new Date().toISOString(),
       } as Habit
-      setHabits((prev) =>
-        prev.map((h) => (h.id === editingHabit.id ? updated : h))
-      )
-      try {
-        await updateHabit(editingHabit.id, {
-          name: updated.name,
-          description: updated.description || '',
-          category: updated.category,
-          frequency: updated.frequency,
-          target_value: updated.target_value,
-          unit: updated.unit,
-          color: updated.color,
-          icon: updated.icon,
-        })
-      } catch {
-        // Saved locally
-      }
+
+      const nextHabits = habits.map((h) => (h.id === editingHabit.id ? updated : h))
+
+      // 1. Immediately write to localStorage & React state
+      saveLocalHabits(nextHabits)
+      setHabits(nextHabits)
+
+      // 2. Immediately close modal (instant 0ms response)
+      setEditingHabit(null)
+      setShowModal(false)
+
+      // 3. Asynchronously sync to backend in background without blocking UI
+      updateHabit(editingHabit.id, {
+        name: updated.name,
+        description: updated.description || '',
+        category: updated.category,
+        frequency: updated.frequency,
+        target_value: updated.target_value,
+        unit: updated.unit,
+        color: updated.color,
+        icon: updated.icon,
+      }).catch(() => {})
     } else {
       const assignedTheme =
         data.color_theme ||
@@ -439,28 +434,33 @@ export function Habits() {
         created_at: habitCreatedAt,
         updated_at: new Date().toISOString(),
       }
-      setHabits((prev) => [...prev, newHabit])
-      // Initialize zero-progress log for this date so it's tied to this day
+
+      const nextHabits = [...habits, newHabit]
+
+      // 1. Save habit to localStorage FIRST so any storage event listeners immediately read it
+      saveLocalHabits(nextHabits)
+      setHabits(nextHabits)
+
+      // 2. Initialize zero-progress log for this date so it's tied to this day
       saveLocalLog(newHabit.id, selectedDateStr, 0, newHabit.target_value)
       setLogs(getAllLocalLogs())
 
-      try {
-        await createHabit({
-          name: newHabit.name,
-          description: newHabit.description || '',
-          category: newHabit.category,
-          frequency: newHabit.frequency,
-          target_value: newHabit.target_value,
-          unit: newHabit.unit,
-          color: newHabit.color,
-          icon: newHabit.icon,
-        })
-      } catch {
-        // Saved locally
-      }
+      // 3. Immediately close modal (instant 0ms response)
+      setEditingHabit(null)
+      setShowModal(false)
+
+      // 4. Asynchronously sync to backend in background without blocking UI
+      createHabit({
+        name: newHabit.name,
+        description: newHabit.description || '',
+        category: newHabit.category,
+        frequency: newHabit.frequency,
+        target_value: newHabit.target_value,
+        unit: newHabit.unit,
+        color: newHabit.color,
+        icon: newHabit.icon,
+      }).catch(() => {})
     }
-    setEditingHabit(null)
-    setShowModal(false)
   }
 
   return (
