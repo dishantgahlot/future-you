@@ -92,8 +92,8 @@ cp backend/.env.example backend/.env
    - Enable Email/Password authentication
    - Get your project URL and anon key
 
-4. **Get Groq API Key:**
-   - Sign up at https://console.groq.com
+4. **Get Gemini API Key:**
+   - Sign up at https://gemini.google.com
    - Create an API key
 
 ### Development
@@ -135,8 +135,8 @@ npm run build
 | `SUPABASE_URL` | Supabase project URL |
 | `SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
-| `GROQ_API_KEY` | Groq API key for AI predictions |
-| `GROQ_MODEL` | Groq model (default: mixtral-8x7b-32768) |
+| `GEMINI_key` | Gemini Key for AI predictions |
+| `Gemini_MODEL` | Gemini-model(3.1-flash-lite) |
 | `JWT_SECRET` | JWT secret for tokens |
 
 ## API Endpoints
