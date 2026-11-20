@@ -130,6 +130,39 @@ export function createDefaultHabitsForUser(_userId: string): Habit[] {
 
 export const DEFAULT_HABITS: Habit[] = []
 
+/**
+ * Accurately determines if a log belongs to a given YYYY-MM-DD date.
+ * Handles ISO timestamps (e.g. 2026-11-19T00:00:00.000Z), short dates (2026-11-19),
+ * or alternate property names (date / log_date).
+ */
+export function isLogForDate(log: HabitLog | any, targetDateStr: string): boolean {
+  if (!log || !targetDateStr) return false
+  const rawDate = String(log.log_date || log.date || '')
+  return rawDate.slice(0, 10) === targetDateStr.slice(0, 10)
+}
+
+/**
+ * Finds the log entry for a specific habit on a target date.
+ */
+export function findLogForHabitAndDate(
+  logs: HabitLog[],
+  habitId: string,
+  targetDateStr: string
+): HabitLog | undefined {
+  if (!logs || !Array.isArray(logs)) return undefined
+  return logs.find((l) => l.habit_id === habitId && isLogForDate(l, targetDateStr))
+}
+
+/**
+ * Returns habits for a specific date (YYYY-MM-DD).
+ * All user-defined habits are available across dates so users can view,
+ * log, and analyze routines and historical progress seamlessly.
+ */
+export function getHabitsForDate(habits: Habit[], _dateStr?: string, _logs?: HabitLog[]): Habit[] {
+  if (!habits || !Array.isArray(habits)) return []
+  return habits
+}
+
 export function getLocalHabits(userId?: string): Habit[] {
   try {
     const key = getHabitsStorageKey(userId)
@@ -228,7 +261,7 @@ export function saveLocalLog(
   const isCompleted = targetValue > 0 ? actualValue >= targetValue : actualValue > 0
 
   const existingIndex = all.findIndex(
-    (l) => l.habit_id === habitId && l.log_date === dateStr
+    (l) => l.habit_id === habitId && isLogForDate(l, dateStr)
   )
 
   let updatedLog: HabitLog
@@ -248,7 +281,7 @@ export function saveLocalLog(
       id: crypto.randomUUID(),
       habit_id: habitId,
       user_id: uid,
-      log_date: dateStr,
+      log_date: dateStr.slice(0, 10),
       actual_value: actualValue,
       target_value: targetValue,
       completion_status: isCompleted,
@@ -285,7 +318,7 @@ export function getDayTarget(
     const uid = userId || getActiveUserId()
     // 1. Check existing local log
     const logs = getAllLocalLogs(uid)
-    const log = logs.find((l) => l.habit_id === habitId && l.log_date === dateStr)
+    const log = logs.find((l) => l.habit_id === habitId && isLogForDate(l, dateStr))
     if (log && typeof log.target_value === 'number' && log.target_value > 0) {
       return log.target_value
     }
@@ -295,7 +328,8 @@ export function getDayTarget(
     const raw = localStorage.getItem(key)
     if (raw) {
       const parsed: Record<string, number> = JSON.parse(raw)
-      const specific = parsed[`${habitId}_${dateStr}`]
+      const cleanDate = dateStr.slice(0, 10)
+      const specific = parsed[`${habitId}_${cleanDate}`] || parsed[`${habitId}_${dateStr}`]
       if (typeof specific === 'number' && specific > 0) {
         return specific
       }
@@ -313,6 +347,7 @@ export function setDayTarget(
   try {
     const uid = userId || getActiveUserId()
     const target = Math.max(1, Math.round(targetValue * 10) / 10)
+    const cleanDate = dateStr.slice(0, 10)
 
     // Save in dedicated day-targets map
     const key = getDayTargetsStorageKey(uid)
@@ -321,12 +356,12 @@ export function setDayTarget(
       const raw = localStorage.getItem(key)
       if (raw) map = JSON.parse(raw)
     } catch {}
-    map[`${habitId}_${dateStr}`] = target
+    map[`${habitId}_${cleanDate}`] = target
     localStorage.setItem(key, JSON.stringify(map))
 
     // Sync with existing log or initialize log for today
     const all = getAllLocalLogs(uid)
-    const existingIndex = all.findIndex((l) => l.habit_id === habitId && l.log_date === dateStr)
+    const existingIndex = all.findIndex((l) => l.habit_id === habitId && isLogForDate(l, cleanDate))
     if (existingIndex >= 0) {
       const existing = all[existingIndex]
       const isCompleted = existing.actual_value >= target
@@ -341,7 +376,7 @@ export function setDayTarget(
         id: crypto.randomUUID(),
         habit_id: habitId,
         user_id: uid,
-        log_date: dateStr,
+        log_date: cleanDate,
         actual_value: 0,
         target_value: target,
         completion_status: false,
@@ -367,18 +402,20 @@ export function resetDayTarget(
 ): void {
   try {
     const uid = userId || getActiveUserId()
+    const cleanDate = dateStr.slice(0, 10)
     const key = getDayTargetsStorageKey(uid)
     try {
       const raw = localStorage.getItem(key)
       if (raw) {
         const map: Record<string, number> = JSON.parse(raw)
+        delete map[`${habitId}_${cleanDate}`]
         delete map[`${habitId}_${dateStr}`]
         localStorage.setItem(key, JSON.stringify(map))
       }
     } catch {}
 
     const all = getAllLocalLogs(uid)
-    const existingIndex = all.findIndex((l) => l.habit_id === habitId && l.log_date === dateStr)
+    const existingIndex = all.findIndex((l) => l.habit_id === habitId && isLogForDate(l, cleanDate))
     if (existingIndex >= 0) {
       const existing = all[existingIndex]
       const fallback = defaultTarget > 0 ? defaultTarget : 1

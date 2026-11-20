@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCalendarDays, faBell, faChevronDown } from '@fortawesome/free-solid-svg-icons'
+import { faCalendarDays, faBell, faChevronDown, faRotateRight } from '@fortawesome/free-solid-svg-icons'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useUserProfile } from '../../contexts/UserProfileContext'
 import { useNotifications } from '../../contexts/NotificationContext'
+import { useAppDate } from '../../contexts/DateContext'
 import { NotificationPopover } from '../notifications/NotificationPopover'
 import { BotanicalCalendarModal } from '../botanical/BotanicalCalendarModal'
 import { ThemeToggle } from '../common/ThemeToggle'
@@ -13,37 +14,34 @@ export function Header() {
   const { avatarUrl, fullName } = useUserProfile()
   const { unreadCount, toggleOpen } = useNotifications()
   const [isCalendarOpen, setIsCalendarOpen] = useState(false)
-  const [selectedDate, setSelectedDate] = useState(() => new Date())
-
-  // Keep header date synchronized when a new day begins
-  useEffect(() => {
-    const handleDaySync = () => {
-      setSelectedDate(new Date())
-    }
-    window.addEventListener('future-you-day-rollover', handleDaySync)
-    window.addEventListener('focus', handleDaySync)
-    const handleVis = () => {
-      if (document.visibilityState === 'visible') handleDaySync()
-    }
-    document.addEventListener('visibilitychange', handleVis)
-    const timer = setInterval(handleDaySync, 60000)
-    return () => {
-      window.removeEventListener('future-you-day-rollover', handleDaySync)
-      window.removeEventListener('focus', handleDaySync)
-      document.removeEventListener('visibilitychange', handleVis)
-      clearInterval(timer)
-    }
-  }, [])
+  const { selectedDate, setSelectedDate, isToday, resetToToday } = useAppDate()
 
   const todayFormatted = format(selectedDate, 'EEE, d MMM yyyy')
 
   return (
     <header className="h-14 flex items-center justify-end px-3 sm:px-8 pt-3 pb-1 gap-2 sm:gap-2.5 z-30 bg-transparent relative">
+      {/* Jump back to Today button when viewing a past date */}
+      {!isToday && (
+        <button
+          type="button"
+          onClick={resetToToday}
+          className="px-2.5 py-1.5 rounded-2xl bg-[#4A6225] hover:bg-[#3D521E] text-white text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+          title="Return to Today"
+        >
+          <FontAwesomeIcon icon={faRotateRight} className="text-[10px]" />
+          <span>Today</span>
+        </button>
+      )}
+
       {/* Date Dropdown Pill */}
       <button
         type="button"
         onClick={() => setIsCalendarOpen(true)}
-        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 bg-white/90 dark:bg-[#0D1814]/90 backdrop-blur-xs border border-[#E8E2D5] dark:border-[#223326] rounded-2xl shadow-xs text-xs sm:text-sm font-medium text-[#1D2516] dark:text-[#F5F2EB] hover:border-[#738541] dark:hover:border-[#4E6826] transition-colors select-none cursor-pointer"
+        className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 bg-white/90 dark:bg-[#0D1814]/90 backdrop-blur-xs border rounded-2xl shadow-xs text-xs sm:text-sm font-medium transition-colors select-none cursor-pointer ${
+          !isToday
+            ? 'border-[#738541] dark:border-[#4E6826] text-[#4A6225] dark:text-[#A8D968] font-bold bg-[#FAF6E8] dark:bg-[#132219]'
+            : 'border-[#E8E2D5] dark:border-[#223326] text-[#1D2516] dark:text-[#F5F2EB] hover:border-[#738541] dark:hover:border-[#4E6826]'
+        }`}
         title="Click to switch date"
       >
         <FontAwesomeIcon icon={faCalendarDays} className="w-3.5 h-3.5 text-[#4A6225] dark:text-[#A8D968]" />

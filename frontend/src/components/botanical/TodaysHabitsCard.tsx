@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { isSameDay, format } from 'date-fns'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -28,6 +29,7 @@ import {
   faSliders,
   faArrowRight,
   faLock,
+  faCodeBranch,
 } from '@fortawesome/free-solid-svg-icons'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import type { Habit, HabitLog } from '../../types'
@@ -35,7 +37,7 @@ import type { Habit, HabitLog } from '../../types'
 interface TodaysHabitsCardProps {
   habits: Habit[]
   logs: HabitLog[]
-  onManageHabits: () => void
+  onManageHabits: (habitId?: string) => void
   onToggleHabit?: (habit: Habit, log: HabitLog | undefined) => void
   onUpdateProgress?: (habit: Habit, newValue: number) => void
   onAddHabit?: () => void
@@ -95,7 +97,9 @@ export function TodaysHabitsCard({
   onManageHabits,
   selectedDate,
 }: TodaysHabitsCardProps) {
+  const navigate = useNavigate()
   const isToday = !selectedDate || isSameDay(selectedDate, new Date())
+  const selectedDateStr = format(selectedDate || new Date(), 'yyyy-MM-dd')
 
   // Sort habits: active habits first
   const displayHabits = useMemo(() => {
@@ -107,8 +111,21 @@ export function TodaysHabitsCard({
       const log = logs.find((l) => l.habit_id === h.id)
       const target = h.target_value || 1
       const actual = log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
-      return actual >= target && target > 0
+      return Boolean(log?.completion_status) || (actual >= target && target > 0)
     }).length
+  }, [habits, logs])
+
+  const overallPercent = useMemo(() => {
+    if (habits.length === 0) return 0
+    let sum = 0
+    habits.forEach((h) => {
+      const log = logs.find((l) => l.habit_id === h.id)
+      const target = h.target_value || 1
+      const actual = log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
+      const ratio = log?.completion_status ? 1 : Math.min(actual / target, 1)
+      sum += ratio
+    })
+    return Math.round((sum / habits.length) * 100)
   }, [habits, logs])
 
   return (
@@ -136,17 +153,56 @@ export function TodaysHabitsCard({
           </div>
         </div>
 
-        {/* Go to Habit Section Button */}
-        <button
-          type="button"
-          onClick={onManageHabits}
-          className="self-start sm:self-auto py-1 sm:py-1.5 px-3 sm:px-3.5 rounded-xl bg-[#EEF4E8] dark:bg-[#253A1D] text-[#415525] dark:text-[#B6DB8A] hover:bg-[#E3EDD7] dark:hover:bg-[#2F4A24] font-bold text-xs transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer border border-[#D5E3C4] dark:border-[#385926]"
-        >
-          <FontAwesomeIcon icon={faSliders} className="text-[11px]" />
-          <span>Habit Studio</span>
-          <FontAwesomeIcon icon={faArrowRight} className="text-[10px]" />
-        </button>
+        {/* Action Buttons: Ask What-If Agent & Habit Studio */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <button
+            type="button"
+            onClick={() => navigate(`/scenarios?date=${selectedDateStr}`)}
+            className="py-1 sm:py-1.5 px-3 sm:px-3.5 rounded-xl bg-[#4A6225] hover:bg-[#3D521E] dark:bg-[#4E6826] dark:hover:bg-[#41581F] text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer border border-[#3D521E] dark:border-[#385926]"
+            title="Chat with What-If Agent about this day's habits and completion"
+          >
+            <FontAwesomeIcon icon={faCodeBranch} className="text-[11px]" />
+            <span>Ask What-If</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onManageHabits()}
+            className="py-1 sm:py-1.5 px-3 sm:px-3.5 rounded-xl bg-[#EEF4E8] dark:bg-[#253A1D] text-[#415525] dark:text-[#B6DB8A] hover:bg-[#E3EDD7] dark:hover:bg-[#2F4A24] font-bold text-xs transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer border border-[#D5E3C4] dark:border-[#385926]"
+          >
+            <FontAwesomeIcon icon={faSliders} className="text-[11px]" />
+            <span>Habit Studio</span>
+            <FontAwesomeIcon icon={faArrowRight} className="text-[10px]" />
+          </button>
+        </div>
       </div>
+
+      {/* Previous Day Callout Banner */}
+      {!isToday && (
+        <div className="mt-3 p-3 sm:p-3.5 rounded-2xl bg-[#EEF4E8]/90 dark:bg-[#16271D] border border-[#CCD8B8] dark:border-[#22352B] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-white dark:bg-[#0E1714] text-[#4A6225] dark:text-[#A8D968] flex items-center justify-center text-xs shadow-2xs flex-shrink-0">
+              <FontAwesomeIcon icon={faCodeBranch} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] leading-tight">
+                Historical Record · {format(selectedDate!, 'EEEE, MMMM d, yyyy')}
+              </p>
+              <p className="text-[11px] text-[#5C6E56] dark:text-[#A8BCA0] mt-0.5">
+                Completed {completedCount} of {habits.length} habits ({overallPercent}% overall). Ask What-If agent how this day shaped your trajectory!
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate(`/scenarios?date=${selectedDateStr}`)}
+            className="w-full sm:w-auto py-1.5 px-3 rounded-xl bg-[#4A6225] hover:bg-[#3D521E] dark:bg-[#4E6826] dark:hover:bg-[#41581F] text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer flex-shrink-0"
+          >
+            <span>Ask What-If Agent</span>
+            <FontAwesomeIcon icon={faArrowRight} className="text-[10px]" />
+          </button>
+        </div>
+      )}
 
       {/* Habits Progress Grid (Read-Only on Dashboard) */}
       <div className="pt-3">
@@ -163,7 +219,7 @@ export function TodaysHabitsCard({
             </div>
             <button
               type="button"
-              onClick={onManageHabits}
+              onClick={() => onManageHabits()}
               className="py-2 px-4 rounded-xl bg-[#738541] dark:bg-[#4E6826] text-white text-xs font-bold shadow-xs hover:bg-[#5E6F34] dark:hover:bg-[#41581F] cursor-pointer inline-flex items-center gap-1.5"
             >
               <span>Go to Habits</span>
@@ -174,10 +230,11 @@ export function TodaysHabitsCard({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3.5">
             {displayHabits.map((habit) => {
               const log = logs.find((l) => l.habit_id === habit.id)
-              const isCompleted = log?.completion_status || false
+              const rawDone = Boolean(log?.completion_status)
               const targetVal = log?.target_value || habit.target_value || 1
               const actualVal =
-                log?.actual_value !== undefined ? log.actual_value : isCompleted ? targetVal : 0
+                log?.actual_value !== undefined ? log.actual_value : rawDone ? targetVal : 0
+              const isCompleted = rawDone || (actualVal >= targetVal && targetVal > 0)
               const percent = Math.min(Math.round((actualVal / targetVal) * 100), 100)
               const isInProgress = actualVal > 0 && actualVal < targetVal
               const unitDisplay = habit.unit === 'm' ? 'mins' : habit.unit
@@ -187,7 +244,7 @@ export function TodaysHabitsCard({
               return (
                 <div
                   key={habit.id}
-                  onClick={onManageHabits}
+                  onClick={() => onManageHabits(habit.id)}
                   className={`relative rounded-2xl border p-3 sm:p-3.5 flex flex-col justify-between transition-all duration-200 select-none cursor-pointer group ${
                     isCompleted
                       ? 'bg-[#F2F7EC] dark:bg-[#162919] border-[#738541]/45 dark:border-[#335928] shadow-2xs'
@@ -288,7 +345,7 @@ export function TodaysHabitsCard({
         </span>
         <button
           type="button"
-          onClick={onManageHabits}
+          onClick={() => onManageHabits()}
           className="font-bold text-[#415525] dark:text-[#A8D968] hover:text-[#1D2516] dark:hover:text-[#F5F2EB] inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
         >
           <span>Open Habit Section</span>

@@ -423,7 +423,7 @@ router.post('/progress-report', asyncHandler(async (req: AuthenticatedRequest, r
  */
 router.post('/what-if-chat', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const userId = requireAuth(req)
-  const { message, sessionId, sessionTitle, conversationHistory = [], habits = [], logs = [], userName = 'Friend', apiKey } = req.body
+  const { message, sessionId, sessionTitle, conversationHistory = [], habits = [], logs = [], userName = 'Friend', apiKey, targetDate } = req.body
 
   if (!message || typeof message !== 'string' || !message.trim()) {
     throw new AppError(400, 'Message is required for what-if simulation')
@@ -439,6 +439,7 @@ router.post('/what-if-chat', asyncHandler(async (req: AuthenticatedRequest, res:
     logs,
     userName,
     apiKey,
+    targetDate,
   })
 
   res.json({

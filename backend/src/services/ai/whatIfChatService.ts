@@ -324,6 +324,7 @@ export interface WhatIfChatOptions {
   logs?: any[]
   userName?: string
   apiKey?: string
+  targetDate?: string
 }
 
 export interface WhatIfChatResponse {
@@ -339,6 +340,75 @@ export interface WhatIfChatResponse {
   suggestedFollowUps?: string[]
   usedFallback: boolean
   model: string
+}
+
+/**
+ * Extracts a calendar date string (YYYY-MM-DD) from user natural language query.
+ * Handles formats like:
+ * - "19th November", "19th of November", "19 November"
+ * - "November 19th", "November 19", "Nov 19", "19 Nov"
+ * - "the 19th", "on the 19th", "on 19th"
+ * - "2026-11-19"
+ */
+export function extractDateFromQuery(message: string, currentYear = 2026): string | null {
+  const msg = message.toLowerCase()
+
+  // 1. ISO format: 2026-11-19 or 2026/11/19
+  const isoMatch = message.match(/\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b/)
+  if (isoMatch) {
+    const y = isoMatch[1]
+    const m = isoMatch[2].padStart(2, '0')
+    const d = isoMatch[3].padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+
+  const monthNames: Record<string, string> = {
+    jan: '01', january: '01',
+    feb: '02', february: '02',
+    mar: '03', march: '03',
+    apr: '04', april: '04',
+    may: '05',
+    jun: '06', june: '06',
+    jul: '07', july: '07',
+    aug: '08', august: '08',
+    sep: '09', sept: '09', september: '09',
+    oct: '10', october: '10',
+    nov: '11', november: '11',
+    dec: '12', december: '12',
+  }
+
+  // 2. "19th November [2026]" or "19 November [2026]" or "19th of November"
+  const dayMonthMatch = msg.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+(20\d{2}))?\b/)
+  if (dayMonthMatch) {
+    const day = String(dayMonthMatch[1]).padStart(2, '0')
+    const month = monthNames[dayMonthMatch[2]]
+    const year = dayMonthMatch[3] ? dayMonthMatch[3] : String(currentYear)
+    if (month) return `${year}-${month}-${day}`
+  }
+
+  // 3. "November 19th [2026]" or "Nov 19"
+  const monthDayMatch = msg.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?(?:\s+(20\d{2}))?\b/)
+  if (monthDayMatch) {
+    const month = monthNames[monthDayMatch[1]]
+    const day = String(monthDayMatch[2]).padStart(2, '0')
+    const year = monthDayMatch[3] ? monthDayMatch[3] : String(currentYear)
+    if (month) return `${year}-${month}-${day}`
+  }
+
+  // 4. "19th" or "on the 19th"
+  const bareDayMatch = msg.match(/\b(?:on\s+the\s+|on\s+|the\s+)?(\d{1,2})(?:st|nd|rd|th)\b/)
+  if (bareDayMatch) {
+    const dayNum = parseInt(bareDayMatch[1], 10)
+    if (dayNum >= 1 && dayNum <= 31) {
+      const day = String(dayNum).padStart(2, '0')
+      const now = new Date()
+      const m = String(now.getMonth() + 1).padStart(2, '0')
+      const y = String(currentYear || now.getFullYear())
+      return `${y}-${m}-${day}`
+    }
+  }
+
+  return null
 }
 
 /**
@@ -359,6 +429,7 @@ export async function simulateWhatIfScenario(
     logs = [],
     userName = 'Friend',
     apiKey,
+    targetDate,
   } = options
 
   if (!sessionId) {
@@ -619,6 +690,130 @@ export async function simulateWhatIfScenario(
     return `[${l.log_date || 'Recent'}] ${habit?.name || 'Habit'}: ${l.actual_value || 0}/${habit?.target_value || 1} ${habit?.unit || ''} (${l.completion_status ? 'DONE' : 'MISSED'})`
   }).join('\n')
 
+  // 1.1 Yesterday and Historical Date Precision Analytics
+  const yesterday = new Date(now.getTime() - 86400000)
+  const yesterdayStr = [yesterday.getFullYear(), String(yesterday.getMonth() + 1).padStart(2, '0'), String(yesterday.getDate()).padStart(2, '0')].join('-')
+
+  const qLower = message.toLowerCase()
+  const explicitMentionedDate = extractDateFromQuery(message, now.getFullYear())
+  let resolvedTargetDateStr = explicitMentionedDate || ''
+
+  if (!resolvedTargetDateStr && targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+    resolvedTargetDateStr = targetDate
+  }
+
+  if (!resolvedTargetDateStr) {
+    if (
+      qLower.includes('yesterday') ||
+      qLower.includes('previous day') ||
+      qLower.includes('past day') ||
+      qLower.includes('prior day') ||
+      qLower.includes('last day') ||
+      qLower.includes('day before')
+    ) {
+      resolvedTargetDateStr = yesterdayStr
+    } else if (qLower.includes('today')) {
+      resolvedTargetDateStr = todayStr
+    } else {
+      resolvedTargetDateStr = yesterdayStr
+    }
+  }
+
+  const computeDaySummary = (dateStr: string) => {
+    let completedCount = 0
+    let inProgressCount = 0
+    let missedCount = 0
+    let progressSum = 0
+
+    const habitDetails = habits.map((h: any) => {
+      const hId = String(h.id)
+      const habitLogs = logs.filter((l: any) => String(l.habit_id || l.habitId || '') === hId)
+      const log = habitLogs.find((l: any) => {
+        const rawDate = String(l.log_date || l.date || '')
+        return rawDate.slice(0, 10) === dateStr
+      })
+      const target = Number(h.target_value || h.targetValue) || 1
+
+      let actual = 0
+      let pct = 0
+
+      if (log) {
+        if (log.actual_value !== undefined && log.actual_value !== null) {
+          actual = Number(log.actual_value)
+        } else if (log.value !== undefined && log.value !== null) {
+          actual = Number(log.value)
+        }
+
+        if (log.progress_percentage !== undefined && log.progress_percentage !== null) {
+          pct = Number(log.progress_percentage)
+        } else if (target > 0) {
+          pct = Math.min(Math.round((actual / target) * 100 * 10) / 10, 100)
+        }
+
+        // Completion status handling
+        if (log.completion_status || pct >= 100) {
+          if (pct < 100) pct = 100
+          if (actual < target) actual = target
+        }
+      }
+
+      const isCompleted = pct >= 100 || Boolean(log?.completion_status) || (actual >= target && target > 0)
+      const isInProgress = !isCompleted && (pct > 0 || actual > 0)
+      const isMissed = !isCompleted && !isInProgress
+
+      progressSum += pct
+      if (isCompleted) completedCount++
+      else if (isInProgress) inProgressCount++
+      else missedCount++
+
+      return {
+        id: h.id,
+        name: h.name,
+        category: h.category || 'General',
+        target,
+        actual,
+        unit: h.unit || 'times',
+        pct: Math.round(pct * 10) / 10,
+        isCompleted,
+        isInProgress,
+        isMissed,
+        hasLog: Boolean(log),
+      }
+    })
+
+    const overallProgress = habits.length > 0 ? Math.round(progressSum / habits.length) : 0
+    return {
+      dateStr,
+      overallProgress,
+      completedCount,
+      inProgressCount,
+      missedCount,
+      habits: habitDetails,
+      hasAnyLogs: habitDetails.some((h: any) => h.hasLog || h.actual > 0),
+    }
+  }
+
+  const yesterdaySummary = computeDaySummary(yesterdayStr)
+  const targetDaySummary = computeDaySummary(resolvedTargetDateStr)
+
+  // Last 7 days summary array (day - 6 to today)
+  const recentDaysSummary = Array.from({ length: 7 }).map((_, i) => {
+    const d = new Date(now.getTime() - (6 - i) * 86400000)
+    const dStr = [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
+    const summary = computeDaySummary(dStr)
+    const isYest = dStr === yesterdayStr
+    const isTod = dStr === todayStr
+    const dayLabel = isTod ? 'Today' : isYest ? 'Yesterday' : daysOfWeek[d.getDay()]
+    return {
+      dateStr: dStr,
+      dayLabel,
+      overallProgress: summary.overallProgress,
+      completedCount: summary.completedCount,
+      totalCount: habits.length,
+      habits: summary.habits,
+    }
+  })
+
   const activeKey = apiKey || config.gemini.apiKey
   const canUseGemini = activeKey && activeKey !== 'your_gemini_api_key'
 
@@ -655,6 +850,14 @@ export async function simulateWhatIfScenario(
    - When asked about today's progress, cite their exact numbers: ${todayCompletedCount} completed, ${todayInProgressCount} in progress, ${todayPendingCount} pending.
    - Recognize partial completions (${habits.map((h: any) => h.name).join(', ')}) as meaningful momentum.
 
+4. PREVIOUS DAY & HISTORICAL DATA INQUIRIES (CRITICAL):
+   - When ${userName} asks to see previous day data, what they did yesterday, how much was completed on a previous day, or asks a What-If question about a past day:
+     * Mention the date clearly (${resolvedTargetDateStr} or yesterday ${yesterdayStr}).
+     * Explicitly list EVERY habit from that day: habit name, actual vs target amount, percentage completed, and completion status (Completed / In Progress / Missed).
+     * Provide the total day completion percentage (${targetDaySummary.overallProgress}%).
+     * Run the What-If simulation: Project what would happen if ${userName} had completed 100% of those habits or fixed missed ones, how that shifts rolling adherence and 6-month trajectory, and how the 70% rule preserved momentum.
+     * Pivot into an actionable, encouraging next step for TODAY.
+
 === LIVE DATABASE CONTEXT FOR ${userName.toUpperCase()} ===
 [TODAY'S LIVE STATUS - ${todayStr}]:
 - Overall Today Progress: ${todayOverallProgress}%
@@ -663,6 +866,25 @@ export async function simulateWhatIfScenario(
 - Habits Pending / Not Started: ${todayPendingCount}
 - Detailed Today Status By Habit:
 ${habitAnalytics.map((h) => `  * **${h.name}**: Today's Progress: **${h.todayProgressPct}%** (${h.todayActual}/${h.target} ${h.unit}) | Status: ${h.todayCompleted ? 'COMPLETED' : h.todayInProgress ? 'IN PROGRESS' : 'NOT STARTED / PENDING'}`).join('\n')}
+
+[YESTERDAY'S HISTORICAL RECORD - ${yesterdayStr}]:
+- Overall Yesterday Progress: ${yesterdaySummary.overallProgress}%
+- Habits Completed: ${yesterdaySummary.completedCount} of ${habits.length}
+- Habits In Progress: ${yesterdaySummary.inProgressCount}
+- Habits Missed / Not Completed: ${yesterdaySummary.missedCount}
+- Detailed Breakdown For Yesterday:
+${yesterdaySummary.habits.map((h: any) => `  * **${h.name}**: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) | Status: ${h.isCompleted ? 'COMPLETED' : h.isInProgress ? 'IN PROGRESS (70% Win)' : 'MISSED / NOT STARTED'}`).join('\n')}
+${resolvedTargetDateStr !== yesterdayStr && resolvedTargetDateStr !== todayStr ? `
+[REQUESTED HISTORICAL DAY DATA - ${resolvedTargetDateStr}]:
+- Overall Progress: ${targetDaySummary.overallProgress}%
+- Habits Completed: ${targetDaySummary.completedCount} of ${habits.length}
+- Habits In Progress: ${targetDaySummary.inProgressCount}
+- Habits Missed: ${targetDaySummary.missedCount}
+- Detailed Breakdown For ${resolvedTargetDateStr}:
+${targetDaySummary.habits.map((h: any) => `  * **${h.name}**: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) | Status: ${h.isCompleted ? 'COMPLETED' : h.isInProgress ? 'IN PROGRESS' : 'MISSED / NOT STARTED'}`).join('\n')}
+` : ''}
+[RECENT 7-DAY TIMELINE LOGS]:
+${recentDaysSummary.map((d: any) => `- ${d.dayLabel} (${d.dateStr}): ${d.overallProgress}% overall (${d.completedCount}/${d.totalCount} completed)`).join('\n')}
 
 [WEEKLY & MONTHLY ADHERENCE (REAL LOGGED DATA)]:
 - Last 7-Day Adherence: ${overallWeeklyRate}% (${habitAnalytics.map((h) => `${h.name}: ${h.weeklyCompletedDays}/7 days [${h.weeklyRate}%]`).join(', ')})
@@ -797,7 +1019,11 @@ ${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.weeklyRate}% 7-da
     todayInProgressCount,
     todayPendingCount,
     overallWeeklyRate,
-    overallMonthlyRate
+    overallMonthlyRate,
+    yesterdaySummary,
+    targetDaySummary,
+    resolvedTargetDateStr,
+    yesterdayStr
   )
   const fallbackResponse: WhatIfChatResponse = {
     ...baseFallback,
@@ -893,7 +1119,11 @@ function generateDatabaseAwareFallback(
   todayInProgressCount: number,
   todayPendingCount: number,
   overallWeeklyRate: number,
-  overallMonthlyRate: number
+  overallMonthlyRate: number,
+  yesterdaySummary?: any,
+  targetDaySummary?: any,
+  resolvedTargetDateStr?: string,
+  yesterdayStr?: string
 ): Omit<WhatIfChatResponse, 'sessionId' | 'sessionTitle'> {
   const q = message.toLowerCase().trim()
 
@@ -912,6 +1142,17 @@ function generateDatabaseAwareFallback(
     'What if I stay disciplined for 6 months?',
   ]
 
+  const isAskingPreviousDay =
+    q.includes('yesterday') ||
+    q.includes('previous day') ||
+    q.includes('past day') ||
+    q.includes('last day') ||
+    q.includes('prior day') ||
+    q.includes('day before') ||
+    q.includes('previous data') ||
+    q.includes('before today') ||
+    (Boolean(resolvedTargetDateStr) && resolvedTargetDateStr !== todayStr)
+
   // DOMAIN MATH: MATHEMATICAL EVALUATION & ARITHMETIC (WITH FUTURE YOU COMPOUNDING LENS)
   const mathResult = tryEvaluateMathExpression(message)
   if (mathResult) {
@@ -926,6 +1167,45 @@ function generateDatabaseAwareFallback(
       'How does compounding apply to my habits?',
       'What if I stay consistent for 6 months?',
       'How is my habit progress today?',
+    ]
+  }
+
+  // DOMAIN PREVIOUS DAY: HISTORICAL HABIT DATA & WHAT-IF SIMULATION
+  else if (isAskingPreviousDay && (targetDaySummary || yesterdaySummary)) {
+    const focusSummary = (targetDaySummary && targetDaySummary.habits && targetDaySummary.habits.length > 0)
+      ? targetDaySummary
+      : (yesterdaySummary || targetDaySummary)
+    const isYest = focusSummary.dateStr === yesterdayStr || q.includes('yesterday')
+    const dateLabel = isYest ? `Yesterday (${focusSummary.dateStr})` : `Historical Record (${focusSummary.dateStr})`
+
+    const missedHabits = focusSummary.habits.filter((h: any) => h.isMissed)
+    const inProgressHabits = focusSummary.habits.filter((h: any) => h.isInProgress)
+    const completedHabits = focusSummary.habits.filter((h: any) => h.isCompleted)
+    const isWhatIf = q.includes('what if') || q.includes('if i ') || q.includes('scenario') || q.includes('would') || q.includes('suppose')
+
+    reply = `• **Previous Day Habit Record: ${dateLabel}**:
+  - **Overall Day Completion**: **${focusSummary.overallProgress}%**
+  - **Summary**: **${focusSummary.completedCount}** completed, **${focusSummary.inProgressCount}** in progress, and **${focusSummary.missedCount}** missed out of **${focusSummary.habits.length}** tracked habits.
+
+• **Habit-by-Habit Data & Execution**:
+${focusSummary.habits.length > 0 ? focusSummary.habits.map((h: any) => `  * **${h.name}**: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) — *${h.isCompleted ? 'Completed' : h.isInProgress ? 'In Progress (70% Win)' : 'Missed / Not Started'}*`).join('\n') : '  * No habits were active on this date.'}
+
+• **What-If Simulation for ${dateLabel}**:
+${isWhatIf
+  ? `  - **Scenario Analysis**: If you had achieved 100% on every habit on ${dateLabel}, your rolling 7-day adherence would surge from **${overallWeeklyRate}%** to **${Math.min(overallWeeklyRate + 14, 100)}%**.
+  - **Compounding Trajectory**: Hitting 100% on that day would have completely eliminated cognitive friction, locking in compound momentum. Over 6 months, avoiding those slips compounds into 45+ extra hours of deep work and vital rest.`
+  : `  - **What If 100% Completed?**: If you had turned those missed habits into 100% completions, your weekly consistency would be **${Math.min(overallWeeklyRate + 14, 100)}%** instead of **${overallWeeklyRate}%**.
+  - **The 70% Progress Win**: ${inProgressHabits.length > 0 ? `Your partial effort on **${inProgressHabits[0].name}** preserved your habit loop—70% beats 0% every single time.` : completedHabits.length > 0 ? `Your discipline on **${completedHabits[0].name}** held the line and maintained your positive momentum.` : 'Even on tough days, putting down a 5-minute vote preserves identity.'}`
+}
+
+• **Future You Behavioral Compass for Today**:
+  - Do not carry past friction into today. Daily compounding is about today's vote.
+  - ${missedHabits.length > 0 ? `Kickstart today with a 5-minute micro-start on **${missedHabits[0].name}** to reclaim total control.` : `Take that positive momentum and protect your focus blocks today!`}`
+
+    suggestedFollowUps = [
+      'What if I hit 100% on all habits today?',
+      'Why did I miss my habits on that day?',
+      'Compare this day with today\'s progress',
     ]
   }
 

@@ -1,4 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { format, subDays, parseISO } from 'date-fns'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faPaperPlane,
@@ -15,11 +17,18 @@ import {
   faChevronLeft,
   faMessage,
   faLightbulb,
+  faCalendarDays,
+  faCodeBranch,
+  faChevronDown,
+  faChevronUp,
+  faCheck,
 } from '@fortawesome/free-solid-svg-icons'
 import { useUserProfile } from '../contexts/UserProfileContext'
 import { useAuth } from '../contexts/AuthContext'
-import { getLocalHabits, getAllLocalLogs } from '../utils/habitStorage'
+import { useAppDate } from '../contexts/DateContext'
+import { getLocalHabits, getAllLocalLogs, getHabitsForDate } from '../utils/habitStorage'
 import { aiApi } from '../services/api'
+import { getHabitIconDef } from '../components/botanical/TodaysHabitsCard'
 
 interface ChatMessage {
   id: string
@@ -39,12 +48,12 @@ interface SavedSession {
 
 // Curated starter scenarios designed for the Future You persona & app context
 const STARTER_SCENARIOS = [
+  'What was my habit data and completion yesterday?',
+  'What if I completed 100% of my habits yesterday?',
   'How is my habit trajectory looking today?',
-  'What if I stay disciplined for 6 months?',
   'Where am I lagging the most, and how do I fix it?',
   'I hit 70% progress today—how does Future You view this?',
   'Why do my weekends drop off, and how do we bridge the gap?',
-  'I feel overwhelmed today—how should I reset without breaking my streak?',
 ]
 
 function formatSessionTime(isoString?: string) {
@@ -161,13 +170,48 @@ export function Simulator() {
   const chatBottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const [habits, setHabits] = useState(() => getLocalHabits())
+  const [searchParams] = useSearchParams()
+  const queryDate = searchParams.get('date')
+  const { selectedDateStr, isToday } = useAppDate()
 
-  // Keep habits fresh whenever updated elsewhere in the app
+  const yesterdayDateStr = useMemo(() => {
+    const y = new Date(Date.now() - 86400000)
+    return format(y, 'yyyy-MM-dd')
+  }, [])
+
+  const [selectedHistoryDate, setSelectedHistoryDate] = useState<string>(() => {
+    if (queryDate && /^\d{4}-\d{2}-\d{2}$/.test(queryDate)) {
+      return queryDate
+    }
+    if (selectedDateStr && /^\d{4}-\d{2}-\d{2}$/.test(selectedDateStr) && !isToday) {
+      return selectedDateStr
+    }
+    const y = new Date(Date.now() - 86400000)
+    return format(y, 'yyyy-MM-dd')
+  })
+
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState<boolean>(() => Boolean(queryDate) || !isToday)
+
+  useEffect(() => {
+    if (queryDate && /^\d{4}-\d{2}-\d{2}$/.test(queryDate) && queryDate !== selectedHistoryDate) {
+      setSelectedHistoryDate(queryDate)
+      setIsHistoryExpanded(true)
+    } else if (!isToday && selectedDateStr && selectedDateStr !== selectedHistoryDate) {
+      setSelectedHistoryDate(selectedDateStr)
+      setIsHistoryExpanded(true)
+    }
+  }, [queryDate, selectedDateStr, isToday, selectedHistoryDate])
+
+  const [habits, setHabits] = useState(() => getLocalHabits(user?.id))
+  const [allLogs, setAllLogs] = useState(() => getAllLocalLogs(user?.id))
+
+  // Keep habits & logs fresh whenever updated elsewhere in the app
   useEffect(() => {
     const handleSync = () => {
-      setHabits(getLocalHabits())
+      setHabits(getLocalHabits(user?.id))
+      setAllLogs(getAllLocalLogs(user?.id))
     }
+    handleSync()
     window.addEventListener('future-you-storage-updated', handleSync)
     window.addEventListener('storage', handleSync)
     window.addEventListener('focus', handleSync)
@@ -176,7 +220,72 @@ export function Simulator() {
       window.removeEventListener('storage', handleSync)
       window.removeEventListener('focus', handleSync)
     }
+  }, [user?.id])
+
+  // Quick dates for past 5 days
+  const quickDates = useMemo(() => {
+    const dates = []
+    const now = new Date()
+    for (let i = 1; i <= 5; i++) {
+      const d = subDays(now, i)
+      const dateStr = format(d, 'yyyy-MM-dd')
+      const label = i === 1 ? 'Yesterday' : `${i}d ago`
+      dates.push({ dateStr, label, dateObj: d, fullLabel: format(d, 'EEE, MMM d') })
+    }
+    return dates
   }, [])
+
+  // Logs and statistics for currently selected history date
+  const selectedDateLogs = useMemo(() => {
+    return allLogs.filter((l) => l.log_date === selectedHistoryDate)
+  }, [allLogs, selectedHistoryDate])
+
+  const selectedDateStats = useMemo(() => {
+    let completed = 0
+    let inProgress = 0
+    let missed = 0
+    let progressSum = 0
+
+    const dayHabits = getHabitsForDate(habits, selectedHistoryDate, allLogs)
+
+    const habitBreakdown = dayHabits.map((h) => {
+      const log = selectedDateLogs.find((l) => l.habit_id === h.id)
+      const target = log?.target_value || h.target_value || 1
+      const actual = log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
+      const pct = target > 0 ? Math.min(Math.round((actual / target) * 100), 100) : 0
+      progressSum += pct
+
+      const isCompleted = actual >= target && target > 0
+      const isInProgress = actual > 0 && actual < target
+      const isMissed = actual === 0
+
+      if (isCompleted) completed++
+      else if (isInProgress) inProgress++
+      else missed++
+
+      return {
+        habit: h,
+        target,
+        actual,
+        pct,
+        isCompleted,
+        isInProgress,
+        isMissed,
+        hasLog: Boolean(log),
+      }
+    })
+
+    const overallPct = dayHabits.length > 0 ? Math.round(progressSum / dayHabits.length) : 0
+    return {
+      dateStr: selectedHistoryDate,
+      overallPct,
+      completed,
+      inProgress,
+      missed,
+      habits: habitBreakdown,
+      hasLogs: habitBreakdown.some((h) => h.hasLog || h.actual > 0),
+    }
+  }, [habits, allLogs, selectedDateLogs, selectedHistoryDate])
 
   const activeSession = useMemo(() => {
     return sessions.find((s) => s.sessionId === activeSessionId)
@@ -347,8 +456,8 @@ export function Simulator() {
       }))
 
       // Read fresh live habits and logs from storage
-      const liveHabits = getLocalHabits()
-      const liveLogs = getAllLocalLogs()
+      const liveHabits = getLocalHabits(user?.id)
+      const liveLogs = getAllLocalLogs(user?.id)
 
       const res = await aiApi.askWhatIfSimulation({
         message: query,
@@ -359,6 +468,7 @@ export function Simulator() {
         habits: liveHabits,
         logs: liveLogs,
         userName,
+        targetDate: selectedHistoryDate || undefined,
       })
 
       const replyText =
@@ -625,6 +735,232 @@ export function Simulator() {
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Interactive Previous Day & Historical Data Inspector */}
+          <div className="border-b border-[#E8E2D5] dark:border-[#1E2E27] bg-[#FAF8F3]/90 dark:bg-[#0B1412] px-3.5 sm:px-5 py-2.5 transition-colors">
+            {/* Top Bar: Date Selector & Quick Pills */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 text-xs font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] mr-1">
+                  <FontAwesomeIcon icon={faCalendarDays} className="text-[#4A6225] dark:text-[#A8D968]" />
+                  <span>Previous Day Data:</span>
+                </div>
+
+                {quickDates.map((item) => {
+                  const isSelected = selectedHistoryDate === item.dateStr
+                  return (
+                    <button
+                      key={item.dateStr}
+                      type="button"
+                      onClick={() => {
+                        setSelectedHistoryDate(item.dateStr)
+                        setIsHistoryExpanded(true)
+                      }}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                        isSelected
+                          ? 'bg-[#4A6225] text-white border-[#3D521E] shadow-2xs'
+                          : 'bg-white dark:bg-[#121D17] text-[#5C6E56] dark:text-[#A8BCA0] border-[#E8E2D5] dark:border-[#1E2E27] hover:bg-[#EEF4E8] dark:hover:bg-[#1A2A20]'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  )
+                })}
+
+                {/* Custom Date Input */}
+                <input
+                  type="date"
+                  value={selectedHistoryDate}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setSelectedHistoryDate(e.target.value)
+                      setIsHistoryExpanded(true)
+                    }
+                  }}
+                  className="px-2 py-0.5 rounded-xl text-xs font-medium bg-white dark:bg-[#121D17] text-[#1D2516] dark:text-[#F5F2EB] border border-[#E8E2D5] dark:border-[#1E2E27] cursor-pointer"
+                  title="Pick any past date to inspect"
+                />
+              </div>
+
+              {/* Right Controls: Expand/Collapse Toggle */}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-[#4A6225] dark:text-[#A8D968] bg-[#EEF4E8] dark:bg-[#1A2F1C] px-2 py-0.5 rounded-full border border-[#D5E3C4] dark:border-[#2A4426]">
+                  {selectedDateStats.overallPct}% completed
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
+                  className="text-xs text-[#5C6E56] dark:text-[#A8BCA0] hover:text-[#1D2516] dark:hover:text-white px-2 py-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer flex items-center gap-1 font-medium"
+                >
+                  <span>{isHistoryExpanded ? 'Hide Habits' : 'View Habits'}</span>
+                  <FontAwesomeIcon icon={isHistoryExpanded ? faChevronUp : faChevronDown} className="text-[10px]" />
+                </button>
+              </div>
+            </div>
+
+            {/* Expanded Previous Day Detail Card */}
+            {isHistoryExpanded && (
+              <div className="mt-2.5 pt-2.5 border-t border-[#E8E2D5]/70 dark:border-[#1E2E27] space-y-2.5 animate-fade-in">
+                {/* Summary Row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB]">
+                      {selectedHistoryDate === yesterdayDateStr ? 'Yesterday' : 'Date'}:{' '}
+                      {(() => {
+                        try {
+                          return format(parseISO(selectedHistoryDate), 'EEEE, MMMM d, yyyy')
+                        } catch {
+                          return selectedHistoryDate
+                        }
+                      })()}
+                    </span>
+                    <span className="text-[#7A8C74] dark:text-[#83967D]">
+                      ({selectedDateStats.completed} completed, {selectedDateStats.inProgress} in progress, {selectedDateStats.missed} missed)
+                    </span>
+                  </div>
+
+                  {/* Overall Day Progress Mini Bar */}
+                  <div className="flex items-center gap-2 min-w-[140px]">
+                    <div className="flex-1 h-1.5 bg-[#E8E2D5] dark:bg-[#1E2E27] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#4A6225] dark:bg-[#A8D968] rounded-full transition-all"
+                        style={{ width: `${selectedDateStats.overallPct}%` }}
+                      />
+                    </div>
+                    <span className="font-bold text-[11px] text-[#1D2516] dark:text-[#F5F2EB] tabular-nums">
+                      {selectedDateStats.overallPct}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Habit Cards Grid */}
+                {selectedDateStats.habits.length === 0 ? (
+                  <p className="text-xs text-[#7A8C74] dark:text-[#83967D] py-1">
+                    No habits are configured in your tracker. Create habits in the Habits section to track your routines.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {selectedDateStats.habits.map(({ habit, target, actual, pct, isCompleted, isInProgress }) => {
+                      const { icon } = getHabitIconDef(habit)
+                      const unitDisplay = habit.unit === 'm' ? 'mins' : habit.unit
+
+                      return (
+                        <div
+                          key={habit.id}
+                          className={`p-2 sm:p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-colors ${
+                            isCompleted
+                              ? 'bg-[#F2F7EC] dark:bg-[#162919] border-[#738541]/40 dark:border-[#335928]'
+                              : isInProgress
+                              ? 'bg-[#FCFAF5] dark:bg-[#1E2616] border-[#D4CBB9] dark:border-[#3E4D27]'
+                              : 'bg-white dark:bg-[#121D17] border-[#E8E2D5] dark:border-[#1E2E27]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <div
+                              className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs flex-shrink-0 ${
+                                isCompleted
+                                  ? 'bg-[#E3EDD7] text-[#415525] dark:bg-[#253A1D] dark:text-[#A8D968]'
+                                  : isInProgress
+                                  ? 'bg-[#F6EEDD] text-[#845E1B] dark:bg-[#382D16] dark:text-[#FBBF24]'
+                                  : 'bg-[#EDE8DB] text-[#738541] dark:bg-[#1A2821] dark:text-[#A8BCA0]'
+                              }`}
+                            >
+                              <FontAwesomeIcon icon={icon} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-[#1D2516] dark:text-[#F5F2EB] truncate leading-tight">
+                                {habit.name}
+                              </p>
+                              <p className="text-[10px] text-[#7A8C74] dark:text-[#83967D] truncate mt-0.5">
+                                {actual} / {target} {unitDisplay}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span
+                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                                isCompleted
+                                  ? 'bg-[#E3EDD7] text-[#415525] dark:bg-[#253A1D] dark:text-[#A8D968]'
+                                  : isInProgress
+                                  ? 'bg-[#F6EEDD] text-[#845E1B] dark:bg-[#382D16] dark:text-[#FBBF24]'
+                                  : 'bg-black/5 dark:bg-white/10 text-[#8C8271] dark:text-[#A8BCA0]'
+                              }`}
+                            >
+                              {isCompleted ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <FontAwesomeIcon icon={faCheck} className="text-[8px]" /> Done
+                                </span>
+                              ) : (
+                                `${pct}%`
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* 1-Click Ask What-If Agent Action Chips */}
+                <div className="pt-1 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-[#4A6225] dark:text-[#A8D968] mr-1 flex items-center gap-1">
+                    <FontAwesomeIcon icon={faCodeBranch} className="text-[10px]" />
+                    <span>Ask What-If:</span>
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSendMessage(
+                        `Can you analyze my habit performance and completion for ${selectedHistoryDate}? What habits did I complete, and where did I lag?`
+                      )
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#121D17] hover:bg-[#EEF4E8] dark:hover:bg-[#1A2A20] text-[#1D2516] dark:text-[#F5F2EB] text-[11px] font-medium border border-[#E8E2D5] dark:border-[#1E2E27] hover:border-[#CCD8B8] transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                  >
+                    <span>💬 Analyze this day</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSendMessage(
+                        `What if I had achieved 100% on all my habits on ${selectedHistoryDate}? How would that change my rolling consistency and 6-month trajectory?`
+                      )
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#121D17] hover:bg-[#EEF4E8] dark:hover:bg-[#1A2A20] text-[#1D2516] dark:text-[#F5F2EB] text-[11px] font-medium border border-[#E8E2D5] dark:border-[#1E2E27] hover:border-[#CCD8B8] transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                  >
+                    <span>🔮 What if 100% completed?</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSendMessage(
+                        `What if I had not missed any habits on ${selectedHistoryDate}? What friction caused me to miss them and how can I fix it?`
+                      )
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#121D17] hover:bg-[#EEF4E8] dark:hover:bg-[#1A2A20] text-[#1D2516] dark:text-[#F5F2EB] text-[11px] font-medium border border-[#E8E2D5] dark:border-[#1E2E27] hover:border-[#CCD8B8] transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                  >
+                    <span>⚡ What if I fixed missed habits?</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSendMessage(
+                        `Compare my habit completion on ${selectedHistoryDate} with my progress today.`
+                      )
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-[#121D17] hover:bg-[#EEF4E8] dark:hover:bg-[#1A2A20] text-[#1D2516] dark:text-[#F5F2EB] text-[11px] font-medium border border-[#E8E2D5] dark:border-[#1E2E27] hover:border-[#CCD8B8] transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                  >
+                    <span>📊 Compare with today</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Messages Stream */}

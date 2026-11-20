@@ -246,7 +246,7 @@ export async function getUserHabitProgress(userId: string): Promise<UserHabitPro
           startedCount,
           unstartedCount,
         },
-        recentLogs: allRecentLogs.slice(0, 10),
+        recentLogs: allRecentLogs.slice(0, 200),
         generatedAt: new Date().toISOString(),
       }
 

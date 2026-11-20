@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -25,6 +26,8 @@ import {
   faBullseye,
   faCheck,
   faXmark,
+  faCalendarDays,
+  faCodeBranch,
 } from '@fortawesome/free-solid-svg-icons'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
 import type { Habit, HabitCategory, HabitLog } from '../types'
@@ -38,11 +41,15 @@ import {
   getDayTarget,
   setDayTarget,
   resetDayTarget,
+  getHabitsForDate,
+  isLogForDate,
+  findLogForHabitAndDate,
 } from '../utils/habitStorage'
 import { deleteHabit, updateHabit, upsertHabitLog, createHabit } from '../services/api'
 import { HabitFormModal } from '../components/habits/HabitFormModal'
-import { format } from 'date-fns'
+import { format, subDays, parseISO } from 'date-fns'
 import { useNotifications } from '../contexts/NotificationContext'
+import { useAppDate } from '../contexts/DateContext'
 
 const CATEGORY_FILTERS: { value: HabitCategory | 'all'; label: string; icon: IconDefinition }[] = [
   { value: 'all', label: 'All', icon: faLeaf },
@@ -123,6 +130,11 @@ function formatUnit(unit?: string): string {
 }
 
 export function Habits() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const habitIdParam = searchParams.get('habitId')
+  const { setSelectedDate, selectedDateStr, isToday, resetToToday, todayStr } = useAppDate()
+
   const { notifyHabitMilestone } = useNotifications()
   const [habits, setHabits] = useState<Habit[]>(() => getLocalHabits())
   const [logs, setLogs] = useState<HabitLog[]>(() => getAllLocalLogs())
@@ -136,30 +148,24 @@ export function Habits() {
   const [adjustingDayTargetHabit, setAdjustingDayTargetHabit] = useState<Habit | null>(null)
   const [customDayTargetInput, setCustomDayTargetInput] = useState<string>('')
 
-  const [todayStr, setTodayStr] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const handleSelectDate = (newDateStr: string) => {
+    setSelectedDate(newDateStr)
+  }
 
-  // Live day-rollover monitor: resets habits to fresh 0% whenever the calendar day advances
-  useEffect(() => {
-    const checkDay = () => {
-      const nowStr = format(new Date(), 'yyyy-MM-dd')
-      setTodayStr((prev) => (prev !== nowStr ? nowStr : prev))
-      setHabits(getLocalHabits())
-      setLogs(getAllLocalLogs())
+  // Quick navigation pills: Today, Yesterday, and past days with explicit labels
+  const quickDayOptions = useMemo(() => {
+    const opts = [{ dateStr: todayStr, label: 'Today' }]
+    const now = new Date()
+    for (let i = 1; i <= 6; i++) {
+      const d = subDays(now, i)
+      const dStr = format(d, 'yyyy-MM-dd')
+      opts.push({
+        dateStr: dStr,
+        label: i === 1 ? 'Yesterday' : format(d, 'd MMM'),
+      })
     }
-    window.addEventListener('future-you-day-rollover', checkDay)
-    window.addEventListener('focus', checkDay)
-    const handleVis = () => {
-      if (document.visibilityState === 'visible') checkDay()
-    }
-    document.addEventListener('visibilitychange', handleVis)
-    const timer = setInterval(checkDay, 15000)
-    return () => {
-      window.removeEventListener('future-you-day-rollover', checkDay)
-      window.removeEventListener('focus', checkDay)
-      document.removeEventListener('visibilitychange', handleVis)
-      clearInterval(timer)
-    }
-  }, [])
+    return opts
+  }, [todayStr])
 
   useEffect(() => {
     const handleQuickAdd = () => {
@@ -184,8 +190,21 @@ export function Habits() {
     return () => window.removeEventListener('future-you-storage-updated', syncState)
   }, [])
 
-  // Filtered habits
-  const filteredHabits = useMemo(() => {
+  // Auto-scroll to specific habit when navigated from Dashboard or notification
+  useEffect(() => {
+    if (habitIdParam) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`habit-${habitIdParam}`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 150)
+      return () => clearTimeout(timer)
+    }
+  }, [habitIdParam])
+
+  // 1. Filtered by search and category
+  const filteredCategoryHabits = useMemo(() => {
     return habits.filter((habit) => {
       const matchesSearch =
         habit.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -196,18 +215,25 @@ export function Habits() {
     })
   }, [habits, searchQuery, selectedCategory])
 
-  const activeCount = habits.filter((h) => h.is_active).length
-  const completedTodayCount = habits.filter((h) => {
-    const log = logs.find((l) => l.habit_id === h.id && l.log_date === todayStr)
-    return log?.completion_status
+  // 2. Filtered for the selected day (habits created on or before this day, or having logs on this day)
+  const displayedHabits = useMemo(() => {
+    return getHabitsForDate(filteredCategoryHabits, selectedDateStr, logs)
+  }, [filteredCategoryHabits, selectedDateStr, logs])
+
+  const activeCount = displayedHabits.filter((h) => h.is_active).length
+  const completedTodayCount = displayedHabits.filter((h) => {
+    const log = findLogForHabitAndDate(logs, h.id, selectedDateStr)
+    const target = getDayTarget(h.id, selectedDateStr, h.target_value || 1)
+    const actual = log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
+    return Boolean(log?.completion_status) || (actual >= target && target > 0)
   }).length
 
-  // Update progress value for today (respects day-specific goal)
+  // Update progress value for selected date (respects day-specific goal)
   const handleUpdateProgress = async (habit: Habit, nextVal: number) => {
-    const target = getDayTarget(habit.id, todayStr, habit.target_value || 1)
+    const target = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
     const clampedVal = Math.max(0, Math.round(nextVal * 10) / 10)
 
-    const prevLog = logs.find((l) => l.habit_id === habit.id && l.log_date === todayStr)
+    const prevLog = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
     const prevVal =
       prevLog?.actual_value !== undefined
         ? prevLog.actual_value
@@ -222,14 +248,14 @@ export function Habits() {
       notifyHabitMilestone(habit.name, clampedVal, target, habit.unit)
     }
 
-    const updatedLog = saveLocalLog(habit.id, todayStr, clampedVal, target)
+    const updatedLog = saveLocalLog(habit.id, selectedDateStr, clampedVal, target)
     setLogs((prev) => {
-      const filtered = prev.filter((l) => !(l.habit_id === habit.id && l.log_date === todayStr))
+      const filtered = prev.filter((l) => !(l.habit_id === habit.id && isLogForDate(l, selectedDateStr)))
       return [...filtered, updatedLog]
     })
 
     try {
-      await upsertHabitLog(habit.id, todayStr, clampedVal, undefined, target)
+      await upsertHabitLog(habit.id, selectedDateStr, clampedVal, undefined, target)
     } catch {
       // Local copy saved safely
     }
@@ -237,8 +263,8 @@ export function Habits() {
 
   // Plus / Minus step handlers
   const handleStep = (habit: Habit, deltaMultiplier: number) => {
-    const targetVal = getDayTarget(habit.id, todayStr, habit.target_value || 1)
-    const log = logs.find((l) => l.habit_id === habit.id && l.log_date === todayStr)
+    const targetVal = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
+    const log = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
     const actualVal =
       log?.actual_value !== undefined
         ? log.actual_value
@@ -252,35 +278,35 @@ export function Habits() {
 
   // Toggle Mark as Done (0 <-> 100%)
   const handleToggleDone = (habit: Habit) => {
-    const targetVal = getDayTarget(habit.id, todayStr, habit.target_value || 1)
-    const log = logs.find((l) => l.habit_id === habit.id && l.log_date === todayStr)
-    const isDone = log?.completion_status || false
+    const targetVal = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
+    const log = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
+    const isDone = Boolean(log?.completion_status) || (log?.actual_value !== undefined && log.actual_value >= targetVal && targetVal > 0)
     const nextVal = isDone ? 0 : targetVal
     handleUpdateProgress(habit, nextVal)
   }
 
   // Open Day-Specific Target customizer modal
   const handleOpenDayTarget = (habit: Habit) => {
-    const currentTarget = getDayTarget(habit.id, todayStr, habit.target_value || 1)
+    const currentTarget = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
     setAdjustingDayTargetHabit(habit)
     setCustomDayTargetInput(String(currentTarget))
   }
 
-  // Save Day-Specific Target for today
+  // Save Day-Specific Target for selected date
   const handleSaveDayTarget = async () => {
     if (!adjustingDayTargetHabit) return
     const habit = adjustingDayTargetHabit
     const newTarget = Math.max(1, Math.round(Number(customDayTargetInput) * 10) / 10 || 1)
 
-    setDayTarget(habit.id, todayStr, newTarget)
+    setDayTarget(habit.id, selectedDateStr, newTarget)
 
-    const log = logs.find((l) => l.habit_id === habit.id && l.log_date === todayStr)
+    const log = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
     const actualVal = log?.actual_value !== undefined ? log.actual_value : 0
-    saveLocalLog(habit.id, todayStr, actualVal, newTarget)
+    saveLocalLog(habit.id, selectedDateStr, actualVal, newTarget)
     setLogs(getAllLocalLogs())
 
     try {
-      await upsertHabitLog(habit.id, todayStr, actualVal, undefined, newTarget)
+      await upsertHabitLog(habit.id, selectedDateStr, actualVal, undefined, newTarget)
     } catch {}
 
     setAdjustingDayTargetHabit(null)
@@ -292,15 +318,15 @@ export function Habits() {
     const habit = adjustingDayTargetHabit
     const baseTarget = habit.target_value || 1
 
-    resetDayTarget(habit.id, todayStr, baseTarget)
+    resetDayTarget(habit.id, selectedDateStr, baseTarget)
 
-    const log = logs.find((l) => l.habit_id === habit.id && l.log_date === todayStr)
+    const log = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
     const actualVal = log?.actual_value !== undefined ? log.actual_value : 0
-    saveLocalLog(habit.id, todayStr, actualVal, baseTarget)
+    saveLocalLog(habit.id, selectedDateStr, actualVal, baseTarget)
     setLogs(getAllLocalLogs())
 
     try {
-      await upsertHabitLog(habit.id, todayStr, actualVal, undefined, baseTarget)
+      await upsertHabitLog(habit.id, selectedDateStr, actualVal, undefined, baseTarget)
     } catch {}
 
     setAdjustingDayTargetHabit(null)
@@ -360,6 +386,10 @@ export function Habits() {
         data.color_theme ||
         STICKY_THEMES[habits.length % STICKY_THEMES.length]
 
+      // If user adds habit while inspecting a historical day, anchor created_at to that day
+      const isHistorical = selectedDateStr < todayStr
+      const habitCreatedAt = isHistorical ? `${selectedDateStr}T12:00:00.000Z` : new Date().toISOString()
+
       const newHabit: Habit = {
         id: crypto.randomUUID(),
         user_id: getActiveUserId(),
@@ -373,7 +403,7 @@ export function Habits() {
         color_theme: assignedTheme,
         icon: data.icon || 'leaf',
         is_active: true,
-        created_at: new Date().toISOString(),
+        created_at: habitCreatedAt,
         updated_at: new Date().toISOString(),
       }
       setHabits((prev) => [...prev, newHabit])
@@ -479,6 +509,98 @@ export function Habits() {
         </button>
       </div>
 
+      {/* 1.5 Date Switcher & Historical Day Navigator */}
+      <div className="bg-[#FAF7F0] dark:bg-[#101C16] rounded-2xl border border-[#E8E2D5] dark:border-[#22352B] p-3 sm:p-3.5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-3 transition-colors">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#DFEACF] dark:bg-[#203423] text-[#3D5220] dark:text-[#B6DB8A] text-xs font-bold shrink-0">
+            <FontAwesomeIcon icon={faCalendarDays} className="text-[11px]" />
+            <span>Day:</span>
+          </div>
+
+          {/* Quick Dates: Today, Yesterday, 2d ago, etc. */}
+          {quickDayOptions.map((opt) => {
+            const isSelected = selectedDateStr === opt.dateStr
+            return (
+              <button
+                key={opt.dateStr}
+                type="button"
+                onClick={() => handleSelectDate(opt.dateStr)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#4A6225] text-white shadow-2xs'
+                    : 'bg-white dark:bg-[#16271D] text-[#556244] dark:text-[#A8BCA0] hover:bg-[#EAE2D2] dark:hover:bg-[#1F3526] border border-[#E0D7C6] dark:border-[#22352B]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
+
+          {/* Custom Date Input */}
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white dark:bg-[#16271D] border border-[#E0D7C6] dark:border-[#22352B] text-xs text-[#556244] dark:text-[#A8BCA0]">
+            <input
+              type="date"
+              value={selectedDateStr}
+              onChange={(e) => {
+                if (e.target.value) handleSelectDate(e.target.value)
+              }}
+              className="bg-transparent text-xs font-semibold text-[#1D2516] dark:text-[#F5F2EB] focus:outline-none cursor-pointer"
+            />
+          </div>
+        </div>
+
+        {/* Date status / Quick Action */}
+        <div className="flex items-center gap-2 w-full md:w-auto justify-between md:justify-end">
+          {!isToday ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate(`/scenarios?date=${selectedDateStr}`)}
+                className="px-3 py-1.5 rounded-xl bg-[#4A6225] hover:bg-[#3D521E] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+              >
+                <FontAwesomeIcon icon={faCodeBranch} className="text-[10px]" />
+                <span>Ask What-If Agent</span>
+              </button>
+              <button
+                type="button"
+                onClick={resetToToday}
+                className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#16271D] text-[#556244] dark:text-[#A8BCA0] hover:text-[#1D2516] dark:hover:text-white border border-[#E0D7C6] dark:border-[#22352B] text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Back to Today
+              </button>
+            </div>
+          ) : (
+            <span className="text-xs text-[#6F6759] dark:text-[#9BAF90] font-medium hidden sm:inline">
+              Daily habit routines carry forward each day; progress resets at midnight.
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Historical Date Alert Banner */}
+      {!isToday && (
+        <div className="bg-[#FAF7F0] dark:bg-[#121E17] border border-[#CCD8B8] dark:border-[#22352B] rounded-2xl px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs transition-colors">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#4A6225] text-white flex items-center justify-center text-xs shrink-0">
+              <FontAwesomeIcon icon={faCalendarDays} />
+            </div>
+            <div>
+              <h4 className="font-serif font-bold text-sm text-[#1D2516] dark:text-[#F5F2EB]">
+                Inspecting Record for {format(parseISO(selectedDateStr), 'EEEE, MMMM d, yyyy')}
+              </h4>
+              <p className="text-xs text-[#556244] dark:text-[#A8BCA0]">
+                Showing habits of this day. Logged progress applies only to this date. Habits added here carry forward.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-full bg-[#DFEACF] dark:bg-[#203423] text-[#3D5220] dark:text-[#B6DB8A] text-xs font-bold">
+              {completedTodayCount} of {activeCount} done
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* 2. Filter Bar & Search Box */}
       <div className="bg-white/95 dark:bg-[#0E1714] rounded-2xl border border-[#E8E2D5] dark:border-[#203024] p-2.5 sm:p-3 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3 transition-colors">
         {/* Category Pills - Wraps naturally on mobile without horizontal scroll */}
@@ -521,25 +643,26 @@ export function Habits() {
 
           <div className="px-2.5 sm:px-3 py-1.5 rounded-full bg-[#FAF8F3] dark:bg-[#142019] border border-[#E8E2D5] dark:border-[#223528] text-[11px] sm:text-xs font-semibold text-[#6F6759] dark:text-[#A8BCA0] whitespace-nowrap inline-flex items-center gap-1 shrink-0">
             <span className="text-[#1D2516] dark:text-[#F5F2EB] font-bold">{completedTodayCount}/{activeCount}</span>
-            <span>done today</span>
+            <span>{selectedDateStr === todayStr ? 'done today' : 'done that day'}</span>
           </div>
         </div>
       </div>
 
       {/* 3. Authentic Sticky Note Habit Cards Grid (Using Uploaded Real Sticky Note Background with Different Colors) */}
-      {filteredHabits.length > 0 ? (
+      {displayedHabits.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 pt-2">
-          {filteredHabits.map((habit, index) => {
+          {displayedHabits.map((habit, index) => {
             const icon = getHabitIconDef(habit)
-            const log = logs.find((l) => l.habit_id === habit.id && l.log_date === todayStr)
-            const isDone = log?.completion_status || false
+            const targetVal = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
+            const log = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
+            const rawDone = Boolean(log?.completion_status)
             const actualVal =
               log?.actual_value !== undefined
                 ? log.actual_value
-                : isDone
-                ? habit.target_value
+                : rawDone
+                ? targetVal
                 : 0
-            const targetVal = getDayTarget(habit.id, todayStr, habit.target_value || 1)
+            const isDone = rawDone || (actualVal >= targetVal && targetVal > 0)
             const percent = Math.min(Math.round((actualVal / targetVal) * 100), 100)
             const unitDisplay = formatUnit(habit.unit)
             const theme = getHabitTheme(habit, index)
@@ -548,12 +671,13 @@ export function Habits() {
             return (
               <motion.div
                 key={habit.id}
+                id={`habit-${habit.id}`}
                 layout
                 className={`relative isolate flex flex-col justify-between sm:min-h-[245px] pt-4.5 pb-4 px-4 sm:pt-9 sm:pb-6 sm:px-6 select-none transition-all group overflow-visible rounded-2xl border border-[#E5DDD0] sm:border-none ${
                   THEME_FALLBACK_BG[theme]
                 } dark:border-[#223528] shadow-xs sm:shadow-none ${
                   !habit.is_active ? 'opacity-60' : ''
-                }`}
+                } ${habitIdParam === habit.id ? 'ring-2 ring-[#738541] dark:ring-[#A8D968] shadow-md' : ''}`}
               >
                 {/* Mobile Stationery Accent Tab: Decorative Washi Tape at Top-Center */}
                 <div className="sm:hidden absolute -top-2 left-1/2 -translate-x-1/2 w-14 h-3.5 rounded-xs bg-[#E5D7B7]/80 dark:bg-[#324536]/80 border border-[#C8B895]/50 dark:border-[#435C48]/60 shadow-2xs z-20 pointer-events-none flex items-center justify-center">
@@ -626,10 +750,16 @@ export function Habits() {
                             ? 'bg-[#4A6225] text-white font-bold shadow-2xs'
                             : 'bg-black/6 hover:bg-black/12 dark:bg-white/10 dark:hover:bg-white/20 text-[#43522C] dark:text-[#CBD8BF] font-semibold'
                         }`}
-                        title="Set or adjust how much you have to do today"
+                        title={selectedDateStr === todayStr ? "Set or adjust how much you have to do today" : `Set or adjust goal for ${selectedDateStr}`}
                       >
                         <FontAwesomeIcon icon={faBullseye} className="text-[9px]" />
-                        <span>{hasCustomDayTarget ? `Today: ${targetVal}` : "Today's Goal"}</span>
+                        <span>
+                          {hasCustomDayTarget
+                            ? `${selectedDateStr === todayStr ? 'Today' : 'Goal'}: ${targetVal}`
+                            : selectedDateStr === todayStr
+                            ? "Today's Goal"
+                            : "Day Goal"}
+                        </span>
                       </button>
                     </div>
                     <span className="text-xs font-bold text-[#1D2516] dark:text-[#F5F2EB]">
@@ -788,10 +918,10 @@ export function Habits() {
                   <span>Day-Specific Goal</span>
                 </div>
                 <h3 className="font-serif font-bold text-xl text-[#1D2516] dark:text-[#F5F2EB]">
-                  Adjust Today's Goal
+                  Adjust {selectedDateStr === todayStr ? "Today's" : "Day's"} Goal
                 </h3>
                 <p className="text-xs text-[#6F6759] dark:text-[#8FA387] mt-0.5">
-                  Set how much you need to achieve for {adjustingDayTargetHabit.name} today ({todayStr}).
+                  Set how much you need to achieve for {adjustingDayTargetHabit.name} on {selectedDateStr === todayStr ? `today (${todayStr})` : selectedDateStr}.
                 </p>
               </div>
               <button
@@ -814,7 +944,7 @@ export function Habits() {
             {/* Today's Target Input */}
             <div className="mb-4">
               <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6F6759] dark:text-[#8FA387] mb-1.5">
-                Target For Today ({formatUnit(adjustingDayTargetHabit.unit)})
+                Target For {selectedDateStr === todayStr ? 'Today' : selectedDateStr} ({formatUnit(adjustingDayTargetHabit.unit)})
               </label>
               <div className="relative">
                 <input
@@ -888,7 +1018,7 @@ export function Habits() {
                   className="px-4 py-2 rounded-full bg-[#4A6225] hover:bg-[#3D521E] text-white text-xs font-bold shadow-xs cursor-pointer inline-flex items-center gap-1.5"
                 >
                   <FontAwesomeIcon icon={faCheck} className="text-[10px]" />
-                  <span>Set Goal for Today</span>
+                  <span>Set Goal for {selectedDateStr === todayStr ? 'Today' : 'This Day'}</span>
                 </button>
               </div>
             </div>

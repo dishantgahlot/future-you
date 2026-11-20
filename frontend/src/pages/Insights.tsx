@@ -28,6 +28,7 @@ import {
 import { format, startOfWeek, addDays, getDaysInMonth } from 'date-fns'
 import { getLocalHabits, getAllLocalLogs } from '../utils/habitStorage'
 import { useUserProfile } from '../contexts/UserProfileContext'
+import { useAppDate } from '../contexts/DateContext'
 import { aiApi } from '../services/api'
 
 function getHabitFAIcon(name: string, cat?: string) {
@@ -96,8 +97,8 @@ interface AIProgressReport {
 
 export function InsightsPage() {
   const { fullName } = useUserProfile()
+  const { selectedDate } = useAppDate()
   const [viewPeriod, setViewPeriod] = useState<'weekly' | 'monthly'>('weekly')
-  const [selectedDate] = useState(new Date())
 
   // AI Progress Report State (cached per period for instant switching)
   const [reports, setReports] = useState<{ weekly: AIProgressReport | null; monthly: AIProgressReport | null }>(() => {

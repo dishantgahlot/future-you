@@ -1564,6 +1564,7 @@ export const aiApi = {
     logs?: any[]
     userName?: string
     apiKey?: string
+    targetDate?: string
   }): Promise<{ data: any | null; error: string | null }> {
     try {
       const headers = await getAuthHeaders()

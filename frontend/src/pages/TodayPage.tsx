@@ -1,11 +1,15 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faCalendarDays, faCodeBranch, faListCheck } from '@fortawesome/free-solid-svg-icons'
 import type { Habit, HabitLog } from '../types'
 import {
   getLocalHabits,
   saveLocalHabits,
   getAllLocalLogs,
   getActiveUserId,
+  getHabitsForDate,
+  isLogForDate,
 } from '../utils/habitStorage'
 import {
   fetchHabits,
@@ -14,6 +18,7 @@ import {
 } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserProfile } from '../contexts/UserProfileContext'
+import { useAppDate } from '../contexts/DateContext'
 import { BotanicalHero } from '../components/botanical/BotanicalHero'
 import { QuickStatsBar } from '../components/botanical/QuickStatsBar'
 import { TodaysHabitsCard } from '../components/botanical/TodaysHabitsCard'
@@ -23,61 +28,20 @@ import { HabitConsistencyCard } from '../components/botanical/HabitConsistencyCa
 import { DailyProgressCard } from '../components/botanical/DailyProgressCard'
 import { InsightsModal } from '../components/botanical/InsightsModal'
 import { HabitFormModal } from '../components/habits/HabitFormModal'
-import { format, isSameDay, parseISO } from 'date-fns'
+import { format } from 'date-fns'
 
 export function TodayPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { fullName } = useUserProfile()
+  const { selectedDate, setSelectedDate, selectedDateStr, isToday, resetToToday } = useAppDate()
 
-  // Selected date defaults to current live date
-  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date())
   const [habits, setHabits] = useState<Habit[]>(() => getLocalHabits(user?.id))
   const [allLogs, setAllLogs] = useState<HabitLog[]>(() => getAllLocalLogs(user?.id))
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null)
   const [selectedModalGraph, setSelectedModalGraph] = useState<'weekly' | 'monthly' | null>(null)
   const [modalInitialTab, setModalInitialTab] = useState<'analytics' | 'report'>('analytics')
-
-  // Track live real-world date to handle automatic midnight & new-day reset
-  const lastRealDateStrRef = useRef<string>(format(new Date(), 'yyyy-MM-dd'))
-  const wasDateManuallyPickedRef = useRef<boolean>(false)
-
-  // Live midnight & day-rollover monitor:
-  // Automatically advances to the new day and resets daily progress bar and daily habits to 0%,
-  // while preserving all accumulated logs in allLogs for weekly and monthly insights.
-  useEffect(() => {
-    const handleDayCheck = () => {
-      const currentRealDayStr = format(new Date(), 'yyyy-MM-dd')
-      if (currentRealDayStr !== lastRealDateStrRef.current) {
-        lastRealDateStrRef.current = currentRealDayStr
-        // If the user hasn't explicitly locked onto a historical past date:
-        if (!wasDateManuallyPickedRef.current || isSameDay(selectedDate, parseISO(lastRealDateStrRef.current))) {
-          wasDateManuallyPickedRef.current = false
-          setSelectedDate(new Date())
-        }
-        // Sync storage and notify rest of app
-        setHabits(getLocalHabits(user?.id))
-        setAllLogs(getAllLocalLogs(user?.id))
-        window.dispatchEvent(new CustomEvent('future-you-day-rollover', { detail: { date: currentRealDayStr } }))
-      }
-    }
-
-    const interval = setInterval(handleDayCheck, 15000)
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        handleDayCheck()
-      }
-    }
-
-    window.addEventListener('focus', handleDayCheck)
-    document.addEventListener('visibilitychange', handleVisibility)
-    return () => {
-      clearInterval(interval)
-      window.removeEventListener('focus', handleDayCheck)
-      document.removeEventListener('visibilitychange', handleVisibility)
-    }
-  }, [user?.id, selectedDate])
 
   // Load habits from backend / Supabase when available
   const loadRemoteHabits = useCallback(async () => {
@@ -129,11 +93,14 @@ export function TodayPage() {
     saveLocalHabits(habits)
   }, [habits])
 
-  const selectedDateStr = format(selectedDate, 'yyyy-MM-dd')
+  // Habits active on the selected date (omits habits created on later dates)
+  const habitsForSelectedDate = useMemo(() => {
+    return getHabitsForDate(habits, selectedDateStr, allLogs)
+  }, [habits, selectedDateStr, allLogs])
 
   // Logs for current selected day
   const todayLogs = useMemo(() => {
-    return allLogs.filter((l) => l.log_date === selectedDateStr)
+    return allLogs.filter((l) => isLogForDate(l, selectedDateStr))
   }, [allLogs, selectedDateStr])
 
   // Detailed progress counts for the selected day
@@ -143,11 +110,11 @@ export function TodayPage() {
     let pending = 0
     let progressSum = 0
 
-    if (habits.length === 0) {
+    if (habitsForSelectedDate.length === 0) {
       return { completedCount: 0, inProgressCount: 0, pendingCount: 0, dayOverallPercent: 0 }
     }
 
-    habits.forEach((h) => {
+    habitsForSelectedDate.forEach((h) => {
       const log = todayLogs.find((l) => l.habit_id === h.id)
       const target = log?.target_value || h.target_value || 1
       const actual = log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
@@ -163,14 +130,14 @@ export function TodayPage() {
       }
     })
 
-    const overall = Math.round((progressSum / habits.length) * 100)
+    const overall = Math.round((progressSum / habitsForSelectedDate.length) * 100)
     return {
       completedCount: completed,
       inProgressCount: inProgress,
       pendingCount: pending,
       dayOverallPercent: overall,
     }
-  }, [habits, todayLogs])
+  }, [habitsForSelectedDate, todayLogs])
 
   // Handle save (create or update) habit
   const handleSaveHabit = async (habitData: Partial<Habit>) => {
@@ -196,6 +163,10 @@ export function TodayPage() {
       }
     } else {
       // Create new habit
+      // If user adds habit while viewing a historical date, anchor created_at to that date
+      const isHistorical = selectedDateStr < format(new Date(), 'yyyy-MM-dd')
+      const habitCreatedAt = isHistorical ? `${selectedDateStr}T12:00:00.000Z` : new Date().toISOString()
+
       const newHabit: Habit = {
         id: crypto.randomUUID(),
         user_id: user?.id || getActiveUserId(),
@@ -208,7 +179,7 @@ export function TodayPage() {
         color: habitData.color || '#738541',
         icon: habitData.icon || 'leaf',
         is_active: true,
-        created_at: new Date().toISOString(),
+        created_at: habitCreatedAt,
         updated_at: new Date().toISOString(),
       }
 
@@ -240,12 +211,54 @@ export function TodayPage() {
       {/* 1. Botanical Hero Banner with Yellowish-Green Glow & Calendar Strip */}
       <BotanicalHero
         selectedDate={selectedDate}
-        onSelectDate={(d) => {
-          wasDateManuallyPickedRef.current = !isSameDay(d, new Date())
-          setSelectedDate(d)
-        }}
+        onSelectDate={(d) => setSelectedDate(d)}
         userName={displayName}
       />
+
+      {/* Previous Day & Historical Day Banner: Prompt user to chat with What-If Agent */}
+      {!isToday && (
+        <div className="bg-[#FAF7F0] dark:bg-[#121D17] border border-[#CCD8B8] dark:border-[#22352B] rounded-2xl px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-2xs transition-colors">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-[#4A6225] text-white flex items-center justify-center text-xs">
+              <FontAwesomeIcon icon={faCalendarDays} />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB]">
+                Viewing Record for {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+              </p>
+              <p className="text-[11px] text-[#5C6E56] dark:text-[#A8BCA0]">
+                {completedCount} of {habitsForSelectedDate.length} habits completed ({dayOverallPercent}% execution)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto">
+            <button
+              type="button"
+              onClick={() => navigate(`/habits?date=${selectedDateStr}`)}
+              className="px-3 py-1.5 rounded-xl bg-[#EAE2D2] hover:bg-[#DDD3BF] dark:bg-[#1E3023] dark:hover:bg-[#28402F] text-[#3D5220] dark:text-[#E2EBD6] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+            >
+              <FontAwesomeIcon icon={faListCheck} className="text-[10px]" />
+              <span>Habits of this Day</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/scenarios?date=${selectedDateStr}`)}
+              className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-[#4A6225] hover:bg-[#3D521E] text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+            >
+              <FontAwesomeIcon icon={faCodeBranch} className="text-[10px]" />
+              <span>Ask What-If Agent</span>
+            </button>
+            <button
+              type="button"
+              onClick={resetToToday}
+              className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-[#16271D] text-[#5C6E56] dark:text-[#A8BCA0] hover:text-[#1D2516] dark:hover:text-white border border-[#CCD8B8] dark:border-[#22352B] text-xs font-semibold transition-colors cursor-pointer"
+            >
+              Back to Today
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 2. 4-Card Quick Stats Bar Directly Below Hero */}
       <QuickStatsBar
@@ -260,10 +273,7 @@ export function TodayPage() {
         allLogs={allLogs}
         habits={habits}
         selectedDate={selectedDate}
-        onSelectDate={(d) => {
-          wasDateManuallyPickedRef.current = !isSameDay(d, new Date())
-          setSelectedDate(d)
-        }}
+        onSelectDate={(d) => setSelectedDate(d)}
       />
 
       {/* 4. Horizontal Overview Row: 3 Balanced Cards Side-by-Side */}
@@ -272,7 +282,7 @@ export function TodayPage() {
           completed={completedCount}
           inProgress={inProgressCount}
           pending={pendingCount}
-          total={habits.length}
+          total={habitsForSelectedDate.length}
           overallPercent={dayOverallPercent}
           selectedDate={selectedDate}
         />
@@ -281,10 +291,7 @@ export function TodayPage() {
           allLogs={allLogs}
           habits={habits}
           selectedDate={selectedDate}
-          onSelectDate={(d) => {
-            wasDateManuallyPickedRef.current = !isSameDay(d, new Date())
-            setSelectedDate(d)
-          }}
+          onSelectDate={(d) => setSelectedDate(d)}
           onExpand={() => {
             setSelectedModalGraph('weekly')
             setModalInitialTab('analytics')
@@ -295,10 +302,7 @@ export function TodayPage() {
           allLogs={allLogs}
           habits={habits}
           selectedDate={selectedDate}
-          onSelectDate={(d) => {
-            wasDateManuallyPickedRef.current = !isSameDay(d, new Date())
-            setSelectedDate(d)
-          }}
+          onSelectDate={(d) => setSelectedDate(d)}
           onExpand={() => {
             setSelectedModalGraph('monthly')
             setModalInitialTab('analytics')
@@ -308,9 +312,11 @@ export function TodayPage() {
 
       {/* 5. Full-Width Horizontal Today's Habits Section (3-4 Cards Per Row Across Page) */}
       <TodaysHabitsCard
-        habits={habits}
+        habits={habitsForSelectedDate}
         logs={todayLogs}
-        onManageHabits={() => navigate('/habits')}
+        onManageHabits={(habitId) =>
+          navigate(`/habits?date=${selectedDateStr}${habitId ? `&habitId=${habitId}` : ''}`)
+        }
         selectedDate={selectedDate}
       />
 

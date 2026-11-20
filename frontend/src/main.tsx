@@ -7,22 +7,25 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { UserProfileProvider } from './contexts/UserProfileContext'
 import { SidebarProvider } from './contexts/SidebarContext'
 import { NotificationProvider } from './contexts/NotificationContext'
+import { DateProvider } from './contexts/DateContext'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
-      <ThemeProvider>
-        <AuthProvider>
-          <UserProfileProvider>
-            <SidebarProvider>
-              <NotificationProvider>
-                <App />
-              </NotificationProvider>
-            </SidebarProvider>
-          </UserProfileProvider>
-        </AuthProvider>
-      </ThemeProvider>
+      <DateProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <UserProfileProvider>
+              <SidebarProvider>
+                <NotificationProvider>
+                  <App />
+                </NotificationProvider>
+              </SidebarProvider>
+            </UserProfileProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </DateProvider>
     </BrowserRouter>
   </React.StrictMode>,
 )

@@ -19,6 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useSidebar } from '../../contexts/SidebarContext'
 import { useUserProfile } from '../../contexts/UserProfileContext'
 import { useAuth } from '../../contexts/AuthContext'
+import { useAppDate } from '../../contexts/DateContext'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: faHouse },
@@ -36,8 +37,16 @@ export function Sidebar() {
   const { isOpen, isMobileOpen, closeSidebar, openSidebar, closeMobile, openMobile } = useSidebar()
   const { fullName, email, avatarUrl } = useUserProfile()
   const { signOut } = useAuth()
+  const { selectedDateStr, isToday } = useAppDate()
 
   const isDashboard = location.pathname === '/dashboard'
+
+  const getNavHref = (href: string) => {
+    if (!isToday && selectedDateStr && ['/dashboard', '/habits', '/scenarios', '/insights'].includes(href)) {
+      return `${href}?date=${selectedDateStr}`
+    }
+    return href
+  }
 
   return (
     <>
@@ -127,7 +136,7 @@ export function Sidebar() {
               return (
                 <NavLink
                   key={item.name}
-                  to={item.href}
+                  to={getNavHref(item.href)}
                   className={`group relative w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 cursor-pointer ${
                     isActive
                       ? 'bg-emerald-50 dark:bg-[#3A5222] text-emerald-700 dark:text-[#E2EBD6] shadow-2xs font-bold border border-emerald-200/80 dark:border-[#4E6E2E]'
@@ -227,7 +236,7 @@ export function Sidebar() {
                 return (
                   <NavLink
                     key={item.name}
-                    to={item.href}
+                    to={getNavHref(item.href)}
                     onClick={closeMobile}
                     className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold transition-all duration-200 ${
                       isActive

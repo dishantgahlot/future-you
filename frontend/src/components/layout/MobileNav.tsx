@@ -9,12 +9,15 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import { motion } from 'framer-motion'
 
+import { useAppDate } from '../../contexts/DateContext'
+
 interface MobileNavProps {
   onOpenAddModal?: () => void
 }
 
 export function MobileNav({ onOpenAddModal }: MobileNavProps) {
   const location = useLocation()
+  const { selectedDateStr, isToday } = useAppDate()
 
   const navItems = [
     { name: 'Today', href: '/dashboard', icon: faHouse },
@@ -22,6 +25,13 @@ export function MobileNav({ onOpenAddModal }: MobileNavProps) {
     { name: 'Insights', href: '/insights', icon: faChartSimple },
     { name: 'Settings', href: '/profile', icon: faUser },
   ]
+
+  const getNavHref = (href: string) => {
+    if (!isToday && selectedDateStr && ['/dashboard', '/habits', '/insights'].includes(href)) {
+      return `${href}?date=${selectedDateStr}`
+    }
+    return href
+  }
 
   return (
     <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 pointer-events-none">
@@ -32,7 +42,7 @@ export function MobileNav({ onOpenAddModal }: MobileNavProps) {
           return (
             <NavLink
               key={item.name}
-              to={item.href}
+              to={getNavHref(item.href)}
               className="flex flex-col items-center justify-center flex-1 py-1 relative group"
             >
               <div
@@ -80,7 +90,7 @@ export function MobileNav({ onOpenAddModal }: MobileNavProps) {
           return (
             <NavLink
               key={item.name}
-              to={item.href}
+              to={getNavHref(item.href)}
               className="flex flex-col items-center justify-center flex-1 py-1 relative group"
             >
               <div
