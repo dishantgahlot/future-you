@@ -575,23 +575,6 @@ export function InsightsPage() {
           </button>
         </div>
 
-        {isGenerating && (
-          <div className="p-4 rounded-2xl bg-[#FAF8F3] dark:bg-[#15231C] border border-[#E8E2D5] dark:border-[#223326] flex items-center gap-3.5 transition-colors">
-            <div className="w-9 h-9 rounded-xl bg-[#EEF4E8] dark:bg-[#1D2D23] flex items-center justify-center text-[#738541] dark:text-[#9EB868] shrink-0">
-              <FontAwesomeIcon icon={faRotateRight} className="w-4 h-4 animate-spin" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center justify-between text-xs font-semibold text-[#1D2516] dark:text-[#F5F2EB] mb-1.5">
-                <span>Synthesizing {viewPeriod === 'weekly' ? 'Weekly Growth Report' : 'Monthly Habit Diagnosis'}...</span>
-                <span className="text-[11px] font-bold text-[#738541] dark:text-[#9EB868]">Fast AI Engine</span>
-              </div>
-              <div className="w-full bg-[#E8E2D5] dark:bg-[#223326] h-1.5 rounded-full overflow-hidden">
-                <div className="bg-[#738541] dark:bg-[#9EB868] h-full rounded-full animate-pulse w-4/5" />
-              </div>
-            </div>
-          </div>
-        )}
-
         {reportError && (
           <div className="p-3 rounded-xl bg-[#FDF2F0] border border-[#F5C2B8] text-xs font-semibold text-[#B44C3A]">
             {reportError}
