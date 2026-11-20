@@ -66,7 +66,7 @@ future-you/
 - Node.js 18+
 - npm or yarn
 - Supabase account
-- Groq API key
+- Gemini API key
 
 ### Installation
 
