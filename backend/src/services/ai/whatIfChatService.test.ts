@@ -65,4 +65,31 @@ describe('whatIfChatService - Specific Date Data & What-If Chat', () => {
     expect(res.reply).toContain('85%')
     expect(res.reply).toContain('5')
   }, 10000)
+
+  it('handles mathematical calculations through the Future You compounding lens', async () => {
+    const res = await simulateWhatIfScenario({
+      message: 'what is 2 * 3?',
+      habits: sixHabits,
+      logs: nov19Logs,
+      userName: 'Dishu',
+      apiKey: 'your_gemini_api_key',
+    })
+
+    expect(res.reply).toContain('6')
+    expect(res.reply.toLowerCase()).toContain('compound')
+  })
+
+  it('enforces clean slate on empty days with 0 habits', async () => {
+    const res = await simulateWhatIfScenario({
+      message: 'what were my habits on 18 Nov?',
+      habits: sixHabits.map((h) => ({ ...h, target_date: '2026-11-19' })),
+      logs: nov19Logs,
+      userName: 'Dishu',
+      apiKey: 'your_gemini_api_key',
+    })
+
+    expect(res).toBeDefined()
+    expect(res.reply).toContain('2026-11-18')
+    expect(res.reply).toContain('**0%**')
+  })
 })
