@@ -11,6 +11,7 @@ export interface Habit {
   color_theme?: string
   icon: string
   is_active: boolean
+  target_date?: string
   created_at: string
   updated_at: string
 }

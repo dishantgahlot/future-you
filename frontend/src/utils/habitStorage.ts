@@ -154,63 +154,72 @@ export function findLogForHabitAndDate(
 }
 
 /**
- * Extracts the calendar date (YYYY-MM-DD) when a habit was created or first logged.
+ * Resolves the single, unique calendar date (YYYY-MM-DD) that a habit belongs to.
+ * Each habit is strictly unique to one date and does not bleed into other days.
  */
-export function getHabitCreatedDate(habit: Habit, logs?: HabitLog[]): string {
+export function getHabitDate(habit: Habit, logs?: HabitLog[]): string {
+  if (!habit) return ''
+
+  // 1. Explicit target_date or date property
+  if ((habit as any).target_date) {
+    const d = String((habit as any).target_date).trim().slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d
+  }
+  if ((habit as any).date) {
+    const d = String((habit as any).date).trim().slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d
+  }
+
+  // 2. Check logs associated with this habit
+  // If the user recorded progress or completed this habit on a date, anchor to that logged date!
+  if (logs && Array.isArray(logs)) {
+    const habitLogs = logs.filter((l) => l.habit_id === habit.id)
+    if (habitLogs.length > 0) {
+      // Find log with active user progress (actual > 0 or completed) first
+      const activeLog = habitLogs.find(
+        (l) => (l.actual_value !== undefined && l.actual_value > 0) || l.completion_status
+      )
+      if (activeLog) {
+        const d = String(activeLog.log_date || (activeLog as any).date || '').slice(0, 10)
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d
+      }
+
+      // Or any log with a valid date
+      const validLogs = habitLogs
+        .map((l) => String(l.log_date || (l as any).date || '').slice(0, 10))
+        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+      if (validLogs.length > 0) {
+        return validLogs[0]
+      }
+    }
+  }
+
+  // 3. Fallback to habit.created_at
   if (habit.created_at) {
     const raw = String(habit.created_at).trim()
     const match = raw.match(/^\d{4}-\d{2}-\d{2}/)
     if (match) return match[0]
   }
-  if (logs && Array.isArray(logs)) {
-    const habitLogs = logs.filter((l) => l.habit_id === habit.id)
-    if (habitLogs.length > 0) {
-      const dates = habitLogs
-        .map((l) => String(l.log_date || (l as any).date || '').slice(0, 10))
-        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
-        .sort()
-      if (dates.length > 0) return dates[0]
-    }
-  }
+
   return ''
 }
 
+export const getHabitCreatedDate = getHabitDate
+
 /**
  * Returns habits for a specific date (YYYY-MM-DD).
- * Each new day starts fresh with 0 habits so the user can begin with a clean slate
- * and add new habits specifically for that day.
- * Historical days retain the exact habits and logged progress from that day.
+ * Every day's added habits are strictly unique to that day and do not persist across dates.
+ * Past days show only the habits created for that specific day.
  */
 export function getHabitsForDate(habits: Habit[], dateStr?: string, logs?: HabitLog[]): Habit[] {
   if (!habits || !Array.isArray(habits)) return []
   if (!dateStr) return habits
 
   const targetDate = dateStr.slice(0, 10)
-  const todayDate = new Date().toISOString().slice(0, 10)
-  const isHistorical = targetDate < todayDate
 
   return habits.filter((h) => {
-    // 1. Habit was explicitly created on this target date
-    const createdDate = getHabitCreatedDate(h, logs)
-    if (createdDate === targetDate) return true
-
-    // 2. Habit has recorded log activity for this target date
-    if (logs && Array.isArray(logs)) {
-      if (isHistorical) {
-        // On historical days, any logged record (completed or zero/missed) retains the habit
-        return logs.some((l) => l.habit_id === h.id && isLogForDate(l, targetDate))
-      } else {
-        // On today or future days, only retain if the user explicitly recorded progress on that day
-        return logs.some(
-          (l) =>
-            l.habit_id === h.id &&
-            isLogForDate(l, targetDate) &&
-            ((l.actual_value !== undefined && l.actual_value > 0) || l.completion_status)
-        )
-      }
-    }
-
-    return false
+    const habitDate = getHabitDate(h, logs)
+    return habitDate === targetDate
   })
 }
 
@@ -235,6 +244,7 @@ export function copyHabitsToDate(
     ...sh,
     id: crypto.randomUUID(),
     user_id: uid,
+    target_date: targetDateClean,
     created_at: `${targetDateClean}T12:00:00.000Z`,
     updated_at: new Date().toISOString(),
   }))

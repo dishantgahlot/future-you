@@ -725,8 +725,13 @@ export async function simulateWhatIfScenario(
     let missedCount = 0
     let progressSum = 0
 
-    // Filter habits relevant to dateStr
+    // Filter habits strictly relevant to dateStr
     const relevantHabits = habits.filter((h: any) => {
+      // 1. Explicit target_date or date
+      const targetDate = String(h.target_date || h.date || '').slice(0, 10)
+      if (targetDate && targetDate === dateStr) return true
+
+      // 2. Has log on dateStr
       const hId = String(h.id)
       const hasLog = logs.some((l: any) => {
         const rawDate = String(l.log_date || l.date || '')
@@ -734,6 +739,7 @@ export async function simulateWhatIfScenario(
       })
       if (hasLog) return true
 
+      // 3. Fallback created_at
       const createdDate = String(h.created_at || '').slice(0, 10)
       if (createdDate && createdDate === dateStr) return true
 

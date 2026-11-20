@@ -426,6 +426,7 @@ export function Habits() {
         color_theme: assignedTheme,
         icon: data.icon || 'leaf',
         is_active: true,
+        target_date: selectedDateStr,
         created_at: habitCreatedAt,
         updated_at: new Date().toISOString(),
       }
