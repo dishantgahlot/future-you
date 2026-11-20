@@ -208,8 +208,9 @@ export const getHabitCreatedDate = getHabitDate
 
 /**
  * Returns habits for a specific date (YYYY-MM-DD).
- * Every day's added habits are strictly unique to that day and do not persist across dates.
- * Past days show only the habits created for that specific day.
+ * Habits are enduring recurring routines: once created, active habits continue
+ * into all subsequent days so users can track their routines seamlessly every day.
+ * On historical dates before a habit was created, it is not displayed unless a log exists for that day.
  */
 export function getHabitsForDate(habits: Habit[], dateStr?: string, logs?: HabitLog[]): Habit[] {
   if (!habits || !Array.isArray(habits)) return []
@@ -217,10 +218,60 @@ export function getHabitsForDate(habits: Habit[], dateStr?: string, logs?: Habit
 
   const targetDate = dateStr.slice(0, 10)
 
-  return habits.filter((h) => {
-    const habitDate = getHabitDate(h, logs)
-    return habitDate === targetDate
+  // Filter habits applicable on or before targetDate
+  const applicable = habits.filter((h) => {
+    // 1. If habit has a log on targetDate, it definitely belongs to this day
+    if (logs && Array.isArray(logs)) {
+      if (logs.some((l) => l.habit_id === h.id && isLogForDate(l, targetDate))) {
+        return true
+      }
+    }
+
+    // 2. Start date of the habit
+    const startDate = getHabitDate(h, logs)
+
+    // 3. If targetDate is strictly before the habit's creation/start date, it didn't exist yet
+    if (startDate && startDate > targetDate) {
+      return false
+    }
+
+    // 4. On or after its start date, habit is active
+    return h.is_active !== false
   })
+
+  // Deduplicate by name if identical routines exist from legacy copy actions:
+  // Pick the one closest to targetDate (or with active logs on targetDate)
+  const deduped: Habit[] = []
+  const nameMap = new Map<string, Habit>()
+
+  for (const h of applicable) {
+    const key = h.name.trim().toLowerCase()
+    const existing = nameMap.get(key)
+    if (!existing) {
+      nameMap.set(key, h)
+      deduped.push(h)
+    } else {
+      // If h has a log on targetDate, prefer h
+      const hHasLog = logs?.some((l) => l.habit_id === h.id && isLogForDate(l, targetDate))
+      const exHasLog = logs?.some((l) => l.habit_id === existing.id && isLogForDate(l, targetDate))
+      if (hHasLog && !exHasLog) {
+        nameMap.set(key, h)
+        const idx = deduped.findIndex((d) => d.id === existing.id)
+        if (idx >= 0) deduped[idx] = h
+      } else {
+        // Prefer the one whose start date is closer to targetDate
+        const hDate = getHabitDate(h, logs)
+        const exDate = getHabitDate(existing, logs)
+        if (hDate === targetDate && exDate !== targetDate) {
+          nameMap.set(key, h)
+          const idx = deduped.findIndex((d) => d.id === existing.id)
+          if (idx >= 0) deduped[idx] = h
+        }
+      }
+    }
+  }
+
+  return deduped
 }
 
 /**

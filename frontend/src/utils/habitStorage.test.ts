@@ -151,29 +151,33 @@ describe('Habit Date Scoping & Strict Day Isolation', () => {
     expect(getHabitDate(untargetedHabit, sampleLogs)).toBe('2026-11-19')
   })
 
-  it('enforces strict day isolation: November 19 only returns habits for the 19th', () => {
+  it('enforces historical creation day isolation: November 19 only returns habits created on or before the 19th', () => {
     const nov19Habits = getHabitsForDate(sampleHabits, '2026-11-19', sampleLogs)
     expect(nov19Habits.length).toBe(2)
     expect(nov19Habits.map((h) => h.name)).toEqual(['Morning Run', 'Hydration'])
     expect(nov19Habits.some((h) => h.name === 'Meditation')).toBe(false)
   })
 
-  it('enforces strict day isolation: November 20 only returns habits for the 20th', () => {
+  it('persists active habits forward: November 20 includes existing active habits plus new ones', () => {
     const nov20Habits = getHabitsForDate(sampleHabits, '2026-11-20', sampleLogs)
-    expect(nov20Habits.length).toBe(1)
-    expect(nov20Habits[0].name).toBe('Meditation')
-    expect(nov20Habits.some((h) => h.name === 'Morning Run')).toBe(false)
+    expect(nov20Habits.length).toBe(3)
+    expect(nov20Habits.some((h) => h.name === 'Meditation')).toBe(true)
+    expect(nov20Habits.some((h) => h.name === 'Morning Run')).toBe(true)
+    expect(nov20Habits.some((h) => h.name === 'Hydration')).toBe(true)
   })
 
-  it('returns clean slate (0 habits) for dates with no habits created', () => {
+  it('returns clean slate (0 habits) for historical dates before habits were created', () => {
     const nov18Habits = getHabitsForDate(sampleHabits, '2026-11-18', sampleLogs)
     expect(nov18Habits).toEqual([])
 
     const nov17Habits = getHabitsForDate(sampleHabits, '2026-11-17', sampleLogs)
     expect(nov17Habits).toEqual([])
+  })
 
+  it('active habits continue into subsequent days so users never lose routines on day rollovers', () => {
     const nov21Habits = getHabitsForDate(sampleHabits, '2026-11-21', sampleLogs)
-    expect(nov21Habits).toEqual([])
+    expect(nov21Habits.length).toBe(3)
+    expect(nov21Habits.map((h) => h.name)).toEqual(['Morning Run', 'Hydration', 'Meditation'])
   })
 
   it('accurately parses date strings in ISO, short format, and alternate field names', () => {

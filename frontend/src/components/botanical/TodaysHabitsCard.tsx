@@ -213,11 +213,11 @@ export function TodaysHabitsCard({
             </div>
             <div>
               <h4 className="font-serif font-bold text-base text-[#1D2516] dark:text-[#F5F2EB]">
-                {isToday ? 'A Fresh Start for Today' : 'No habits recorded'}
+                {isToday ? 'No Habits Added Yet' : 'No habits recorded'}
               </h4>
               <p className="text-xs text-[#6F6759] dark:text-[#A8BCA0] mt-0.5 max-w-xs mx-auto">
                 {isToday
-                  ? "Every day begins fresh. Open Habit Studio to configure today's habits or copy your routine."
+                  ? "You don't have any active habits yet. Add your daily routines in Habit Studio to start tracking your growth."
                   : 'No habits were active or logged on this specific date.'}
               </p>
             </div>

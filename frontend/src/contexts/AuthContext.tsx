@@ -247,7 +247,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (!error && data?.user) {
-      // Existing user signing in - mark onboarding completed so they go straight to dashboard
+      // Existing user signing in - set user immediately and mark onboarding completed
+      setUser(data.user)
       setOnboardingCompleted(true)
       localStorage.setItem(`future_you_onboarded_${data.user.id}`, 'true')
       localStorage.setItem('future_you_active_user_id', data.user.id)

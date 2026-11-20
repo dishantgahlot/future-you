@@ -1004,14 +1004,14 @@ export function Habits() {
               {searchQuery
                 ? 'No habits found'
                 : isToday
-                ? 'A Fresh Start for Today'
+                ? 'No Habits Added Yet'
                 : `No habits recorded for ${format(parseISO(selectedDateStr), 'MMMM d')}`}
             </h3>
             <p className="text-xs text-[#6F6759] dark:text-[#9BAF90] max-w-md mx-auto mt-1">
               {searchQuery
                 ? `No habits matching "${searchQuery}". Clear your search to see all routines.`
                 : isToday
-                ? 'Every new day begins with a clean slate. Add your habits for today, or copy your routines from yesterday with one click.'
+                ? "You haven't created any daily routines yet. Add your habits to start tracking your daily progress and building consistency."
                 : 'No habits were logged or active on this specific date.'}
             </p>
           </div>
