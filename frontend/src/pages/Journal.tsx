@@ -18,6 +18,8 @@ import {
 import { format, subDays } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
 import { useAppDate } from '../contexts/DateContext'
+import { syncJournalToRemote } from '../services/dataSync'
+import { supabase } from '../services/supabase'
 import {
   type JournalEntry,
   JOURNAL_STORAGE_KEY,
@@ -60,35 +62,72 @@ export function Journal() {
   const [editTitle, setEditTitle] = useState('')
   const [editContent, setEditContent] = useState('')
 
-  // Sync entries when user changes
+  // Sync entries from remote profile preferences & storage when user changes
   useEffect(() => {
-    try {
-      const specific = localStorage.getItem(userStorageKey)
-      if (specific) {
-        const parsed = JSON.parse(specific)
-        if (Array.isArray(parsed)) {
-          setEntries(parsed)
-          return
-        }
-      }
-      const legacy = localStorage.getItem(JOURNAL_STORAGE_KEY)
-      if (legacy) {
-        const parsed = JSON.parse(legacy)
-        if (Array.isArray(parsed)) {
-          setEntries(parsed)
-          return
-        }
-      }
-    } catch {}
-    setEntries(DEFAULT_JOURNAL_ENTRIES)
-  }, [userStorageKey])
+    let isMounted = true
 
-  // Persist entries to localStorage
+    const loadEntries = async () => {
+      // 1. Try local storage first
+      try {
+        const specific = localStorage.getItem(userStorageKey)
+        if (specific) {
+          const parsed = JSON.parse(specific)
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            if (isMounted) setEntries(parsed)
+          }
+        }
+      } catch {}
+
+      // 2. Fetch remote journal entries from Supabase profile preferences
+      if (user?.id && user.id !== 'demo-user-1') {
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('preferences')
+            .eq('id', user.id)
+            .maybeSingle()
+
+          if (!error && data?.preferences?.journal_entries && Array.isArray(data.preferences.journal_entries)) {
+            const remote: JournalEntry[] = data.preferences.journal_entries
+            if (remote.length > 0 && isMounted) {
+              setEntries((prev) => {
+                const map = new Map<string, JournalEntry>()
+                remote.forEach((rj) => map.set(rj.id, rj))
+                prev.forEach((pj) => {
+                  if (!map.has(pj.id) && !pj.id.startsWith('entry-')) {
+                    map.set(pj.id, pj)
+                  }
+                })
+                const merged = Array.from(map.values())
+                try {
+                  localStorage.setItem(userStorageKey, JSON.stringify(merged))
+                } catch {}
+                return merged
+              })
+            }
+          }
+        } catch (e) {
+          console.warn('Journal remote load warning:', e)
+        }
+      }
+    }
+
+    loadEntries()
+    return () => {
+      isMounted = false
+    }
+  }, [userStorageKey, user?.id])
+
+  // Persist entries to localStorage and sync to Supabase
   useEffect(() => {
     try {
       localStorage.setItem(userStorageKey, JSON.stringify(entries))
     } catch {}
-  }, [entries, userStorageKey])
+
+    if (user?.id && user.id !== 'demo-user-1') {
+      syncJournalToRemote(user.id, entries).catch(() => {})
+    }
+  }, [entries, userStorageKey, user?.id])
 
   // Quick Day navigation pills (matching Habits Studio)
   const quickDayOptions = useMemo(() => {

@@ -411,13 +411,34 @@ export async function fetchHabits(): Promise<{ data: Habit[] | null; error: stri
   try {
     const headers = await getAuthHeaders()
     const response = await fetch(`${API_BASE}/habits`, { method: 'GET', headers })
-    return handleResponse<Habit[]>(response)
+    const res = await handleResponse<Habit[]>(response)
+    if (!res.error && res.data && Array.isArray(res.data) && res.data.length > 0) {
+      return res
+    }
+  } catch {}
+
+  // Direct Supabase fallback
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data, error } = await supabase
+        .from('habits')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+      if (!error && data) {
+        return { data: data as Habit[], error: null }
+      }
+    }
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : 'Unknown error' }
   }
+  return { data: [], error: null }
 }
 
-export async function createHabit(habit: HabitFormData): Promise<{ data: Habit | null; error: string | null }> {
+export async function createHabit(
+  habit: HabitFormData & { id?: string; target_date?: string; color_theme?: string }
+): Promise<{ data: Habit | null; error: string | null }> {
   try {
     const headers = await getAuthHeaders()
     const response = await fetch(`${API_BASE}/habits`, {
@@ -425,13 +446,48 @@ export async function createHabit(habit: HabitFormData): Promise<{ data: Habit |
       headers,
       body: JSON.stringify(habit),
     })
-    return handleResponse<Habit>(response)
+    const res = await handleResponse<Habit>(response)
+    if (!res.error && res.data) return res
+  } catch {}
+
+  // Direct Supabase fallback
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const insertData: any = {
+        user_id: user.id,
+        name: habit.name,
+        description: habit.description || '',
+        category: habit.category,
+        frequency: habit.frequency || 'daily',
+        target_value: habit.target_value,
+        unit: habit.unit,
+        color: habit.color || '#738541',
+        icon: habit.icon || 'leaf',
+        is_active: true,
+        target_date: habit.target_date || new Date().toISOString().slice(0, 10),
+        color_theme: habit.color_theme || 'cream',
+      }
+      if (habit.id) insertData.id = habit.id
+
+      const { data, error } = await supabase
+        .from('habits')
+        .upsert(insertData, { onConflict: 'id' })
+        .select()
+        .single()
+      if (!error && data) return { data: data as Habit, error: null }
+      if (error) return { data: null, error: error.message }
+    }
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : 'Unknown error' }
   }
+  return { data: null, error: 'Could not create habit' }
 }
 
-export async function updateHabit(id: string, habit: Partial<HabitFormData>): Promise<{ data: Habit | null; error: string | null }> {
+export async function updateHabit(
+  id: string,
+  habit: Partial<HabitFormData> & { target_date?: string; color_theme?: string; is_active?: boolean }
+): Promise<{ data: Habit | null; error: string | null }> {
   try {
     const headers = await getAuthHeaders()
     const response = await fetch(`${API_BASE}/habits/${id}`, {
@@ -439,20 +495,74 @@ export async function updateHabit(id: string, habit: Partial<HabitFormData>): Pr
       headers,
       body: JSON.stringify(habit),
     })
-    return handleResponse<Habit>(response)
+    const res = await handleResponse<Habit>(response)
+    if (!res.error && res.data) return res
+  } catch {}
+
+  // Direct Supabase fallback
+  try {
+    const { data, error } = await supabase
+      .from('habits')
+      .update({ ...habit, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+    if (!error && data) return { data: data as Habit, error: null }
+    if (error) return { data: null, error: error.message }
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : 'Unknown error' }
   }
+  return { data: null, error: 'Could not update habit' }
 }
 
 export async function deleteHabit(id: string): Promise<{ data: null; error: string | null }> {
   try {
     const headers = await getAuthHeaders()
     const response = await fetch(`${API_BASE}/habits/${id}`, { method: 'DELETE', headers })
-    return handleResponse<null>(response)
+    const res = await handleResponse<null>(response)
+    if (!res.error) return res
+  } catch {}
+
+  // Direct Supabase fallback
+  try {
+    await supabase.from('habit_logs').delete().eq('habit_id', id)
+    const { error } = await supabase.from('habits').delete().eq('id', id)
+    if (!error) return { data: null, error: null }
+    return { data: null, error: error.message }
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : 'Unknown error' }
   }
+}
+
+export async function fetchAllHabitLogs(): Promise<{ data: HabitLog[] | null; error: string | null }> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data, error } = await supabase
+        .from('habit_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('log_date', { ascending: false })
+      if (!error && data) {
+        const normalized: HabitLog[] = data.map((l: any) => ({
+          id: l.id,
+          habit_id: l.habit_id,
+          user_id: l.user_id,
+          log_date: String(l.log_date).slice(0, 10),
+          actual_value: Number(l.actual_value !== undefined ? l.actual_value : (l.value ?? 0)),
+          target_value: Number(l.target_value || 1),
+          completion_status: Boolean(l.completion_status),
+          notes: l.notes || null,
+          created_at: l.created_at,
+          updated_at: l.updated_at,
+        }))
+        return { data: normalized, error: null }
+      }
+    }
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : 'Unknown error' }
+  }
+  return { data: [], error: null }
 }
 
 export async function fetchHabitLogs(habitId: string, startDate?: string, endDate?: string): Promise<{ data: HabitLog[] | null; error: string | null }> {
@@ -462,10 +572,21 @@ export async function fetchHabitLogs(habitId: string, startDate?: string, endDat
     if (startDate) params.append('startDate', startDate)
     if (endDate) params.append('endDate', endDate)
     const response = await fetch(`${API_BASE}/habits/${habitId}/logs?${params}`, { method: 'GET', headers })
-    return handleResponse<HabitLog[]>(response)
+    const res = await handleResponse<HabitLog[]>(response)
+    if (!res.error && res.data) return res
+  } catch {}
+
+  // Direct Supabase fallback
+  try {
+    let query = supabase.from('habit_logs').select('*').eq('habit_id', habitId)
+    if (startDate) query = query.gte('log_date', startDate)
+    if (endDate) query = query.lte('log_date', endDate)
+    const { data, error } = await query.order('log_date', { ascending: false })
+    if (!error && data) return { data: data as HabitLog[], error: null }
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : 'Unknown error' }
   }
+  return { data: [], error: null }
 }
 
 export async function upsertHabitLog(
@@ -475,23 +596,58 @@ export async function upsertHabitLog(
   notes?: string,
   targetValue?: number
 ): Promise<{ data: HabitLog | null; error: string | null }> {
+  const cleanDate = logDate.slice(0, 10)
+  const target = targetValue && targetValue > 0 ? targetValue : 1
+  const isComplete = actualValue >= target
+
   try {
     const headers = await getAuthHeaders()
     const response = await fetch(`${API_BASE}/habits/${habitId}/logs`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        date: logDate,
+        date: cleanDate,
         value: actualValue,
         actual_value: actualValue,
-        target_value: targetValue,
+        target_value: target,
         notes,
       }),
     })
-    return handleResponse<HabitLog>(response)
+    const res = await handleResponse<HabitLog>(response)
+    if (!res.error && res.data) return res
+  } catch {}
+
+  // Direct Supabase fallback
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data, error } = await supabase
+        .from('habit_logs')
+        .upsert(
+          {
+            habit_id: habitId,
+            user_id: user.id,
+            log_date: cleanDate,
+            logged_at: new Date().toISOString(),
+            actual_value: actualValue,
+            value: actualValue,
+            target_value: target,
+            progress_percentage: target > 0 ? Math.round((actualValue / target) * 100 * 10) / 10 : 0,
+            completion_status: isComplete,
+            notes: notes || null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'habit_id,log_date' }
+        )
+        .select()
+        .single()
+      if (!error && data) return { data: data as HabitLog, error: null }
+      if (error) return { data: null, error: error.message }
+    }
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : 'Unknown error' }
   }
+  return { data: null, error: 'Could not save habit log' }
 }
 
 export async function fetchHabitProgressSummary(): Promise<{ data: UserHabitProgressSummary | null; error: string | null }> {

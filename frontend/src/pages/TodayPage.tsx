@@ -13,10 +13,10 @@ import {
   isLogForDate,
 } from '../utils/habitStorage'
 import {
-  fetchHabits,
   createHabit,
   updateHabit,
 } from '../services/api'
+import { syncUserData } from '../services/dataSync'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserProfile } from '../contexts/UserProfileContext'
 import { useAppDate } from '../contexts/DateContext'
@@ -44,28 +44,14 @@ export function TodayPage() {
   const [selectedModalGraph, setSelectedModalGraph] = useState<'weekly' | 'monthly' | null>(null)
   const [modalInitialTab, setModalInitialTab] = useState<'analytics' | 'report'>('analytics')
 
-  // Load habits from backend / Supabase when available
-  const loadRemoteHabits = useCallback(async () => {
+  // Load all user habits & logs from Supabase
+  const loadRemoteData = useCallback(async () => {
     if (!user) return
     try {
-      const res = await fetchHabits()
-      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-        const local = getLocalHabits(user.id)
-        const remoteIds = new Set(res.data.map((rh) => rh.id))
-        const localOnly = local.filter((lh) => !remoteIds.has(lh.id))
-        const merged = [
-          ...res.data.map((rh) => {
-            const match = local.find((lh) => lh.id === rh.id)
-            return {
-              ...rh,
-              target_date: match?.target_date || (rh as any).target_date,
-              color_theme: match?.color_theme || rh.color_theme,
-            }
-          }),
-          ...localOnly,
-        ]
-        setHabits(merged)
-        saveLocalHabits(merged, user.id)
+      const res = await syncUserData(user.id)
+      if (res.success) {
+        setHabits(res.habits)
+        setAllLogs(res.logs)
       }
     } catch {
       // Graceful fallback to local habits
@@ -73,8 +59,8 @@ export function TodayPage() {
   }, [user])
 
   useEffect(() => {
-    loadRemoteHabits()
-  }, [loadRemoteHabits])
+    loadRemoteData()
+  }, [loadRemoteData])
 
   // Listen to mobile nav quick add event
   useEffect(() => {
@@ -204,6 +190,7 @@ export function TodayPage() {
 
       try {
         await createHabit({
+          id: newHabit.id,
           name: newHabit.name,
           description: newHabit.description || '',
           category: newHabit.category,
@@ -211,7 +198,9 @@ export function TodayPage() {
           target_value: newHabit.target_value,
           unit: newHabit.unit,
           color: newHabit.color,
+          color_theme: (newHabit as any).color_theme || 'cream',
           icon: newHabit.icon,
+          target_date: newHabit.target_date,
         })
       } catch {
         // Saved locally

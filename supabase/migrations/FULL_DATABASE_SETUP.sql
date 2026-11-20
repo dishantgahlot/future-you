@@ -42,11 +42,13 @@ CREATE TABLE IF NOT EXISTS public.habits (
     target_value NUMERIC NOT NULL DEFAULT 1 CHECK (target_value > 0),
     unit TEXT NOT NULL DEFAULT 'times',
     color TEXT DEFAULT '#738541',
+    color_theme TEXT DEFAULT 'cream',
     icon TEXT DEFAULT '🌿',
     is_active BOOLEAN DEFAULT TRUE,
+    target_date TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT uq_habits_user_name UNIQUE (user_id, name)
+    CONSTRAINT uq_habits_user_name_date UNIQUE (user_id, name, target_date)
 );
 
 -- 4. Recreate Habit Logs with unified columns for frontend & backend compatibility
@@ -60,6 +62,7 @@ CREATE TABLE public.habit_logs (
     logged_at TIMESTAMPTZ DEFAULT NOW(),
     actual_value NUMERIC NOT NULL DEFAULT 0 CHECK (actual_value >= 0),
     value NUMERIC NOT NULL DEFAULT 0,
+    target_value NUMERIC NOT NULL DEFAULT 1,
     completion_status BOOLEAN DEFAULT FALSE,
     notes TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),

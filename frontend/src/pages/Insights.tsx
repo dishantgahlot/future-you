@@ -26,9 +26,11 @@ import {
   faAppleWhole,
 } from '@fortawesome/free-solid-svg-icons'
 import { format, startOfWeek, addDays, getDaysInMonth } from 'date-fns'
-import { getLocalHabits, getAllLocalLogs } from '../utils/habitStorage'
+import { getLocalHabits, getAllLocalLogs, getActiveUserId } from '../utils/habitStorage'
 import { useUserProfile } from '../contexts/UserProfileContext'
 import { useAppDate } from '../contexts/DateContext'
+import { useAuth } from '../contexts/AuthContext'
+import { syncUserData } from '../services/dataSync'
 import { aiApi } from '../services/api'
 
 function getHabitFAIcon(name: string, cat?: string) {
@@ -96,6 +98,7 @@ interface AIProgressReport {
 }
 
 export function InsightsPage() {
+  const { user } = useAuth()
   const { fullName } = useUserProfile()
   const { selectedDate } = useAppDate()
   const [viewPeriod, setViewPeriod] = useState<'weekly' | 'monthly'>('weekly')
@@ -112,13 +115,30 @@ export function InsightsPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [reportError, setReportError] = useState<string | null>(null)
 
-  const [habits, setHabits] = useState(() => getLocalHabits())
-  const [allLogs, setAllLogs] = useState(() => getAllLocalLogs())
+  const activeUid = user?.id || getActiveUserId()
+  const [habits, setHabits] = useState(() => getLocalHabits(activeUid))
+  const [allLogs, setAllLogs] = useState(() => getAllLocalLogs(activeUid))
+
+  useEffect(() => {
+    const uid = user?.id || getActiveUserId()
+    setHabits(getLocalHabits(uid))
+    setAllLogs(getAllLocalLogs(uid))
+
+    if (user?.id && user.id !== 'demo-user-1') {
+      syncUserData(user.id).then((res) => {
+        if (res.success) {
+          setHabits(getLocalHabits(user.id))
+          setAllLogs(getAllLocalLogs(user.id))
+        }
+      })
+    }
+  }, [user?.id])
 
   useEffect(() => {
     const handleSync = () => {
-      setHabits(getLocalHabits())
-      setAllLogs(getAllLocalLogs())
+      const uid = user?.id || getActiveUserId()
+      setHabits(getLocalHabits(uid))
+      setAllLogs(getAllLocalLogs(uid))
     }
     window.addEventListener('future-you-storage-updated', handleSync)
     window.addEventListener('storage', handleSync)
@@ -128,7 +148,7 @@ export function InsightsPage() {
       window.removeEventListener('storage', handleSync)
       window.removeEventListener('focus', handleSync)
     }
-  }, [])
+  }, [user?.id])
 
   const weekStart = useMemo(() => {
     return startOfWeek(selectedDate, { weekStartsOn: 1 })

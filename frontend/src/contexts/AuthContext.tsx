@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { supabase } from '../services/supabase'
 import { API_BASE } from '../services/api'
+import { syncUserData } from '../services/dataSync'
 import type { User } from '@supabase/supabase-js'
 
 interface AuthContextType {
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) {
         localStorage.setItem('future_you_active_user_id', session.user.id)
         setUser(session.user)
+        syncUserData(session.user.id).catch(() => {})
       } else {
         const savedActive = localStorage.getItem('future_you_active_user')
         const savedDemo = localStorage.getItem('future_you_demo_user')
@@ -97,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) {
         localStorage.setItem('future_you_active_user_id', session.user.id)
         setUser(session.user)
+        syncUserData(session.user.id).catch(() => {})
       } else {
         localStorage.removeItem('future_you_active_user_id')
         setUser(null)
@@ -239,6 +242,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Existing user signing in - mark onboarding completed so they go straight to dashboard
       setOnboardingCompleted(true)
       localStorage.setItem(`future_you_onboarded_${data.user.id}`, 'true')
+      localStorage.setItem('future_you_active_user_id', data.user.id)
+      syncUserData(data.user.id).catch(() => {})
       try {
         const { data: profile } = await supabase
           .from('profiles')

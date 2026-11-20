@@ -162,6 +162,20 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
           }
           if (data.avatar_url) {
             setAvatarUrl(data.avatar_url)
+            localStorage.setItem(AVATAR_KEY, data.avatar_url)
+          }
+          const prefs = data.preferences || {}
+          if (prefs.avatar_style) {
+            setAvatarStyle(prefs.avatar_style)
+            localStorage.setItem(AVATAR_STYLE_KEY, prefs.avatar_style)
+          }
+          if (prefs.avatar_seed) {
+            setAvatarSeed(prefs.avatar_seed)
+            localStorage.setItem(AVATAR_SEED_KEY, prefs.avatar_seed)
+          }
+          if (Array.isArray(prefs.login_history) && prefs.login_history.length > 0) {
+            setLoginHistory(prefs.login_history)
+            localStorage.setItem(LOGIN_HISTORY_KEY, JSON.stringify(prefs.login_history))
           }
         } else {
           // If no profile found, use user metadata and create row
@@ -215,6 +229,27 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
       try {
         localStorage.setItem(LOGIN_HISTORY_KEY, JSON.stringify(updated))
       } catch {}
+
+      if (user && user.id !== 'demo-user-1') {
+        ;(async () => {
+          try {
+            const { data } = await supabase
+              .from('profiles')
+              .select('preferences')
+              .eq('id', user.id)
+              .maybeSingle()
+            const prefs = data?.preferences || {}
+            await supabase
+              .from('profiles')
+              .update({
+                preferences: { ...prefs, login_history: updated },
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', user.id)
+          } catch {}
+        })()
+      }
+
       return updated
     })
   }
@@ -256,9 +291,22 @@ export function UserProfileProvider({ children }: { children: ReactNode }) {
       }
 
       if (user && user.id !== 'demo-user-1') {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('preferences')
+          .eq('id', user.id)
+          .maybeSingle()
+        const prefs = profile?.preferences || {}
+        if (style) prefs.avatar_style = style
+        if (seed) prefs.avatar_seed = seed
+
         await supabase
           .from('profiles')
-          .update({ avatar_url: url, updated_at: new Date().toISOString() })
+          .update({
+            avatar_url: url,
+            preferences: prefs,
+            updated_at: new Date().toISOString(),
+          })
           .eq('id', user.id)
       }
     } catch (e) {

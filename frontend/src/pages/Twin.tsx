@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faMoon,
@@ -17,10 +17,13 @@ import {
   faBullseye,
 } from '@fortawesome/free-solid-svg-icons'
 import { useUserProfile } from '../contexts/UserProfileContext'
-import { getLocalHabits, getAllLocalLogs } from '../utils/habitStorage'
+import { useAuth } from '../contexts/AuthContext'
+import { getLocalHabits, getAllLocalLogs, getActiveUserId } from '../utils/habitStorage'
+import { syncUserData } from '../services/dataSync'
 import { aiApi } from '../services/api'
 
 export function Twin() {
+  const { user } = useAuth()
   const { fullName } = useUserProfile()
   const [horizon, setHorizon] = useState<'6_months' | '5_years'>('6_months')
 
@@ -34,8 +37,34 @@ export function Twin() {
   const [copied, setCopied] = useState(false)
   const [letterError, setLetterError] = useState<string | null>(null)
 
-  const habits = useMemo(() => getLocalHabits(), [])
-  const allLogs = useMemo(() => getAllLocalLogs(), [])
+  const activeUid = user?.id || getActiveUserId()
+  const [habits, setHabits] = useState(() => getLocalHabits(activeUid))
+  const [allLogs, setAllLogs] = useState(() => getAllLocalLogs(activeUid))
+
+  useEffect(() => {
+    const uid = user?.id || getActiveUserId()
+    setHabits(getLocalHabits(uid))
+    setAllLogs(getAllLocalLogs(uid))
+
+    if (user?.id && user.id !== 'demo-user-1') {
+      syncUserData(user.id).then((res) => {
+        if (res.success) {
+          setHabits(getLocalHabits(user.id))
+          setAllLogs(getAllLocalLogs(user.id))
+        }
+      })
+    }
+  }, [user?.id])
+
+  useEffect(() => {
+    const handleSync = () => {
+      const uid = user?.id || getActiveUserId()
+      setHabits(getLocalHabits(uid))
+      setAllLogs(getAllLocalLogs(uid))
+    }
+    window.addEventListener('future-you-storage-updated', handleSync)
+    return () => window.removeEventListener('future-you-storage-updated', handleSync)
+  }, [user?.id])
 
   const is5Year = horizon === '5_years'
   const displayName = fullName || 'Friend'

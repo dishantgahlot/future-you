@@ -49,10 +49,12 @@ import {
   findLogForHabitAndDate,
 } from '../utils/habitStorage'
 import { deleteHabit, updateHabit, upsertHabitLog, createHabit } from '../services/api'
+import { syncUserData } from '../services/dataSync'
 import { HabitFormModal } from '../components/habits/HabitFormModal'
 import { format, subDays, parseISO } from 'date-fns'
 import { useNotifications } from '../contexts/NotificationContext'
 import { useAppDate } from '../contexts/DateContext'
+import { useAuth } from '../contexts/AuthContext'
 
 const CATEGORY_FILTERS: { value: HabitCategory | 'all'; label: string; icon: IconDefinition }[] = [
   { value: 'all', label: 'All', icon: faLeaf },
@@ -134,14 +136,16 @@ function formatUnit(unit?: string): string {
 
 export function Habits() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [searchParams] = useSearchParams()
   const habitIdParam = searchParams.get('habitId')
   const { setSelectedDate, selectedDateStr, isToday, resetToToday, todayStr } = useAppDate()
   const isPastDate = selectedDateStr < todayStr
 
+  const activeUid = user?.id || getActiveUserId()
   const { notifyHabitMilestone } = useNotifications()
-  const [habits, setHabits] = useState<Habit[]>(() => getLocalHabits())
-  const [logs, setLogs] = useState<HabitLog[]>(() => getAllLocalLogs())
+  const [habits, setHabits] = useState<Habit[]>(() => getLocalHabits(activeUid))
+  const [logs, setLogs] = useState<HabitLog[]>(() => getAllLocalLogs(activeUid))
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<HabitCategory | 'all'>('all')
   const [showModal, setShowModal] = useState(false)
@@ -151,6 +155,22 @@ export function Habits() {
   // Day-specific target customizer state
   const [adjustingDayTargetHabit, setAdjustingDayTargetHabit] = useState<Habit | null>(null)
   const [customDayTargetInput, setCustomDayTargetInput] = useState<string>('')
+
+  // Load from remote Supabase database on mount & auth changes
+  useEffect(() => {
+    const uid = user?.id || getActiveUserId()
+    setHabits(getLocalHabits(uid))
+    setLogs(getAllLocalLogs(uid))
+
+    if (user?.id && user.id !== 'demo-user-1') {
+      syncUserData(user.id).then((res) => {
+        if (res.success) {
+          setHabits(getLocalHabits(user.id))
+          setLogs(getAllLocalLogs(user.id))
+        }
+      })
+    }
+  }, [user?.id])
 
   const handleSelectDate = (newDateStr: string) => {
     setSelectedDate(newDateStr)
@@ -181,18 +201,20 @@ export function Habits() {
   }, [])
 
   useEffect(() => {
-    saveLocalHabits(habits)
-  }, [habits])
+    const uid = user?.id || getActiveUserId()
+    saveLocalHabits(habits, uid)
+  }, [habits, user?.id])
 
   // Sync logs and habits from storage if changed externally
   useEffect(() => {
     const syncState = () => {
-      setHabits(getLocalHabits())
-      setLogs(getAllLocalLogs())
+      const uid = user?.id || getActiveUserId()
+      setHabits(getLocalHabits(uid))
+      setLogs(getAllLocalLogs(uid))
     }
     window.addEventListener('future-you-storage-updated', syncState)
     return () => window.removeEventListener('future-you-storage-updated', syncState)
-  }, [])
+  }, [user?.id])
 
   // Auto-scroll to specific habit when navigated from Dashboard or notification
   useEffect(() => {
@@ -241,9 +263,27 @@ export function Habits() {
 
   const handleCopyYesterday = () => {
     if (!yesterdayDateStr) return
-    copyHabitsToDate(yesterdayDateStr, selectedDateStr)
-    setHabits(getLocalHabits())
-    setLogs(getAllLocalLogs())
+    const uid = user?.id || getActiveUserId()
+    const copied = copyHabitsToDate(yesterdayDateStr, selectedDateStr, uid)
+    setHabits(getLocalHabits(uid))
+    setLogs(getAllLocalLogs(uid))
+
+    // Asynchronously push copied habits to Supabase
+    copied.forEach((ch) => {
+      createHabit({
+        id: ch.id,
+        name: ch.name,
+        description: ch.description || '',
+        category: ch.category,
+        frequency: ch.frequency,
+        target_value: ch.target_value,
+        unit: ch.unit,
+        color: ch.color,
+        color_theme: ch.color_theme || 'cream',
+        icon: ch.icon,
+        target_date: ch.target_date,
+      }).catch(() => {})
+    })
   }
 
   const activeCount = displayedHabits.filter((h) => h.is_active).length
@@ -275,7 +315,8 @@ export function Habits() {
       notifyHabitMilestone(habit.name, clampedVal, target, habit.unit)
     }
 
-    const updatedLog = saveLocalLog(habit.id, selectedDateStr, clampedVal, target)
+    const uid = user?.id || getActiveUserId()
+    const updatedLog = saveLocalLog(habit.id, selectedDateStr, clampedVal, target, undefined, uid)
     setLogs((prev) => {
       const filtered = prev.filter((l) => !(l.habit_id === habit.id && isLogForDate(l, selectedDateStr)))
       return [...filtered, updatedLog]
@@ -324,13 +365,14 @@ export function Habits() {
     if (!adjustingDayTargetHabit) return
     const habit = adjustingDayTargetHabit
     const newTarget = Math.max(1, Math.round(Number(customDayTargetInput) * 10) / 10 || 1)
+    const uid = user?.id || getActiveUserId()
 
-    setDayTarget(habit.id, selectedDateStr, newTarget)
+    setDayTarget(habit.id, selectedDateStr, newTarget, uid)
 
     const log = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
     const actualVal = log?.actual_value !== undefined ? log.actual_value : 0
-    saveLocalLog(habit.id, selectedDateStr, actualVal, newTarget)
-    setLogs(getAllLocalLogs())
+    saveLocalLog(habit.id, selectedDateStr, actualVal, newTarget, undefined, uid)
+    setLogs(getAllLocalLogs(uid))
 
     setAdjustingDayTargetHabit(null)
 
@@ -343,13 +385,14 @@ export function Habits() {
     if (!adjustingDayTargetHabit) return
     const habit = adjustingDayTargetHabit
     const baseTarget = habit.target_value || 1
+    const uid = user?.id || getActiveUserId()
 
-    resetDayTarget(habit.id, selectedDateStr, baseTarget)
+    resetDayTarget(habit.id, selectedDateStr, baseTarget, uid)
 
     const log = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
     const actualVal = log?.actual_value !== undefined ? log.actual_value : 0
-    saveLocalLog(habit.id, selectedDateStr, actualVal, baseTarget)
-    setLogs(getAllLocalLogs())
+    saveLocalLog(habit.id, selectedDateStr, actualVal, baseTarget, undefined, uid)
+    setLogs(getAllLocalLogs(uid))
 
     setAdjustingDayTargetHabit(null)
 
@@ -360,9 +403,10 @@ export function Habits() {
   // Toggle Active / Paused (Instantaneous UI update)
   const handleToggleActive = (habit: Habit) => {
     if (isPastDate) return
+    const uid = user?.id || getActiveUserId()
     const updated = { ...habit, is_active: !habit.is_active, updated_at: new Date().toISOString() }
     const nextHabits = habits.map((h) => (h.id === habit.id ? updated : h))
-    saveLocalHabits(nextHabits)
+    saveLocalHabits(nextHabits, uid)
     setHabits(nextHabits)
     updateHabit(habit.id, { is_active: updated.is_active } as any).catch(() => {})
   }
@@ -370,7 +414,8 @@ export function Habits() {
   // Delete Habit (Instantaneous UI update)
   const handleDelete = (id: string) => {
     if (isPastDate) return
-    deleteLocalHabit(id)
+    const uid = user?.id || getActiveUserId()
+    deleteLocalHabit(id, uid)
     setHabits((prev) => prev.filter((h) => h.id !== id))
     setDeletingConfirmId(null)
     deleteHabit(id).catch(() => {})
@@ -379,6 +424,7 @@ export function Habits() {
   // Save (Create or Edit) Habit Modal Handler - 100% Instantaneous & Optimistic
   const handleSaveModalHabit = (data: Partial<Habit>) => {
     if (isPastDate) return
+    const uid = user?.id || getActiveUserId()
 
     if (editingHabit) {
       const updated: Habit = {
@@ -391,7 +437,7 @@ export function Habits() {
       const nextHabits = habits.map((h) => (h.id === editingHabit.id ? updated : h))
 
       // 1. Immediately write to localStorage & React state
-      saveLocalHabits(nextHabits)
+      saveLocalHabits(nextHabits, uid)
       setHabits(nextHabits)
 
       // 2. Immediately close modal (instant 0ms response)
@@ -407,7 +453,9 @@ export function Habits() {
         target_value: updated.target_value,
         unit: updated.unit,
         color: updated.color,
+        color_theme: updated.color_theme,
         icon: updated.icon,
+        target_date: updated.target_date,
       }).catch(() => {})
     } else {
       const assignedTheme =
@@ -419,7 +467,7 @@ export function Habits() {
 
       const newHabit: Habit = {
         id: crypto.randomUUID(),
-        user_id: getActiveUserId(),
+        user_id: uid,
         name: data.name || 'New Habit',
         description: data.description || null,
         category: data.category || 'health',
@@ -438,12 +486,12 @@ export function Habits() {
       const nextHabits = [...habits, newHabit]
 
       // 1. Save habit to localStorage FIRST so any storage event listeners immediately read it
-      saveLocalHabits(nextHabits)
+      saveLocalHabits(nextHabits, uid)
       setHabits(nextHabits)
 
       // 2. Initialize zero-progress log for this date so it's tied to this day
-      saveLocalLog(newHabit.id, selectedDateStr, 0, newHabit.target_value)
-      setLogs(getAllLocalLogs())
+      saveLocalLog(newHabit.id, selectedDateStr, 0, newHabit.target_value, undefined, uid)
+      setLogs(getAllLocalLogs(uid))
 
       // 3. Immediately close modal (instant 0ms response)
       setEditingHabit(null)
@@ -451,6 +499,7 @@ export function Habits() {
 
       // 4. Asynchronously sync to backend in background without blocking UI
       createHabit({
+        id: newHabit.id,
         name: newHabit.name,
         description: newHabit.description || '',
         category: newHabit.category,
@@ -458,7 +507,9 @@ export function Habits() {
         target_value: newHabit.target_value,
         unit: newHabit.unit,
         color: newHabit.color,
+        color_theme: newHabit.color_theme,
         icon: newHabit.icon,
+        target_date: newHabit.target_date,
       }).catch(() => {})
     }
   }

@@ -44,6 +44,7 @@ function getSupabase(): SupabaseClient {
 
 const habitSchema = z.object({
   body: z.object({
+    id: z.string().uuid().optional(),
     name: z.string().min(1).max(100),
     description: z.string().max(500).optional().nullable(),
     category: z.enum(['health', 'fitness', 'nutrition', 'sleep', 'mental_health', 'productivity', 'learning', 'finance', 'social', 'other']),
@@ -51,7 +52,9 @@ const habitSchema = z.object({
     target_value: z.number().positive(),
     unit: z.string().min(1).max(20),
     color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-    icon: z.string().max(10).optional(),
+    color_theme: z.string().optional(),
+    icon: z.string().max(50).optional(),
+    target_date: z.string().optional(),
   }),
 })
 
@@ -202,15 +205,20 @@ router.get('/:id', asyncHandler(async (req: AuthenticatedRequest, res) => {
 }))
 
 router.post('/', validate(habitSchema), asyncHandler(async (req: AuthenticatedRequest, res) => {
+  const insertData: any = {
+    ...req.body,
+    user_id: req.user!.id,
+    color: req.body.color || '#0ea5e9',
+    icon: req.body.icon || '📦',
+    is_active: true,
+  }
+  if (req.body.id) insertData.id = req.body.id
+  if (req.body.target_date) insertData.target_date = req.body.target_date
+  if (req.body.color_theme) insertData.color_theme = req.body.color_theme
+
   const { data, error } = await getSupabase()
     .from('habits')
-    .insert({
-      ...req.body,
-      user_id: req.user!.id,
-      color: req.body.color || '#0ea5e9',
-      icon: req.body.icon || '📦',
-      is_active: true,
-    })
+    .insert(insertData)
     .select()
     .single()
 

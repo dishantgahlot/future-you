@@ -1,25 +1,45 @@
 import { useState, useMemo, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faAward, faCheckCircle, faLock } from '@fortawesome/free-solid-svg-icons'
-import { getLocalHabits, getAllLocalLogs } from '../utils/habitStorage'
+import { getLocalHabits, getAllLocalLogs, getActiveUserId } from '../utils/habitStorage'
 import { calculateUserBadges } from '../utils/achievementBadges'
 import { BadgeCard, BadgeMedallion } from '../components/profile/GitHubBadgeItem'
+import { useAuth } from '../contexts/AuthContext'
+import { syncUserData } from '../services/dataSync'
 
 export function Badges() {
+  const { user } = useAuth()
+  const uid = user?.id || getActiveUserId()
   const [badgeFilter, setBadgeFilter] = useState<'all' | 'unlocked' | 'locked'>('all')
   const [selectedBadgeId, setSelectedBadgeId] = useState<string | null>(null)
 
-  const [habits, setHabits] = useState(() => getLocalHabits())
-  const [logs, setLogs] = useState(() => getAllLocalLogs())
+  const [habits, setHabits] = useState(() => getLocalHabits(uid))
+  const [logs, setLogs] = useState(() => getAllLocalLogs(uid))
+
+  useEffect(() => {
+    const currentUid = user?.id || getActiveUserId()
+    setHabits(getLocalHabits(currentUid))
+    setLogs(getAllLocalLogs(currentUid))
+
+    if (user?.id && user.id !== 'demo-user-1') {
+      syncUserData(user.id).then((res) => {
+        if (res.success) {
+          setHabits(getLocalHabits(user.id))
+          setLogs(getAllLocalLogs(user.id))
+        }
+      })
+    }
+  }, [user?.id])
 
   useEffect(() => {
     const handleSync = () => {
-      setHabits(getLocalHabits())
-      setLogs(getAllLocalLogs())
+      const currentUid = user?.id || getActiveUserId()
+      setHabits(getLocalHabits(currentUid))
+      setLogs(getAllLocalLogs(currentUid))
     }
     window.addEventListener('future-you-storage-updated', handleSync)
     return () => window.removeEventListener('future-you-storage-updated', handleSync)
-  }, [])
+  }, [user?.id])
 
   const currentStreak = useMemo(() => {
     const activeDates = Array.from(

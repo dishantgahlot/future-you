@@ -20,6 +20,7 @@ import {
 import { useUserProfile } from '../contexts/UserProfileContext'
 import { useAuth } from '../contexts/AuthContext'
 import { getLocalHabits, getAllLocalLogs } from '../utils/habitStorage'
+import { syncUserData } from '../services/dataSync'
 import { aiApi } from '../services/api'
 
 interface ChatMessage {
@@ -173,6 +174,9 @@ export function Simulator() {
       setHabits(getLocalHabits(user?.id))
     }
     handleSync()
+    if (user?.id && user.id !== 'demo-user-1') {
+      syncUserData(user.id).catch(() => {})
+    }
     window.addEventListener('future-you-storage-updated', handleSync)
     window.addEventListener('storage', handleSync)
     window.addEventListener('focus', handleSync)

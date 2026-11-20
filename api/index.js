@@ -59648,6 +59648,7 @@ function getSupabase4() {
 }
 var habitSchema = external_exports.object({
   body: external_exports.object({
+    id: external_exports.string().uuid().optional(),
     name: external_exports.string().min(1).max(100),
     description: external_exports.string().max(500).optional().nullable(),
     category: external_exports.enum(["health", "fitness", "nutrition", "sleep", "mental_health", "productivity", "learning", "finance", "social", "other"]),
@@ -59655,7 +59656,9 @@ var habitSchema = external_exports.object({
     target_value: external_exports.number().positive(),
     unit: external_exports.string().min(1).max(20),
     color: external_exports.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
-    icon: external_exports.string().max(10).optional()
+    color_theme: external_exports.string().optional(),
+    icon: external_exports.string().max(50).optional(),
+    target_date: external_exports.string().optional()
   })
 });
 var habitUpdateSchema = habitSchema.shape.body.partial();
@@ -59759,13 +59762,17 @@ router2.get("/:id", asyncHandler(async (req, res) => {
   res.json({ data });
 }));
 router2.post("/", validate(habitSchema), asyncHandler(async (req, res) => {
-  const { data, error } = await getSupabase4().from("habits").insert({
+  const insertData = {
     ...req.body,
     user_id: req.user.id,
     color: req.body.color || "#0ea5e9",
     icon: req.body.icon || "\u{1F4E6}",
     is_active: true
-  }).select().single();
+  };
+  if (req.body.id) insertData.id = req.body.id;
+  if (req.body.target_date) insertData.target_date = req.body.target_date;
+  if (req.body.color_theme) insertData.color_theme = req.body.color_theme;
+  const { data, error } = await getSupabase4().from("habits").insert(insertData).select().single();
   if (error) throw new AppError(400, error.message);
   res.status(201).json({ data });
 }));
