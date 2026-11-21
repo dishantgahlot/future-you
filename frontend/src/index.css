@@ -558,11 +558,10 @@ input:-webkit-autofill:active {
   fill: #4E6826 !important;
 }
 
-/* Habit Consistency Empty Squares in Dark Mode (Dark muted botanical surface, never bright white) */
+/* Habit Consistency Empty Squares in Dark Mode (Soft White, Reduced Brightness) */
 .dark .habit-cell-empty,
 .dark button.habit-cell-empty {
-  background-color: #16271D !important;
-  border: 1px solid #203427 !important;
+  background-color: #E2E8F0 !important;
 }
 
 /* Recharts Dark Mode Support */
