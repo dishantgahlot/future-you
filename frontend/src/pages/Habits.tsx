@@ -307,13 +307,6 @@ export function Habits() {
         ? target
         : 0
 
-    // Trigger celebratory desktop alert upon reaching 100% or 70% threshold
-    if (clampedVal >= target && prevVal < target) {
-      notifyHabitMilestone(habit.name, clampedVal, target, habit.unit)
-    } else if (clampedVal >= target * 0.7 && prevVal < target * 0.7) {
-      notifyHabitMilestone(habit.name, clampedVal, target, habit.unit)
-    }
-
     const uid = user?.id || getActiveUserId()
     const updatedLog = saveLocalLog(habit.id, selectedDateStr, clampedVal, target, undefined, uid)
     setLogs((prev) => {
@@ -323,6 +316,15 @@ export function Habits() {
 
     // Instantaneous non-blocking background sync
     upsertHabitLog(habit.id, selectedDateStr, clampedVal, undefined, target).catch(() => {})
+
+    // Trigger celebratory desktop alert upon reaching 100% or 70% threshold (for today's habits only)
+    if (selectedDateStr === todayStr) {
+      if (clampedVal >= target && prevVal < target) {
+        notifyHabitMilestone(habit.name, clampedVal, target, habit.unit)
+      } else if (clampedVal >= target * 0.7 && prevVal < target * 0.7) {
+        notifyHabitMilestone(habit.name, clampedVal, target, habit.unit)
+      }
+    }
   }
 
   // Plus / Minus step handlers

@@ -93,7 +93,7 @@ export function InAppNotificationToast() {
               <div className="flex items-center justify-between text-[10px] font-medium text-[#1D2516] dark:text-[#F5F2EB]">
                 <span>Progress</span>
                 <span className="font-semibold text-[#4A6225] dark:text-[#A8D968]">
-                  {stats.completedCount}/{stats.totalCount} completed ({stats.percent}%)
+                  {stats.completedCount}/{stats.totalCount} completed ({stats.growthRate ?? stats.percent}% growth rate)
                 </span>
               </div>
 
@@ -101,7 +101,7 @@ export function InAppNotificationToast() {
               <div className="h-1.5 w-full bg-[#EAE3D5] dark:bg-[#1C2C20] rounded-full overflow-hidden">
                 <div
                   className="h-full bg-[#738541] dark:bg-[#4E6826] rounded-full transition-all duration-300"
-                  style={{ width: `${stats.percent}%` }}
+                  style={{ width: `${stats.growthRate ?? stats.percent}%` }}
                 />
               </div>
 

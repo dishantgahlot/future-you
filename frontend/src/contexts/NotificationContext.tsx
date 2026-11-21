@@ -1,6 +1,13 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { format } from 'date-fns'
-import { getLocalHabits, getAllLocalLogs } from '../utils/habitStorage'
+import {
+  getLocalHabits,
+  getAllLocalLogs,
+  getActiveUserId,
+  getHabitsForDate,
+  getDayTarget,
+  findLogForHabitAndDate,
+} from '../utils/habitStorage'
 import {
   isNotificationSupported,
   getNotificationPermission,
@@ -13,6 +20,7 @@ export interface AppNotification {
   title: string
   message: string
   timestamp: string // ISO string
+  dateStr?: string // YYYY-MM-DD
   cadence: '1h' | 'custom'
   read: boolean
   stats: {
@@ -20,8 +28,10 @@ export interface AppNotification {
     totalCount: number
     pendingCount: number
     percent: number
+    growthRate?: number
     pendingHabits: string[]
     completedHabits?: string[]
+    dateStr?: string
   }
 }
 
@@ -52,21 +62,43 @@ const STORAGE_KEY = 'future-you-notifications-v2'
 const LAST_HOURLY_NOTIFICATION_KEY = 'future-you-last-hourly-notification-time'
 const ONE_HOUR_MS = 60 * 60 * 1000 // Exactly 1 hour (60 minutes) in milliseconds
 
-export function computeTodayHabitStats() {
-  const habits = getLocalHabits().filter((h) => h.is_active)
-  const allLogs = getAllLocalLogs()
+/**
+ * Computes habit completion and growth rate statistics STRICTLY for the current day only.
+ * Past historical habits and future habits are never included.
+ */
+export function computeTodayHabitStats(userId?: string, justCompletedHabitName?: string) {
+  const uid = userId || getActiveUserId()
+  const allHabits = getLocalHabits(uid).filter((h) => h.is_active !== false)
+  const allLogs = getAllLocalLogs(uid)
   const todayStr = format(new Date(), 'yyyy-MM-dd')
-  const todayLogs = allLogs.filter((l) => l.log_date === todayStr)
+
+  // Strictly filter habits that belong to TODAY's date
+  const rawTodayHabits = getHabitsForDate(allHabits, todayStr, allLogs)
+
+  // Deduplicate by normalized habit name to ensure accurate representation
+  const todayHabitsMap = new Map<string, (typeof rawTodayHabits)[0]>()
+  rawTodayHabits.forEach((h) => {
+    const key = (h.name || '').toLowerCase().trim()
+    if (!todayHabitsMap.has(key)) {
+      todayHabitsMap.set(key, h)
+    }
+  })
+  const todayHabits = Array.from(todayHabitsMap.values())
 
   let completed = 0
   const pendingNames: string[] = []
   const completedNames: string[] = []
 
-  habits.forEach((h) => {
-    const log = todayLogs.find((l) => l.habit_id === h.id)
-    const target = h.target_value || 1
+  todayHabits.forEach((h) => {
+    const log = findLogForHabitAndDate(allLogs, h.id, todayStr)
+    const target = getDayTarget(h.id, todayStr, h.target_value || 1, uid)
     const actual = log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
-    if (actual >= target && target > 0) {
+    const isDone =
+      Boolean(log?.completion_status) ||
+      (actual >= target && target > 0) ||
+      (justCompletedHabitName && h.name.toLowerCase().trim() === justCompletedHabitName.toLowerCase().trim())
+
+    if (isDone) {
       completed++
       completedNames.push(h.name)
     } else {
@@ -74,7 +106,7 @@ export function computeTodayHabitStats() {
     }
   })
 
-  const total = habits.length
+  const total = todayHabits.length
   const pendingCount = pendingNames.length
   const percent = total > 0 ? Math.min(Math.round((completed / total) * 100), 100) : 0
 
@@ -83,8 +115,10 @@ export function computeTodayHabitStats() {
     totalCount: total,
     pendingCount,
     percent,
+    growthRate: percent,
     pendingHabits: pendingNames,
     completedHabits: completedNames,
+    dateStr: todayStr,
   }
 }
 
@@ -92,30 +126,35 @@ export function createCadenceNotification(
   cadence: '1h' | 'custom' = '1h',
   stats = computeTodayHabitStats()
 ): AppNotification {
-  const { completedCount, totalCount, pendingCount, percent, pendingHabits } = stats
+  const { completedCount, totalCount, pendingCount, percent, pendingHabits, dateStr } = stats
 
   let title = ''
   let message = ''
 
   if (totalCount === 0) {
-    title = 'Hourly Routine · Set Up Your Habits'
-    message = 'You have not set up any habits yet. Add your daily habits to start tracking progress and receive hourly check-ins!'
+    title = 'Hourly Routine · 0 Habits Scheduled Today'
+    message =
+      'You have not added any habits for today yet. Add your daily habits in Habit Studio to start tracking progress and watch your growth rate compound!'
   } else if (pendingCount === 0) {
     // 100% completed
     title = `Hourly Check-in · All ${totalCount} Habits Completed! (100%)`
-    message = `Incredible dedication! You have completed all ${totalCount} of ${totalCount} habits today (0 remaining). Consistency protecting your future self!`
+    message = `Incredible dedication! You have completed all ${totalCount} of ${totalCount} habits today (100% growth rate, 0 remaining). Consistency protecting your future self!`
   } else if (completedCount === 0) {
     // 0% completed
     const pendingListStr =
       pendingHabits.slice(0, 3).join(', ') + (pendingHabits.length > 3 ? ` +${pendingHabits.length - 3} more` : '')
-    title = `Hourly Reminder · ${pendingCount} Habit${pendingCount > 1 ? 's' : ''} Haven't Been Done Yet (0%)`
-    message = `Today's progress: 0/${totalCount} habits completed (0%). You haven't done ${pendingCount} habit${pendingCount > 1 ? 's' : ''} yet: ${pendingListStr}. Take a quick step to break inertia!`
+    title = `Hourly Reminder · 0 of ${totalCount} Completed (0% Growth Rate)`
+    message = `Today's progress: 0 of ${totalCount} habits completed (0% growth rate). You have ${pendingCount} habit${
+      pendingCount > 1 ? 's' : ''
+    } to complete today: ${pendingListStr}. Take a quick step to break inertia!`
   } else {
-    // In progress (e.g. 2/5 done, 3 pending)
+    // In progress (e.g. 2 of 3 done, 1 pending)
     const pendingListStr =
       pendingHabits.slice(0, 3).join(', ') + (pendingHabits.length > 3 ? ` +${pendingHabits.length - 3} more` : '')
-    title = `Hourly Reminder · ${pendingCount} Habit${pendingCount > 1 ? 's' : ''} Remaining (${percent}% Done)`
-    message = `Today's progress: ${completedCount}/${totalCount} completed (${percent}%). You currently haven't done ${pendingCount} habit${pendingCount > 1 ? 's' : ''} yet: ${pendingListStr}. Keep up your momentum!`
+    title = `Hourly Reminder · ${completedCount} of ${totalCount} Completed (${percent}% Growth Rate)`
+    message = `Today's progress: ${completedCount} of ${totalCount} habits completed (${percent}% growth rate). You currently have ${pendingCount} habit${
+      pendingCount > 1 ? 's' : ''
+    } remaining today: ${pendingListStr}. Keep up your momentum!`
   }
 
   return {
@@ -123,6 +162,7 @@ export function createCadenceNotification(
     title,
     message,
     timestamp: new Date().toISOString(),
+    dateStr: dateStr || format(new Date(), 'yyyy-MM-dd'),
     cadence,
     read: false,
     stats,
@@ -136,12 +176,30 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (raw) {
         const parsed = JSON.parse(raw)
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.filter(
-            (item: any) =>
-              item &&
-              item.cadence !== 'initial' &&
-              !item.title?.toLowerCase().includes('daily habit slate ready')
-          )
+          const today = format(new Date(), 'yyyy-MM-dd')
+          const todayStats = computeTodayHabitStats()
+          return parsed
+            .filter(
+              (item: any) =>
+                item &&
+                item.cadence !== 'initial' &&
+                !item.title?.toLowerCase().includes('daily habit slate ready') &&
+                (item.dateStr === today || (item.timestamp && item.timestamp.slice(0, 10) === today))
+            )
+            .map((item: any) => {
+              // Sanitize any stale stats from previous calculation bugs
+              if (item.stats && (item.stats.totalCount > todayStats.totalCount || item.stats.totalCount >= 10)) {
+                return {
+                  ...item,
+                  stats: todayStats,
+                  dateStr: today,
+                }
+              }
+              return {
+                ...item,
+                dateStr: item.dateStr || today,
+              }
+            })
         }
       }
     } catch {
@@ -153,6 +211,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false)
   const [activeToast, setActiveToast] = useState<AppNotification | null>(null)
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Track the current calendar day to automatically reset notifications at midnight for the new day
+  const currentDayRef = useRef(format(new Date(), 'yyyy-MM-dd'))
+
+  const checkDayRollover = useCallback(() => {
+    const today = format(new Date(), 'yyyy-MM-dd')
+    if (today !== currentDayRef.current) {
+      currentDayRef.current = today
+      // Day changed -> clear previous day's notifications for fresh start on the new day
+      setNotifications([])
+      try {
+        localStorage.removeItem(STORAGE_KEY)
+        localStorage.setItem(LAST_HOURLY_NOTIFICATION_KEY, String(Date.now()))
+      } catch {}
+    }
+  }, [])
 
   const isBrowserSupported = isNotificationSupported()
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission>(() => {
@@ -175,14 +249,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     registerNotificationServiceWorker().catch(() => {})
   }, [])
 
-  // Synchronize browser permission status on window focus
+  // Synchronize browser permission status on window focus and check day rollover
   useEffect(() => {
     const handleSyncPerm = () => {
+      checkDayRollover()
       setBrowserPermission(getNotificationPermission())
     }
     window.addEventListener('focus', handleSyncPerm)
     return () => window.removeEventListener('focus', handleSyncPerm)
-  }, [])
+  }, [checkDayRollover])
 
   // Send native desktop alert if permitted
   const sendDesktopAlert = useCallback((item: AppNotification) => {
@@ -207,22 +282,25 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Add notification helper: triggers desktop alert, sets in-app toast, and records in history
-  const addNotification = useCallback((item: AppNotification) => {
-    setNotifications((prev) => [item, ...prev.slice(0, 49)]) // Keep last 50
+  const addNotification = useCallback(
+    (item: AppNotification) => {
+      setNotifications((prev) => [item, ...prev.slice(0, 49)]) // Keep last 50 for today
 
-    // Trigger In-App Pop-up Toast for the Web
-    setActiveToast(item)
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current)
-    }
-    toastTimeoutRef.current = setTimeout(() => {
-      setActiveToast(null)
-      toastTimeoutRef.current = null
-    }, 9000)
+      // Trigger In-App Pop-up Toast for the Web
+      setActiveToast(item)
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current)
+      }
+      toastTimeoutRef.current = setTimeout(() => {
+        setActiveToast(null)
+        toastTimeoutRef.current = null
+      }, 9000)
 
-    // Trigger Native OS Desktop Alert
-    sendDesktopAlert(item)
-  }, [sendDesktopAlert])
+      // Trigger Native OS Desktop Alert
+      sendDesktopAlert(item)
+    },
+    [sendDesktopAlert]
+  )
 
   // Request browser Notification permission
   const requestBrowserPermission = useCallback(async (): Promise<boolean> => {
@@ -269,52 +347,77 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [requestBrowserPermission, addNotification])
 
   // Trigger habit completion or milestone celebration notification
-  const notifyHabitMilestone = useCallback((habitName: string, actual: number, target: number, unit?: string) => {
-    const safeTarget = target > 0 ? target : 1
-    const percent = Math.min(Math.round((actual / safeTarget) * 100), 100)
-    const stats = computeTodayHabitStats()
+  const notifyHabitMilestone = useCallback(
+    (habitName: string, actual: number, target: number, unit?: string) => {
+      const safeTarget = target > 0 ? target : 1
+      const percent = Math.min(Math.round((actual / safeTarget) * 100), 100)
+      const stats = computeTodayHabitStats(undefined, habitName)
 
-    if (percent >= 100) {
-      const item: AppNotification = {
-        id: crypto.randomUUID(),
-        title: `🎯 Habit Completed · ${habitName}`,
-        message: `Outstanding discipline! You completed ${habitName} (${actual}/${safeTarget} ${unit || ''}). Identity compounded!`,
-        timestamp: new Date().toISOString(),
-        cadence: 'custom',
-        read: false,
-        stats,
+      if (percent >= 100) {
+        const remainingText =
+          stats.pendingCount > 0
+            ? ` ${stats.pendingCount} remaining today: ${stats.pendingHabits.join(', ')}.`
+            : ' All habits for today completed!'
+
+        const item: AppNotification = {
+          id: crypto.randomUUID(),
+          title: `🎯 Habit Completed · ${habitName}`,
+          message: `Outstanding discipline! You completed ${habitName} (${actual}/${safeTarget} ${
+            unit || ''
+          }). Today's progress: ${stats.completedCount} of ${stats.totalCount} completed (${
+            stats.growthRate
+          }% growth rate).${remainingText}`,
+          timestamp: new Date().toISOString(),
+          dateStr: stats.dateStr,
+          cadence: 'custom',
+          read: false,
+          stats,
+        }
+        addNotification(item)
+      } else if (percent >= 70) {
+        const remainingText =
+          stats.pendingCount > 0 ? ` ${stats.pendingCount} remaining today: ${stats.pendingHabits.join(', ')}.` : ''
+
+        const item: AppNotification = {
+          id: crypto.randomUUID(),
+          title: `⚡ 70% Milestone · ${habitName}`,
+          message: `Great momentum! You conquered 70% of ${habitName} today (${actual}/${safeTarget} ${
+            unit || ''
+          }). Today's progress: ${stats.completedCount} of ${stats.totalCount} completed (${
+            stats.growthRate
+          }% growth rate).${remainingText}`,
+          timestamp: new Date().toISOString(),
+          dateStr: stats.dateStr,
+          cadence: 'custom',
+          read: false,
+          stats,
+        }
+        addNotification(item)
       }
-      addNotification(item)
-    } else if (percent >= 70) {
-      const item: AppNotification = {
-        id: crypto.randomUUID(),
-        title: `⚡ 70% Milestone Achieved · ${habitName}`,
-        message: `Great momentum! You conquered 70% of ${habitName} today (${actual}/${safeTarget} ${unit || ''}). Activation inertia defeated!`,
-        timestamp: new Date().toISOString(),
-        cadence: 'custom',
-        read: false,
-        stats,
-      }
-      addNotification(item)
-    }
-  }, [addNotification])
+    },
+    [addNotification]
+  )
 
   // Trigger hourly cadence notification
-  const triggerCadenceNotification = useCallback((cadence: '1h' = '1h') => {
-    const nowMs = Date.now()
-    try {
-      localStorage.setItem(LAST_HOURLY_NOTIFICATION_KEY, String(nowMs))
-    } catch {
-      // ignore
-    }
-    const item = createCadenceNotification(cadence)
-    addNotification(item)
-  }, [addNotification])
+  const triggerCadenceNotification = useCallback(
+    (cadence: '1h' = '1h') => {
+      const nowMs = Date.now()
+      try {
+        localStorage.setItem(LAST_HOURLY_NOTIFICATION_KEY, String(nowMs))
+      } catch {
+        // ignore
+      }
+      const item = createCadenceNotification(cadence)
+      addNotification(item)
+    },
+    [addNotification]
+  )
 
   // Automated Hourly Cadence Engine:
-  // Strictly triggers once every hour to remind the user about habit progress and pending habits.
+  // Strictly triggers once every hour to remind the user about today's habit progress and pending habits.
   useEffect(() => {
     const checkHourlyTrigger = () => {
+      checkDayRollover()
       const nowMs = Date.now()
       let lastFiredTime = 0
       try {
@@ -344,6 +447,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     // Also check immediately when window gains focus or visibility returns
     const handleVisibilityOrFocus = () => {
+      checkDayRollover()
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         checkHourlyTrigger()
       }
@@ -388,7 +492,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         } catch {}
       }
     }
-  }, [triggerCadenceNotification])
+  }, [triggerCadenceNotification, checkDayRollover])
 
   const unreadCount = notifications.filter((n) => !n.read).length
 

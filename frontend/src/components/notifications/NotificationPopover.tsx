@@ -186,21 +186,26 @@ export function NotificationPopover() {
                             <span>
                               {item.stats.completedCount}/{item.stats.totalCount} completed
                             </span>
-                            <span>{item.stats.percent}%</span>
+                            <span>{item.stats.growthRate ?? item.stats.percent}% growth rate</span>
                           </div>
                           <div className="h-1 bg-[#EDE8DB] dark:bg-[#1C2C20] rounded-full overflow-hidden">
                             <div
                               className="h-full bg-[#738541] dark:bg-[#4E6826] rounded-full transition-all duration-300"
-                              style={{ width: `${item.stats.percent}%` }}
+                              style={{ width: `${item.stats.growthRate ?? item.stats.percent}%` }}
                             />
                           </div>
 
-                          {item.stats.pendingHabits && item.stats.pendingHabits.length > 0 && (
+                          {item.stats.pendingHabits && item.stats.pendingHabits.length > 0 ? (
                             <p className="text-[10px] text-[#766F60] dark:text-[#9BAF90] truncate">
                               <span className="font-semibold text-[#556933] dark:text-[#A8D968]">Remaining: </span>
                               {item.stats.pendingHabits.join(', ')}
                             </p>
-                          )}
+                          ) : item.stats.completedCount === item.stats.totalCount ? (
+                            <p className="text-[10px] text-[#4A6225] dark:text-[#A8D968] font-semibold flex items-center gap-1">
+                              <FontAwesomeIcon icon={faCheck} className="text-[9px]" />
+                              <span>All {item.stats.totalCount} completed today · 100% rate</span>
+                            </p>
+                          ) : null}
                         </div>
                       )}
                     </div>
