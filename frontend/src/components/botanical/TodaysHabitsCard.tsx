@@ -25,7 +25,6 @@ import {
   faSpa,
   faAppleWhole,
   faMugSaucer,
-  faCheck,
   faSliders,
   faArrowRight,
   faLock,
@@ -251,7 +250,7 @@ export function TodaysHabitsCard({
                   onClick={() => onManageHabits(habit.id)}
                   className={`relative rounded-2xl border p-3 sm:p-3.5 flex flex-col justify-between transition-all duration-200 select-none cursor-pointer group ${
                     isCompleted
-                      ? 'bg-[#F2F7EC] dark:bg-[#162919] border-[#738541]/45 dark:border-[#335928] shadow-2xs'
+                      ? 'bg-[#F2F7EC]/85 dark:bg-[#162919]/80 border-[#738541]/45 dark:border-[#335928] opacity-75 shadow-2xs'
                       : isInProgress
                       ? 'bg-[#FCFAF5] dark:bg-[#1B2616] border-[#D4CBB9] dark:border-[#3E4D27] shadow-2xs'
                       : 'bg-[#FCFAF7] hover:bg-white dark:bg-[#111C16] dark:hover:bg-[#15231B] border-[#EAE3D5] hover:border-[#D0C5B0] dark:border-[#223528] dark:hover:border-[#304A38] shadow-2xs'
@@ -290,7 +289,7 @@ export function TodaysHabitsCard({
                       <div className="flex-shrink-0">
                         {isCompleted ? (
                           <span className="text-[11px] font-bold text-[#415525] dark:text-[#A8D968] bg-[#E3EDD7] dark:bg-[#253A1D] px-2 py-0.5 rounded-full inline-flex items-center gap-1 border border-transparent dark:border-[#385926]">
-                            <FontAwesomeIcon icon={faCheck} className="text-[9px]" /> Done
+                            <FontAwesomeIcon icon={faLock} className="text-[9px]" /> Done · Locked
                           </span>
                         ) : isInProgress ? (
                           <span className="text-[11px] font-semibold text-[#845E1B] dark:text-[#FBBF24] bg-[#FBF3E4] dark:bg-[#382D16] px-2 py-0.5 rounded-full border border-transparent dark:border-[#57431E]">

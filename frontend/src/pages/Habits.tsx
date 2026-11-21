@@ -294,9 +294,12 @@ export function Habits() {
   const handleUpdateProgress = (habit: Habit, nextVal: number) => {
     if (isPastDate) return
     const target = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
-    const clampedVal = Math.max(0, Math.round(nextVal * 10) / 10)
-
     const prevLog = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
+    const isAlreadyDone = Boolean(prevLog?.completion_status) || (prevLog?.actual_value !== undefined && prevLog.actual_value >= target && target > 0)
+    // Completed habits are locked against edits
+    if (isAlreadyDone) return
+
+    const clampedVal = Math.max(0, Math.round(nextVal * 10) / 10)
     const prevVal =
       prevLog?.actual_value !== undefined
         ? prevLog.actual_value
@@ -327,6 +330,9 @@ export function Habits() {
     if (isPastDate) return
     const targetVal = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
     const log = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
+    const isDone = Boolean(log?.completion_status) || (log?.actual_value !== undefined && log.actual_value >= targetVal && targetVal > 0)
+    if (isDone) return // Locked when completed
+
     const actualVal =
       log?.actual_value !== undefined
         ? log.actual_value
@@ -338,22 +344,25 @@ export function Habits() {
     handleUpdateProgress(habit, nextVal)
   }
 
-  // Toggle Mark as Done (0 <-> 100%)
+  // Toggle Mark as Done (Locks when complete)
   const handleToggleDone = (habit: Habit) => {
     if (isPastDate) return
     const targetVal = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
     const log = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
     const isDone = Boolean(log?.completion_status) || (log?.actual_value !== undefined && log.actual_value >= targetVal && targetVal > 0)
-    const nextVal = isDone ? 0 : targetVal
-    handleUpdateProgress(habit, nextVal)
+    if (isDone) return // Already completed and locked!
+    handleUpdateProgress(habit, targetVal)
   }
 
   // Open Day-Specific Target customizer modal
   const handleOpenDayTarget = (habit: Habit) => {
     if (isPastDate) return
-    const currentTarget = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
+    const targetVal = getDayTarget(habit.id, selectedDateStr, habit.target_value || 1)
+    const log = findLogForHabitAndDate(logs, habit.id, selectedDateStr)
+    const isDone = Boolean(log?.completion_status) || (log?.actual_value !== undefined && log.actual_value >= targetVal && targetVal > 0)
+    if (isDone) return // Locked when completed
     setAdjustingDayTargetHabit(habit)
-    setCustomDayTargetInput(String(currentTarget))
+    setCustomDayTargetInput(String(targetVal))
   }
 
   // Save Day-Specific Target for selected date (Instantaneous UI update)
@@ -756,7 +765,7 @@ export function Habits() {
                 ? targetVal
                 : 0
             const isDone = rawDone || (actualVal >= targetVal && targetVal > 0)
-            const percent = Math.min(Math.round((actualVal / targetVal) * 100), 100)
+            const percent = isDone ? 100 : Math.min(Math.round((actualVal / targetVal) * 100), 100)
             const unitDisplay = formatUnit(habit.unit)
             const theme = getHabitTheme(habit, index)
             const hasCustomDayTarget = targetVal !== habit.target_value
@@ -770,6 +779,8 @@ export function Habits() {
                   THEME_FALLBACK_BG[theme]
                 } dark:border-[#223528] shadow-xs sm:shadow-none ${
                   !habit.is_active ? 'opacity-60' : ''
+                } ${
+                  isDone ? 'opacity-70 saturate-[0.85] dark:opacity-65' : ''
                 } ${habitIdParam === habit.id ? 'ring-2 ring-[#738541] dark:ring-[#A8D968] shadow-md' : ''}`}
               >
                 {/* Mobile Stationery Accent Tab: Decorative Washi Tape at Top-Center */}
@@ -812,19 +823,19 @@ export function Habits() {
                     {/* Right side: Mark Done Toggle Pill */}
                     <button
                       type="button"
-                      disabled={isPastDate}
+                      disabled={isPastDate || isDone}
                       onClick={() => handleToggleDone(habit)}
-                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all inline-flex items-center gap-1 shadow-2xs flex-shrink-0 ${
-                        isPastDate ? 'cursor-default opacity-85' : 'cursor-pointer'
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all inline-flex items-center gap-1.5 shadow-2xs flex-shrink-0 ${
+                        isPastDate || isDone ? 'cursor-default opacity-90' : 'cursor-pointer'
                       } ${
                         isDone
-                          ? 'bg-[#4A6225] hover:bg-[#3D521E] dark:bg-[#4E6826] dark:hover:bg-[#41581F] text-white border border-[#3D521E]'
+                          ? 'bg-[#4A6225]/85 dark:bg-[#4E6826]/85 text-white border border-[#3D521E]/60'
                           : 'bg-white/85 hover:bg-white dark:bg-black/35 dark:hover:bg-black/55 text-[#2B351F] dark:text-[#E2EBD6] border border-[#DDD3BF] dark:border-white/20 backdrop-blur-xs'
                       }`}
-                      title={isPastDate ? 'Historical record (read-only)' : isDone ? 'Mark as pending' : 'Mark complete for today'}
+                      title={isDone ? 'Completed & Locked' : isPastDate ? 'Historical record (read-only)' : 'Mark complete for today'}
                     >
-                      <FontAwesomeIcon icon={isDone ? faCheck : (isPastDate ? faLock : faCheck)} className="text-[9px]" />
-                      <span>{isDone ? 'Done' : (isPastDate ? 'Missed' : 'Mark Done')}</span>
+                      <FontAwesomeIcon icon={isDone ? faLock : (isPastDate ? faLock : faCheck)} className="text-[9px]" />
+                      <span>{isDone ? 'Done · Locked' : (isPastDate ? 'Missed' : 'Mark Done')}</span>
                     </button>
                   </div>
                 </div>
@@ -840,18 +851,18 @@ export function Habits() {
                       {/* Today's Custom Goal Pill / Trigger */}
                       <button
                         type="button"
-                        disabled={isPastDate}
+                        disabled={isPastDate || isDone}
                         onClick={() => handleOpenDayTarget(habit)}
                         className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] transition-all ${
-                          isPastDate ? 'cursor-default opacity-85' : 'cursor-pointer'
+                          isPastDate || isDone ? 'cursor-default opacity-60' : 'cursor-pointer'
                         } ${
                           hasCustomDayTarget
                             ? 'bg-[#4A6225] text-white font-bold shadow-2xs'
                             : 'bg-black/6 hover:bg-black/12 dark:bg-white/10 dark:hover:bg-white/20 text-[#43522C] dark:text-[#CBD8BF] font-semibold'
                         }`}
-                        title={isPastDate ? `Day goal for ${selectedDateStr} (locked)` : selectedDateStr === todayStr ? "Set or adjust how much you have to do today" : `Set or adjust goal for ${selectedDateStr}`}
+                        title={isDone ? 'Habit is completed and locked' : isPastDate ? `Day goal for ${selectedDateStr} (locked)` : selectedDateStr === todayStr ? "Set or adjust how much you have to do today" : `Set or adjust goal for ${selectedDateStr}`}
                       >
-                        <FontAwesomeIcon icon={faBullseye} className="text-[9px]" />
+                        <FontAwesomeIcon icon={isDone ? faLock : faBullseye} className="text-[9px]" />
                         <span>
                           {hasCustomDayTarget
                             ? `${selectedDateStr === todayStr ? 'Today' : 'Goal'}: ${targetVal}`
@@ -871,14 +882,14 @@ export function Habits() {
                     {/* Minus Button */}
                     <button
                       type="button"
-                      disabled={isPastDate || actualVal <= 0}
+                      disabled={isPastDate || actualVal <= 0 || isDone}
                       onClick={() => handleStep(habit, -1)}
                       className={`w-8 h-8 sm:w-6 sm:h-6 rounded-full active:scale-95 text-[#2B351F] dark:text-white flex items-center justify-center font-bold text-xs transition-all flex-shrink-0 border border-transparent dark:border-white/10 ${
-                        isPastDate || actualVal <= 0
-                          ? 'bg-[#1D2516]/5 dark:bg-white/5 opacity-40 cursor-not-allowed'
+                        isPastDate || actualVal <= 0 || isDone
+                          ? 'bg-[#1D2516]/5 dark:bg-white/5 opacity-30 cursor-not-allowed'
                           : 'bg-[#1D2516]/10 hover:bg-[#1D2516]/20 dark:bg-white/15 dark:hover:bg-white/25 cursor-pointer'
                       }`}
-                      title={isPastDate ? "Historical record is read-only" : "Decrease progress for today"}
+                      title={isDone ? "Completed and locked" : isPastDate ? "Historical record is read-only" : "Decrease progress for today"}
                     >
                       <FontAwesomeIcon icon={faMinus} className="text-xs sm:text-[9px]" />
                     </button>
@@ -896,14 +907,14 @@ export function Habits() {
                     {/* Plus Button */}
                     <button
                       type="button"
-                      disabled={isPastDate}
+                      disabled={isPastDate || isDone}
                       onClick={() => handleStep(habit, 1)}
                       className={`w-8 h-8 sm:w-6 sm:h-6 rounded-full active:scale-95 text-[#2B351F] dark:text-white flex items-center justify-center font-bold text-xs transition-all flex-shrink-0 border border-transparent dark:border-white/10 ${
-                        isPastDate
-                          ? 'bg-[#1D2516]/5 dark:bg-white/5 opacity-40 cursor-not-allowed'
+                        isPastDate || isDone
+                          ? 'bg-[#1D2516]/5 dark:bg-white/5 opacity-30 cursor-not-allowed'
                           : 'bg-[#1D2516]/10 hover:bg-[#1D2516]/20 dark:bg-white/15 dark:hover:bg-white/25 cursor-pointer'
                       }`}
-                      title={isPastDate ? "Historical record is read-only" : "Increase progress for today"}
+                      title={isDone ? "Completed and locked" : isPastDate ? "Historical record is read-only" : "Increase progress for today"}
                     >
                       <FontAwesomeIcon icon={faPlus} className="text-xs sm:text-[9px]" />
                     </button>
@@ -928,14 +939,21 @@ export function Habits() {
                         {/* Edit Modal Trigger */}
                         <button
                           type="button"
+                          disabled={isDone}
                           onClick={() => {
+                            if (isDone) return
                             setEditingHabit(habit)
                             setShowModal(true)
                           }}
-                          className="text-[#556244] dark:text-[#CBD8BF] hover:text-[#1D2516] dark:hover:text-white font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+                          className={`font-medium inline-flex items-center gap-1 transition-colors ${
+                            isDone
+                              ? 'opacity-40 cursor-not-allowed text-[#7A856D] dark:text-[#6E8268]'
+                              : 'text-[#556244] dark:text-[#CBD8BF] hover:text-[#1D2516] dark:hover:text-white cursor-pointer'
+                          }`}
+                          title={isDone ? 'Completed habits are locked for this day' : 'Edit habit'}
                         >
-                          <FontAwesomeIcon icon={faPenToSquare} className="text-[9px]" />
-                          <span>Edit</span>
+                          <FontAwesomeIcon icon={isDone ? faLock : faPenToSquare} className="text-[9px]" />
+                          <span>{isDone ? 'Locked' : 'Edit'}</span>
                         </button>
 
                         {/* Delete Trigger */}
