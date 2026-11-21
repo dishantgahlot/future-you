@@ -34,15 +34,21 @@ function AppRoutes() {
     )
   }
 
+  const isRecoveryMode =
+    typeof window !== 'undefined' &&
+    (window.location.pathname.startsWith('/reset-password') ||
+      window.location.hash.includes('type=recovery') ||
+      window.location.search.includes('type=recovery'))
+
   return (
     <Routes>
-      <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
+      <Route path="/" element={user && !isRecoveryMode ? <Navigate to="/dashboard" replace /> : <Landing />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/privacy" element={<Privacy />} />
-      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
-      <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
-      <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} />
-      <Route path="/reset-password" element={user ? <Navigate to="/dashboard" replace /> : <ResetPassword />} />
+      <Route path="/login" element={user && !isRecoveryMode ? <Navigate to="/dashboard" replace /> : <Login />} />
+      <Route path="/register" element={user && !isRecoveryMode ? <Navigate to="/dashboard" replace /> : <Register />} />
+      <Route path="/forgot-password" element={user && !isRecoveryMode ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route element={<ProtectedRoute />}>
         <Route path="/onboarding" element={<Onboarding />} />
         <Route element={<MainLayout />}>

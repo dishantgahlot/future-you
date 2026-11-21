@@ -21,6 +21,16 @@ export function ResetPassword() {
   useEffect(() => {
     const code = searchParams.get('code') || searchParams.get('token')
     const type = searchParams.get('type')
+    const hash = window.location.hash
+    const hashHasRecovery = hash.includes('type=recovery') || hash.includes('access_token')
+
+    // Listen to Supabase auth events (e.g. PASSWORD_RECOVERY when session is established from hash)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || (session && (hashHasRecovery || type === 'recovery'))) {
+        setValidToken(true)
+        setValidatingSession(false)
+      }
+    })
 
     // If there is an auth code to exchange
     if (code) {
@@ -39,7 +49,7 @@ export function ResetPassword() {
           setValidToken(true)
         }
       })
-    } else if (type === 'recovery') {
+    } else if (type === 'recovery' || hashHasRecovery) {
       setValidatingSession(false)
       setValidToken(true)
     } else {
@@ -51,6 +61,10 @@ export function ResetPassword() {
           setValidToken(true)
         }
       })
+    }
+
+    return () => {
+      subscription.unsubscribe()
     }
   }, [searchParams])
 
@@ -75,6 +89,12 @@ export function ResetPassword() {
       setError(updateError.message)
       setLoading(false)
     } else {
+      // Sign out of recovery session so the user signs in with their new credentials
+      try {
+        await supabase.auth.signOut()
+      } catch (err) {
+        console.warn('Sign out after password reset:', err)
+      }
       setSuccess(true)
       setLoading(false)
     }

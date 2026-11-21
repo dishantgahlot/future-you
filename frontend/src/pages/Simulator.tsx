@@ -435,14 +435,14 @@ export function Simulator() {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 sm:gap-2">
               <h1 className="font-serif font-bold text-base sm:text-lg text-[#1D2516] dark:text-[#F5F2EB] tracking-tight truncate">
-                Chat with Future You
+                What-If
               </h1>
               <span className="hidden xs:inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#EEF4E8] dark:bg-[#16271D] text-[#4A6225] dark:text-[#A8D968] border border-[#CCD8B8] dark:border-[#22352B]">
                 Scenario Simulator
               </span>
             </div>
             <p className="text-[10px] sm:text-[11px] text-[#7A8C74] dark:text-[#83967D] flex items-center gap-1.5 flex-wrap truncate">
-              <span>Personal Growth Persona & What-If Simulator · {habits.length} habits tracked</span>
+              <span>What-If Persona & Habit Simulator · {habits.length} habits tracked</span>
             </p>
           </div>
         </div>
@@ -465,7 +465,7 @@ export function Simulator() {
         <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#DFEACF] dark:bg-[#16271D] text-[#3D5220] dark:text-[#A8D968] text-xs font-bold shrink-0">
             <FontAwesomeIcon icon={faCalendarDays} className="text-[11px]" />
-            <span>Simulate Date:</span>
+            <span>What-If Date:</span>
           </div>
 
           <button
@@ -819,7 +819,7 @@ export function Simulator() {
                 value={inputVal}
                 onChange={(e) => setInputVal(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask Future You about your habits, simulate a 6-month trajectory, or get focus advice..."
+                placeholder="Ask What-If about your habits, simulate a 6-month trajectory, or get focus advice..."
                 disabled={isSending}
                 className="flex-1 py-1 px-1.5 bg-transparent text-xs sm:text-sm text-[#1D2516] dark:text-[#F5F2EB] placeholder-[#8A847A] dark:placeholder-[#6E8268] focus:outline-none resize-none font-medium max-h-28"
               />
@@ -841,7 +841,7 @@ export function Simulator() {
             <div className="flex justify-between items-center text-[10px] text-[#7A8C74] dark:text-[#6E8268] mt-1.5 px-1">
               <span className="flex items-center gap-1">
                 <FontAwesomeIcon icon={faLeaf} className="text-[#4A6225] dark:text-[#A8D968] text-[9px]" />
-                Future You AI Persona
+                What-If AI Persona
               </span>
               <span>Shift + Enter for new line</span>
             </div>

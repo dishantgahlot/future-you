@@ -99,7 +99,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // If Supabase sends a password recovery event or the URL has a recovery hash, route to /reset-password
+      const isRecovery =
+        event === 'PASSWORD_RECOVERY' ||
+        (typeof window !== 'undefined' &&
+          (window.location.hash.includes('type=recovery') ||
+            window.location.search.includes('type=recovery')))
+
+      if (isRecovery && typeof window !== 'undefined' && !window.location.pathname.startsWith('/reset-password')) {
+        window.location.replace('/reset-password' + window.location.hash + window.location.search)
+        return
+      }
+
       if (session?.user) {
         localStorage.setItem('future_you_active_user_id', session.user.id)
         localStorage.setItem(`future_you_onboarded_${session.user.id}`, 'true')
