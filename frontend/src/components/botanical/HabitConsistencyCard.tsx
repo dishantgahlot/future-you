@@ -7,7 +7,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons'
 import { format, subDays, eachDayOfInterval, startOfWeek, endOfWeek } from 'date-fns'
 import type { Habit, HabitLog } from '../../types'
-import { getLoggedInDates } from '../../utils/habitStorage'
+import { getLoggedInDates, getHabitDate } from '../../utils/habitStorage'
 import { isFutureDate, calculateMonthlyAttendance } from '../../utils/adherence'
 
 interface HabitConsistencyCardProps {
@@ -167,17 +167,22 @@ export function HabitConsistencyCard({
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd')
 
-  const getCellColor = (percent: number, completed: number, isFuture: boolean) => {
-    if (isFuture) {
-      return 'bg-[#F2EFE9] dark:bg-[#15231C] border border-dashed border-[#DDD7CA] dark:border-[#223326] opacity-60 cursor-default'
+  const getCellColor = (
+    percent: number,
+    completed: number,
+    isFuture: boolean,
+    hasHabits: boolean = false
+  ) => {
+    if (isFuture && !hasHabits && completed === 0) {
+      return 'bg-[#F2EFE9] dark:bg-[#121E18] border border-dashed border-[#DDD7CA] dark:border-[#1E2E25] opacity-50'
     }
     if (percent === 0 && completed === 0) {
-      return 'bg-[#ECE7DC] dark:!bg-[#CBD5E1] dark:bg-[#CBD5E1] habit-cell-empty hover:bg-[#DDD8CB] dark:hover:!bg-[#E2E8F0]' // 0% (Comfortable off-white, reduced glare in dark mode)
+      return 'bg-[#ECE7DC] dark:bg-[#16271D] dark:border dark:border-[#203427] habit-cell-empty hover:bg-[#DDD8CB] dark:hover:bg-[#1F382A]' // 0% (Dark muted botanical surface, never bright white)
     }
-    if (percent < 35) return 'bg-[#C4D5A9] dark:!bg-[#A3E4B2] hover:bg-[#B5C895] dark:hover:!bg-[#BBF2C8]' // Light progress (soft light green)
-    if (percent < 70) return 'bg-[#8CA25A] dark:!bg-[#4ADE80] hover:bg-[#7D934D] dark:hover:!bg-[#6EE7B7]' // Medium progress
-    if (percent < 95) return 'bg-[#738541] dark:!bg-[#22C55E] hover:bg-[#637336] dark:hover:!bg-[#16A34A]' // High progress
-    return 'bg-[#3E4F20] dark:!bg-[#15803D] hover:bg-[#313F18] dark:hover:!bg-[#166534]' // 95%+ complete (darker green)
+    if (percent < 35) return 'bg-[#C4D5A9] dark:bg-[#2D5A38] hover:bg-[#B5C895] dark:hover:bg-[#346841]' // Light progress
+    if (percent < 70) return 'bg-[#8CA25A] dark:bg-[#22C55E] hover:bg-[#7D934D] dark:hover:bg-[#16A34A]' // Medium progress
+    if (percent < 95) return 'bg-[#738541] dark:bg-[#16A34A] hover:bg-[#637336] dark:hover:bg-[#15803D]' // High progress
+    return 'bg-[#3E4F20] dark:bg-[#15803D] hover:bg-[#313F18] dark:hover:bg-[#166534]' // 95%+ complete
   }
 
   // Handle cell hover with absolute bounding box clamping: Tooltip can NEVER clip off edges
@@ -343,14 +348,13 @@ export function HabitConsistencyCard({
                     const isSelected = dateStr === selectedDateStr
                     const total = habits.length || 6
                     const isFuture = isFutureDate(day)
+                    const dayHasHabits = habits.some((h) => getHabitDate(h, allLogs) === dateStr)
 
                     return (
                       <button
                         key={dateStr}
                         type="button"
-                        disabled={isFuture}
                         onClick={() => {
-                          if (isFuture) return
                           onSelectDate(day)
                           setHoveredDay({
                             dateStr: format(day, 'yyyy-MM-dd'),
@@ -358,7 +362,7 @@ export function HabitConsistencyCard({
                             completedCount: dayData.completed,
                             totalCount: total,
                             percent: dayData.percent,
-                            isFuture: false,
+                            isFuture,
                           })
                         }}
                         onMouseEnter={(e) => handleCellHover(e, day, dayData, total)}
@@ -368,21 +372,18 @@ export function HabitConsistencyCard({
                             ? `${format(day, 'MMM d')}: Upcoming day (Not yet)`
                             : `${format(day, 'MMM d')}: ${dayData.completed} completed (${dayData.percent}%)`
                         }
-                        className={`flex-1 min-w-0 aspect-square transition-all duration-75 relative shadow-2xs ${
-                          isFuture ? 'cursor-default' : 'cursor-pointer'
-                        } ${
+                        className={`flex-1 min-w-0 aspect-square transition-all duration-75 relative shadow-2xs cursor-pointer ${
                           weeksRange === '52w'
                             ? 'rounded-[1.5px] sm:rounded-[3.5px]'
                             : 'rounded-[3px] sm:rounded-[4px]'
                         } ${getCellColor(
                           dayData.percent,
                           dayData.completed,
-                          isFuture
+                          isFuture,
+                          dayHasHabits
                         )} ${
                           isSelected
                             ? 'ring-2 ring-[#1D2516] dark:ring-[#22C55E] ring-offset-1 sm:ring-offset-2 dark:ring-offset-[#0D1814] scale-110 sm:scale-115 shadow-md z-10'
-                            : isFuture
-                            ? ''
                             : 'hover:scale-125 hover:z-20 hover:shadow-xs'
                         }`}
                       />
@@ -421,7 +422,7 @@ export function HabitConsistencyCard({
           {/* GitHub-style Legend: Less ◻️ 🟩 🟩 🟩 More */}
           <div className="flex items-center gap-1.5 text-[11px] text-[#6F6759] dark:text-[#9BAF90] font-semibold self-end sm:self-auto">
             <span>Less</span>
-            <div className="w-3 h-3 rounded-[3px] bg-[#ECE7DC] dark:!bg-[#CBD5E1] dark:bg-[#CBD5E1] habit-cell-empty" title="0%" />
+            <div className="w-3 h-3 rounded-[3px] bg-[#ECE7DC] dark:bg-[#16271D] dark:border dark:border-[#203427] habit-cell-empty" title="0%" />
             <div className="w-3 h-3 rounded-[3px] bg-[#C4D5A9] dark:bg-[#A3E4B2]" title="<35%" />
             <div className="w-3 h-3 rounded-[3px] bg-[#8CA25A] dark:bg-[#4ADE80]" title="<70%" />
             <div className="w-3 h-3 rounded-[3px] bg-[#738541] dark:bg-[#22C55E]" title="<95%" />
