@@ -289,25 +289,26 @@ export function AvatarPickerSection() {
     )
   }, [avatarMode, currentPreset, avatarUrl])
 
-  // Handle Preset Selection
+  // Is the current preview different from the user's currently applied account avatar?
+  const isPreviewDifferent = useMemo(() => {
+    return currentBigAvatarUrl !== avatarUrl
+  }, [currentBigAvatarUrl, avatarUrl])
+
+  // Handle Preset Selection (Only sets preview; does NOT apply until 'Use This Avatar' is clicked)
   const handleSelectPreset = (preset: AvatarPreset) => {
     setSelectedPresetId(preset.id)
-    const newUrl = buildAvatarUrl(preset.seed, activeStyle)
-    updateAvatar(newUrl, activeStyle, preset.seed)
-    triggerSaveFeedback()
   }
 
-  // Handle Style Switch
+  // Handle Style Switch (Only updates preview style; does NOT apply until 'Use This Avatar' is clicked)
   const handleStyleChange = (styleId: string) => {
     setActiveStyle(styleId)
-    if (currentPreset) {
-      const newUrl = buildAvatarUrl(currentPreset.seed, styleId)
-      updateAvatar(newUrl, styleId, currentPreset.seed)
+    // If no preset is explicitly selected, select the first preset so user immediately sees the style in preview
+    if (!selectedPresetId && filteredPresets.length > 0) {
+      setSelectedPresetId(filteredPresets[0].id)
     }
-    triggerSaveFeedback()
   }
 
-  // Handle Randomize
+  // Handle Randomize (Generates new presets and selects one for preview; does NOT apply until 'Use This Avatar' is clicked)
   const handleRandomize = () => {
     const hairStyles = ['SHORT FADE', 'CURLY BOB', 'MESSY WAVE', 'BRAIDED BUN', 'SHORT COLORED', 'CROP CUT', 'LONG NATURAL']
     const clothes = ['WINTER HOOD', 'BOTANICAL KNIT', 'LINEN SHIRT', 'WARM SWEATER', 'FOLIAGE TEE', 'CASUAL CREW']
@@ -331,30 +332,9 @@ export function AvatarPickerSection() {
 
     setPresets(newPresets)
     setSelectedPresetId(newPresets[0].id)
-    const newUrl = buildAvatarUrl(newPresets[0].seed, activeStyle)
-    updateAvatar(newUrl, activeStyle, newPresets[0].seed)
-    triggerSaveFeedback()
   }
 
-  // Handle Custom URL Apply
-  const handleApplyCustomUrl = () => {
-    const trimmed = customUrlInput.trim()
-    if (!trimmed) {
-      setUrlError('Please enter a photo URL.')
-      return
-    }
-    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && !trimmed.startsWith('data:image/')) {
-      setUrlError('Please enter a valid URL starting with https://')
-      return
-    }
-
-    setUrlError(null)
-    setCustomUrlPreview(trimmed)
-    updateAvatar(trimmed, 'custom', 'custom-photo')
-    triggerSaveFeedback()
-  }
-
-  // Handle Local File Upload
+  // Handle Local File Upload (Only loads image for preview; does NOT apply until 'Use This Avatar' is clicked)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -374,8 +354,6 @@ export function AvatarPickerSection() {
         setCustomUrlInput(dataUrl)
         setCustomUrlPreview(dataUrl)
         setUrlError(null)
-        updateAvatar(dataUrl, 'custom', 'uploaded-photo')
-        triggerSaveFeedback()
       }
     }
     reader.readAsDataURL(file)
@@ -384,6 +362,35 @@ export function AvatarPickerSection() {
   const triggerSaveFeedback = () => {
     setSavedSuccess(true)
     setTimeout(() => setSavedSuccess(false), 2500)
+  }
+
+  // Primary Action: ONLY applies when user explicitly clicks "Use This Avatar"
+  const handleUseThisAvatar = () => {
+    if (avatarMode === 'illustrated') {
+      if (currentPreset) {
+        const url = buildAvatarUrl(currentPreset.seed, activeStyle)
+        updateAvatar(url, activeStyle, currentPreset.seed)
+        triggerSaveFeedback()
+      } else if (avatarSeed) {
+        const url = buildAvatarUrl(avatarSeed, activeStyle)
+        updateAvatar(url, activeStyle, avatarSeed)
+        triggerSaveFeedback()
+      }
+    } else {
+      const trimmed = (customUrlPreview || customUrlInput).trim()
+      if (!trimmed) {
+        setUrlError('Please enter a photo URL or upload an image.')
+        return
+      }
+      if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && !trimmed.startsWith('data:image/')) {
+        setUrlError('Please enter a valid URL starting with https://')
+        return
+      }
+
+      setUrlError(null)
+      updateAvatar(trimmed, 'custom', 'custom-photo')
+      triggerSaveFeedback()
+    }
   }
 
   // Sync slider index: 0 = currently applied avatar, 1..N = filteredPresets
@@ -583,6 +590,34 @@ export function AvatarPickerSection() {
                 }`}
               />
             </div>
+          </div>
+
+          {/* Under-Spotlight Action: Visible "Use This Avatar" pill when user previews an avatar */}
+          <div className="mt-3.5 flex flex-col items-center gap-1.5 min-h-[36px]">
+            {savedSuccess ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAEFE2] dark:bg-[#1D2D23] border border-[#CCD8B8] dark:border-[#2E4334] text-[11px] font-semibold text-[#4E6228] dark:text-[#B6CDB0] animate-fade-in">
+                <FontAwesomeIcon icon={faCircleCheck} className="text-[#738541] dark:text-[#9EB868]" />
+                <span>Applied as your profile avatar!</span>
+              </span>
+            ) : isPreviewDifferent ? (
+              <div className="flex flex-col items-center gap-1 animate-fade-in">
+                <button
+                  type="button"
+                  onClick={handleUseThisAvatar}
+                  className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#738541] hover:bg-[#5E6D34] text-white text-xs font-bold shadow-sm hover:shadow-md transition-all cursor-pointer"
+                >
+                  <FontAwesomeIcon icon={faCheck} className="text-xs" />
+                  <span>Use This Avatar</span>
+                </button>
+                <span className="text-[10px] text-[#6F6759] dark:text-[#9BAF90]">
+                  Previewing · Click to apply to profile
+                </span>
+              </div>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#F6F3EB]/60 dark:bg-[#15231C] text-[10px] font-medium text-[#8A9280] dark:text-[#6E8268]">
+                Current Active Avatar
+              </span>
+            )}
           </div>
         </div>
 
@@ -819,23 +854,17 @@ export function AvatarPickerSection() {
 
               <button
                 type="button"
-                disabled={selectedPresetId === null}
-                onClick={() => {
-                  if (currentPreset) {
-                    const url = buildAvatarUrl(currentPreset.seed, activeStyle)
-                    updateAvatar(url, activeStyle, currentPreset.seed)
-                    triggerSaveFeedback()
-                  }
-                }}
+                disabled={!isPreviewDifferent}
+                onClick={handleUseThisAvatar}
                 className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer ${
-                  selectedPresetId === null
-                    ? 'bg-[#EEF4E8] text-[#415525] border border-[#CCD8B8] cursor-default'
+                  !isPreviewDifferent
+                    ? 'bg-[#EEF4E8] dark:bg-[#1A2D20] text-[#415525] dark:text-[#A8D968] border border-[#CCD8B8] dark:border-[#2E4334] cursor-default'
                     : 'bg-[#738541] hover:bg-[#5E6D34] text-white'
                 }`}
               >
                 <FontAwesomeIcon icon={faCheck} className="text-xs" />
                 <span>
-                  {selectedPresetId === null
+                  {!isPreviewDifferent
                     ? 'Active Profile Avatar'
                     : savedSuccess
                     ? 'Saved!'
@@ -876,11 +905,22 @@ export function AvatarPickerSection() {
 
                 <button
                   type="button"
-                  onClick={handleApplyCustomUrl}
-                  className="px-4 py-2.5 rounded-xl bg-[#738541] hover:bg-[#5E6D34] text-white text-xs font-bold shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5 shrink-0"
+                  onClick={handleUseThisAvatar}
+                  disabled={!isPreviewDifferent}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5 shrink-0 ${
+                    !isPreviewDifferent
+                      ? 'bg-[#EEF4E8] dark:bg-[#1A2D20] text-[#415525] dark:text-[#A8D968] border border-[#CCD8B8] dark:border-[#2E4334] cursor-default'
+                      : 'bg-[#738541] hover:bg-[#5E6D34] text-white'
+                  }`}
                 >
                   <FontAwesomeIcon icon={faCheck} className="text-xs" />
-                  <span>Apply Photo</span>
+                  <span>
+                    {!isPreviewDifferent
+                      ? 'Active Profile Avatar'
+                      : savedSuccess
+                      ? 'Saved!'
+                      : 'Use This Avatar'}
+                  </span>
                 </button>
               </div>
             </div>
