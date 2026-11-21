@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faHouse,
@@ -33,6 +33,7 @@ const navigation = [
 ]
 
 export function Sidebar() {
+  const navigate = useNavigate()
   const location = useLocation()
   const { isOpen, isMobileOpen, closeSidebar, openSidebar, closeMobile, openMobile } = useSidebar()
   const { fullName, email, avatarUrl } = useUserProfile()
@@ -296,6 +297,7 @@ export function Sidebar() {
                 onClick={async () => {
                   await signOut()
                   closeMobile()
+                  navigate('/login', { replace: true })
                 }}
                 className="p-1.5 rounded-xl hover:bg-rose-500/15 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer flex-shrink-0"
                 title="Sign Out"
