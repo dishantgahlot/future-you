@@ -46,9 +46,10 @@ export function TodayPage() {
 
   // Load all user habits & logs from Supabase
   const loadRemoteData = useCallback(async () => {
-    if (!user) return
+    const uid = user?.id || getActiveUserId()
+    if (!uid || uid === 'guest-user' || uid === 'demo-user-1') return
     try {
-      const res = await syncUserData(user.id)
+      const res = await syncUserData(uid)
       if (res.success) {
         setHabits(res.habits)
         setAllLogs(res.logs)
@@ -56,7 +57,7 @@ export function TodayPage() {
     } catch {
       // Graceful fallback to local habits
     }
-  }, [user])
+  }, [user?.id])
 
   useEffect(() => {
     loadRemoteData()

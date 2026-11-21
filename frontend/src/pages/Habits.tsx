@@ -162,11 +162,11 @@ export function Habits() {
     setHabits(getLocalHabits(uid))
     setLogs(getAllLocalLogs(uid))
 
-    if (user?.id && user.id !== 'demo-user-1') {
-      syncUserData(user.id).then((res) => {
+    if (uid && uid !== 'demo-user-1' && uid !== 'guest-user') {
+      syncUserData(uid).then((res) => {
         if (res.success) {
-          setHabits(getLocalHabits(user.id))
-          setLogs(getAllLocalLogs(user.id))
+          setHabits(getLocalHabits(uid))
+          setLogs(getAllLocalLogs(uid))
         }
       })
     }
@@ -1004,14 +1004,14 @@ export function Habits() {
               {searchQuery
                 ? 'No habits found'
                 : isToday
-                ? 'No Habits Added Yet'
+                ? 'A Fresh Start for Today'
                 : `No habits recorded for ${format(parseISO(selectedDateStr), 'MMMM d')}`}
             </h3>
             <p className="text-xs text-[#6F6759] dark:text-[#9BAF90] max-w-md mx-auto mt-1">
               {searchQuery
                 ? `No habits matching "${searchQuery}". Clear your search to see all routines.`
                 : isToday
-                ? "You haven't created any daily routines yet. Add your habits to start tracking your daily progress and building consistency."
+                ? 'Every new day begins with a clean slate. Add your habits for today, or copy your routines from yesterday with one click.'
                 : 'No habits were logged or active on this specific date.'}
             </p>
           </div>
