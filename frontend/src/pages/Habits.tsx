@@ -176,19 +176,13 @@ export function Habits() {
     setSelectedDate(newDateStr)
   }
 
-  // Quick navigation pills: Today, Yesterday, and past days with explicit labels
+  // Quick navigation pills: Only Today and Yesterday (custom dates via calendar picker)
   const quickDayOptions = useMemo(() => {
-    const opts = [{ dateStr: todayStr, label: 'Today' }]
-    const now = new Date()
-    for (let i = 1; i <= 6; i++) {
-      const d = subDays(now, i)
-      const dStr = format(d, 'yyyy-MM-dd')
-      opts.push({
-        dateStr: dStr,
-        label: i === 1 ? 'Yesterday' : format(d, 'd MMM'),
-      })
-    }
-    return opts
+    const yesterdayDate = subDays(new Date(), 1)
+    return [
+      { dateStr: todayStr, label: 'Today' },
+      { dateStr: format(yesterdayDate, 'yyyy-MM-dd'), label: 'Yesterday' },
+    ]
   }, [todayStr])
 
   useEffect(() => {

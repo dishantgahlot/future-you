@@ -147,19 +147,13 @@ export function Journal() {
     }
   }, [entries, userStorageKey, user?.id])
 
-  // Quick Day navigation pills (matching Habits Studio)
+  // Quick Day navigation pills: Only Today and Yesterday (custom dates via calendar picker)
   const quickDayOptions = useMemo(() => {
-    const opts = [{ dateStr: todayStr, label: 'Today' }]
-    const now = new Date()
-    for (let i = 1; i <= 6; i++) {
-      const d = subDays(now, i)
-      const dStr = format(d, 'yyyy-MM-dd')
-      opts.push({
-        dateStr: dStr,
-        label: i === 1 ? 'Yesterday' : format(d, 'd MMM'),
-      })
-    }
-    return opts
+    const yesterdayDate = subDays(new Date(), 1)
+    return [
+      { dateStr: todayStr, label: 'Today' },
+      { dateStr: format(yesterdayDate, 'yyyy-MM-dd'), label: 'Yesterday' },
+    ]
   }, [todayStr])
 
   // Filter entries strictly for the selected date (no carryover across days)
