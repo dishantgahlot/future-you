@@ -139,6 +139,14 @@
     caret-color: #059669;
   }
 
+  /* Disable browser-native password reveal button in Edge/IE to prevent duplicate eye icons */
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
   .dark input, .dark textarea {
     caret-color: #22c55e;
   }
