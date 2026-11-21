@@ -113,12 +113,36 @@ export function getLoggedInDates(userId?: string): string[] {
   }
 }
 
-// Automatically record today's login session and auto-recur daily habits on app load
+// Automatically record today's login session on app load; clean up any empty/unlogged auto-recurred habits on today
 try {
   if (typeof window !== 'undefined') {
     recordLoginDate()
+    const uid = getActiveUserId()
     const todayStr = new Date().toISOString().slice(0, 10)
-    autoRecurHabitsForDate(todayStr)
+    const habitsKey = getHabitsStorageKey(uid)
+    const logsKey = getLogsStorageKey(uid)
+    const rawHabits = localStorage.getItem(habitsKey)
+    const rawLogs = localStorage.getItem(logsKey)
+    if (rawHabits) {
+      const habits: Habit[] = JSON.parse(rawHabits)
+      const logs: HabitLog[] = rawLogs ? JSON.parse(rawLogs) : []
+      // If habits for today have 0 active progress (never logged actual_value > 0 or completed),
+      // remove them so fresh days start with 0 habits unless the user adds them
+      const filtered = habits.filter((h) => {
+        const isToday =
+          h.target_date === todayStr ||
+          (h.created_at && String(h.created_at).startsWith(todayStr))
+        if (!isToday) return true
+        const habitLogs = logs.filter((l) => l.habit_id === h.id)
+        const hasProgress = habitLogs.some(
+          (l) => (l.actual_value && l.actual_value > 0) || l.completion_status
+        )
+        return hasProgress
+      })
+      if (filtered.length !== habits.length) {
+        localStorage.setItem(habitsKey, JSON.stringify(filtered))
+      }
+    }
   }
 } catch {}
 

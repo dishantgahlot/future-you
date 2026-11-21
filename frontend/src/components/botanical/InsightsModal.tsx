@@ -152,6 +152,15 @@ export function InsightsModal({
 
   // Top Habit / Performance Stats
   const topHabit = habits[0]?.name || 'Daily Habits'
+  const activeHabitsCount = useMemo(() => {
+    const uniqueNames = new Set(
+      habits
+        .filter((h) => h.is_active !== false)
+        .map((h) => h.name.toLowerCase().trim())
+    )
+    return uniqueNames.size || habits.filter((h) => h.is_active !== false).length || 0
+  }, [habits])
+
   const bestDay = useMemo(() => {
     return [...weeklyPoints].filter(p => !p.isFuture && p.value !== null).sort((a, b) => (b.value ?? 0) - (a.value ?? 0))[0]
   }, [weeklyPoints])
@@ -523,50 +532,137 @@ ${habitDetails}
                         </span>
                       </div>
 
-                      {/* Wide Monthly Bar Chart */}
-                      <div className="w-full h-56 sm:h-64 flex">
-                        <div className="w-10 h-48 flex flex-col justify-between text-right pr-2 text-xs text-[#767C6B] dark:text-slate-400 font-bold pt-1">
-                          {[100, 75, 50, 25, 0].map((tick) => (
-                            <span key={tick}>{tick}%</span>
-                          ))}
-                        </div>
-
-                        <div className="flex-1 h-48 relative flex items-end justify-around px-6">
-                          <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pt-1">
-                            {[100, 75, 50, 25, 0].map((tick) => (
-                              <div
-                                key={tick}
-                                className="w-full border-b border-dashed border-[#E8E3D7] dark:border-[#1F293D]"
-                              />
-                            ))}
-                          </div>
-
-                          {monthlyWeeks.map((bar) => (
-                            <div key={bar.label} className="flex flex-col items-center z-10 w-16 sm:w-20">
-                              <span className={`text-xs font-bold mb-1.5 ${bar.isFuture ? 'text-[#9BAF90] dark:text-slate-500 italic' : 'text-[#2C3E14] dark:text-emerald-400'}`}>
-                                {bar.isFuture ? '—' : bar.value === null ? '0%' : `${bar.value}%`}
-                              </span>
-                              <div className="w-full h-38 flex items-end justify-center">
-                                <div
-                                  className={`w-full rounded-t-xl shadow-xs transition-all ${
-                                    bar.isFuture
-                                      ? 'bg-[#E5DFD1] dark:bg-[#1A261E] border border-dashed border-[#CCD8B8] dark:border-[#2E4334] opacity-50'
-                                      : bar.value === null
-                                      ? 'bg-[#EAE4D7] dark:bg-[#1E2E24] opacity-40'
-                                      : 'bg-[#738541] dark:bg-emerald-500 hover:brightness-95'
-                                  }`}
-                                  style={{ height: `${bar.isFuture || bar.value === null ? 4 : Math.max(bar.value, 6)}%` }}
+                      {/* Wide SVG Monthly Bar Chart */}
+                      <div className="w-full h-56 sm:h-64 relative">
+                        <svg
+                          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                          className="w-full h-full overflow-visible"
+                        >
+                          {/* Grid lines */}
+                          {[100, 75, 50, 25, 0].map((val) => {
+                            const y = padTop + graphHeight - (val / 100) * graphHeight
+                            return (
+                              <g key={val}>
+                                <text
+                                  x={padLeft - 12}
+                                  y={y + 4}
+                                  textAnchor="end"
+                                  className="text-[11px] fill-[#767C6B] dark:fill-slate-400 font-bold"
+                                >
+                                  {val}%
+                                </text>
+                                <line
+                                  x1={padLeft}
+                                  y1={y}
+                                  x2={svgWidth - padRight}
+                                  y2={y}
+                                  stroke="#E8E3D7"
+                                  className="dark:stroke-[#1F293D]"
+                                  strokeWidth="1.2"
+                                  strokeDasharray="4 4"
                                 />
-                              </div>
-                              <span className={`text-xs font-bold mt-2 ${bar.isFuture ? 'text-[#9BAF90] dark:text-slate-500 italic' : 'text-[#1D2516] dark:text-white'}`}>
-                                {bar.label}
-                              </span>
-                              <span className="text-[10px] text-[#767C6B] dark:text-slate-400 font-semibold">
-                                {bar.dateRange}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
+                              </g>
+                            )
+                          })}
+
+                          {/* Bars */}
+                          {monthlyWeeks.map((bar, i) => {
+                            const availableWidth = svgWidth - padLeft - padRight
+                            const colWidth = availableWidth / monthlyWeeks.length
+                            const barCenterX = padLeft + (i + 0.5) * colWidth
+                            const barWidth = Math.min(52, colWidth * 0.55)
+                            const barX = barCenterX - barWidth / 2
+
+                            if (bar.isFuture) {
+                              const placeholderHeight = 6
+                              const placeholderY = padTop + graphHeight - placeholderHeight
+                              return (
+                                <g key={bar.label}>
+                                  <rect
+                                    x={barX}
+                                    y={placeholderY}
+                                    width={barWidth}
+                                    height={placeholderHeight}
+                                    rx={3}
+                                    ry={3}
+                                    fill="#E5DFD1"
+                                    stroke="#CCD8B8"
+                                    strokeWidth="1"
+                                    strokeDasharray="2 2"
+                                    className="dark:fill-[#1A261E] dark:stroke-[#2E4334] opacity-60"
+                                  />
+                                  <text
+                                    x={barCenterX}
+                                    y={placeholderY - 8}
+                                    textAnchor="middle"
+                                    className="text-[12px] font-bold fill-[#9BAF90] dark:fill-slate-500 italic"
+                                  >
+                                    —
+                                  </text>
+                                  <text
+                                    x={barCenterX}
+                                    y={svgHeight - 16}
+                                    textAnchor="middle"
+                                    className="text-[12px] font-bold fill-[#9BAF90] dark:fill-slate-500 italic"
+                                  >
+                                    {bar.label}
+                                  </text>
+                                  <text
+                                    x={barCenterX}
+                                    y={svgHeight - 2}
+                                    textAnchor="middle"
+                                    className="text-[10px] font-semibold fill-[#767C6B] dark:fill-slate-400"
+                                  >
+                                    {bar.dateRange}
+                                  </text>
+                                </g>
+                              )
+                            }
+
+                            const val = bar.value === null ? 0 : bar.value
+                            const barHeight = Math.max((val / 100) * graphHeight, 4)
+                            const barY = padTop + graphHeight - barHeight
+
+                            return (
+                              <g key={bar.label}>
+                                <rect
+                                  x={barX}
+                                  y={barY}
+                                  width={barWidth}
+                                  height={barHeight}
+                                  rx={6}
+                                  ry={6}
+                                  fill="#738541"
+                                  className="dark:fill-emerald-500"
+                                />
+                                <text
+                                  x={barCenterX}
+                                  y={Math.min(barY - 8, padTop + graphHeight - 10)}
+                                  textAnchor="middle"
+                                  className="text-[12px] font-bold fill-[#2C3E14] dark:fill-emerald-400"
+                                >
+                                  {bar.value === null ? '0%' : `${bar.value}%`}
+                                </text>
+                                <text
+                                  x={barCenterX}
+                                  y={svgHeight - 16}
+                                  textAnchor="middle"
+                                  className="text-[12px] font-bold fill-[#1D2516] dark:fill-white"
+                                >
+                                  {bar.label}
+                                </text>
+                                <text
+                                  x={barCenterX}
+                                  y={svgHeight - 2}
+                                  textAnchor="middle"
+                                  className="text-[10px] font-semibold fill-[#767C6B] dark:fill-slate-400"
+                                >
+                                  {bar.dateRange}
+                                </text>
+                              </g>
+                            )
+                          })}
+                        </svg>
                       </div>
                     </div>
                   )}
@@ -603,7 +699,7 @@ ${habitDetails}
                       Tracked Habits
                     </span>
                     <span className="text-2xl font-serif font-bold text-[#1D2516] dark:text-[#F5F2EB] mt-0.5 block">
-                      {habits.length} Active
+                      {activeHabitsCount} Active
                     </span>
                     <span className="text-xs text-[#767C6B] dark:text-[#8FA387] font-semibold">
                       Primary focus: {topHabit}

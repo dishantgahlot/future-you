@@ -47,7 +47,6 @@ import {
   copyHabitsToDate,
   isLogForDate,
   findLogForHabitAndDate,
-  autoRecurHabitsForDate,
 } from '../utils/habitStorage'
 import { deleteHabit, updateHabit, upsertHabitLog, createHabit } from '../services/api'
 import { syncUserData } from '../services/dataSync'
@@ -220,17 +219,6 @@ export function Habits() {
   }, [user?.id])
 
   // Auto-scroll to specific habit when navigated from Dashboard or notification
-  useEffect(() => {
-    const uid = user?.id || getActiveUserId()
-    if (isToday) {
-      const recurred = autoRecurHabitsForDate(selectedDateStr, uid)
-      if (recurred.length > 0) {
-        setHabits(getLocalHabits(uid))
-        setLogs(getAllLocalLogs(uid))
-      }
-    }
-  }, [isToday, selectedDateStr, user?.id])
-
   useEffect(() => {
     if (habitIdParam) {
       const timer = setTimeout(() => {
