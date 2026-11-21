@@ -14,7 +14,7 @@ export function Login() {
   const [email, setEmail] = useState(() => (location.state as any)?.email || '')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(true)
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
@@ -43,7 +43,7 @@ export function Login() {
 
     const trimmed = email.trim()
     if (!trimmed.includes('@')) {
-      setError('Please sign in with your full email address (e.g. dishant.25b01010184@abes.ac.in), not a username.')
+      setError('Please sign in with your full email address (e.g. you@example.com), not a username.')
       return
     }
 
@@ -172,7 +172,7 @@ export function Login() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. dishant.25b01010184@abes.ac.in"
+                  placeholder="you@example.com"
                   className="w-full pl-11 pr-4 py-3 bg-[#FAF7F0] dark:bg-[#121D18] border border-[#E8E2D5] dark:border-[#22352B] rounded-2xl text-[#1D2516] dark:text-[#F5F2EB] placeholder:text-[#9BA18F] dark:placeholder:text-[#6E8268] text-sm focus:outline-none focus:ring-2 focus:ring-[#738541]/30 focus:border-[#738541] focus:bg-white dark:focus:bg-[#15231C] transition-all"
                   required
                   autoComplete="email"
@@ -201,7 +201,7 @@ export function Login() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
+                  placeholder="Enter your password"
                   className="w-full pl-11 pr-11 py-3 bg-[#FAF7F0] dark:bg-[#121D18] border border-[#E8E2D5] dark:border-[#22352B] rounded-2xl text-[#1D2516] dark:text-[#F5F2EB] placeholder:text-[#9BA18F] dark:placeholder:text-[#6E8268] text-sm focus:outline-none focus:ring-2 focus:ring-[#738541]/30 focus:border-[#738541] focus:bg-white dark:focus:bg-[#15231C] transition-all"
                   required
                   autoComplete="current-password"

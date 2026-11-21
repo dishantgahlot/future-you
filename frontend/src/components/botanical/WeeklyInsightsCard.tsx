@@ -10,6 +10,7 @@ import {
 import { motion } from 'framer-motion'
 import { startOfWeek, addDays, format, addWeeks, isSameDay } from 'date-fns'
 import type { Habit, HabitLog } from '../../types'
+import { calculateWeekAdherence } from '../../utils/adherence'
 
 interface WeeklyInsightsCardProps {
   allLogs: HabitLog[]
@@ -49,53 +50,13 @@ export function WeeklyInsightsCard({
     return addDays(weekStart, 6)
   }, [weekStart])
 
-  // Build points for each day Mon..Sun
-  const totalHabits = habits.length
+  // Compute weekly adherence using shared adherence engine
+  const weekData = useMemo(() => {
+    return calculateWeekAdherence(weekStart, habits, allLogs)
+  }, [weekStart, habits, allLogs])
 
-  const points = useMemo(() => {
-    const now = new Date()
-    now.setHours(23, 59, 59, 999)
-
-    return Array.from({ length: 7 }, (_, i) => {
-      const dayDate = addDays(weekStart, i)
-      const dayStr = format(dayDate, 'yyyy-MM-dd')
-      const isFuture = dayDate.getTime() > now.getTime()
-      
-      let progressSum = 0
-      let completedCount = 0
-
-      habits.forEach((h) => {
-        const log = allLogs.find((l) => l.habit_id === h.id && l.log_date === dayStr)
-        const target = h.target_value || 1
-        const actual =
-          log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
-        progressSum += Math.min(actual / target, 1)
-        if (actual >= target && target > 0) completedCount++
-      })
-
-      const percent = habits.length > 0 ? Math.round((progressSum / habits.length) * 100) : 0
-
-      return {
-        day: format(dayDate, 'EEE'),
-        fullDate: dayDate,
-        dateStr: dayStr,
-        value: percent,
-        completed: completedCount,
-        total: totalHabits,
-        isFuture,
-      }
-    })
-  }, [weekStart, allLogs, habits, totalHabits])
-
-  // Average weekly completion rate (only average days that have elapsed up to today)
-  const weeklyAvg = useMemo(() => {
-    const now = new Date()
-    now.setHours(23, 59, 59, 999)
-    const elapsedPoints = points.filter((p) => p.fullDate <= now)
-    const pts = elapsedPoints.length > 0 ? elapsedPoints : points
-    const sum = pts.reduce((acc, p) => acc + p.value, 0)
-    return Math.round(sum / pts.length)
-  }, [points])
+  const points = weekData.points
+  const weeklyAvg = weekData.weeklyAvg
 
   // Graph geometry for 7 points with broad spacious resolution that stretches full length
   const width = 460
@@ -108,22 +69,40 @@ export function WeeklyInsightsCard({
   const graphWidth = width - padLeft - padRight
   const graphHeight = height - padTop - padBottom
 
+  // Find last known valid adherence value for stable positioning of upcoming points
+  const lastKnownValue = points.filter((p) => !p.isFuture && p.value !== null).pop()?.value ?? 0
+
   const coords = points.map((p, i) => {
     const x = padLeft + (i / (points.length - 1)) * graphWidth
-    const y = padTop + graphHeight - (p.value / 100) * graphHeight
+    const pct = p.isFuture ? lastKnownValue : (p.value ?? 0)
+    const y = padTop + graphHeight - (pct / 100) * graphHeight
     return { ...p, x, y }
   })
 
-  // Generate smooth SVG curve path
-  let pathD = `M ${coords[0].x} ${coords[0].y}`
-  for (let i = 0; i < coords.length - 1; i++) {
-    const p0 = coords[i]
-    const p1 = coords[i + 1]
-    const mx = (p0.x + p1.x) / 2
-    pathD += ` C ${mx} ${p0.y}, ${mx} ${p1.y}, ${p1.x} ${p1.y}`
+  // Generate smooth SVG curve path strictly for elapsed days
+  const elapsedCoords = coords.filter((c) => !c.isFuture && c.hasHabits && c.value !== null)
+  let pathD = ''
+  let areaD = ''
+
+  if (elapsedCoords.length > 0) {
+    pathD = `M ${elapsedCoords[0].x} ${elapsedCoords[0].y}`
+    for (let i = 0; i < elapsedCoords.length - 1; i++) {
+      const p0 = elapsedCoords[i]
+      const p1 = elapsedCoords[i + 1]
+      const mx = (p0.x + p1.x) / 2
+      pathD += ` C ${mx} ${p0.y}, ${mx} ${p1.y}, ${p1.x} ${p1.y}`
+    }
+    areaD = `${pathD} L ${elapsedCoords[elapsedCoords.length - 1].x} ${padTop + graphHeight} L ${elapsedCoords[0].x} ${padTop + graphHeight} Z`
   }
 
-  const areaD = `${pathD} L ${coords[coords.length - 1].x} ${padTop + graphHeight} L ${coords[0].x} ${padTop + graphHeight} Z`
+  // Dashed connector to upcoming points if any
+  let upcomingLineD = ''
+  const firstFutureIdx = coords.findIndex((c) => c.isFuture)
+  if (elapsedCoords.length > 0 && firstFutureIdx > 0) {
+    const lastElapsed = elapsedCoords[elapsedCoords.length - 1]
+    const nextPt = coords[firstFutureIdx]
+    upcomingLineD = `M ${lastElapsed.x} ${lastElapsed.y} L ${nextPt.x} ${nextPt.y}`
+  }
 
   return (
     <div className="bg-white dark:bg-[#0D1814] border border-[#E3DDCF] dark:border-[#223326] rounded-2xl sm:rounded-3xl p-3.5 sm:p-4.5 shadow-xs flex flex-col justify-between h-full group overflow-hidden transition-colors">
@@ -248,18 +227,32 @@ export function WeeklyInsightsCard({
             transition={{ duration: 0.6 }}
           />
 
-          {/* Smooth Line Curve */}
-          <motion.path
-            d={pathD}
-            fill="none"
-            stroke="#738541"
-            strokeWidth="3.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-          />
+          {/* Smooth Line Curve for Elapsed Days */}
+          {pathD && (
+            <motion.path
+              d={pathD}
+              fill="none"
+              stroke="#738541"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+            />
+          )}
+
+          {/* Subtle Upcoming Dashed Guide to Future Point */}
+          {upcomingLineD && (
+            <path
+              d={upcomingLineD}
+              fill="none"
+              stroke="#A8B598"
+              strokeWidth="1.8"
+              strokeDasharray="3 3"
+              className="opacity-40 dark:opacity-30"
+            />
+          )}
 
           {/* Data Points */}
           {coords.map((pt) => {
@@ -276,7 +269,7 @@ export function WeeklyInsightsCard({
                   setHoveredPoint({
                     day: pt.day,
                     date: pt.fullDate,
-                    value: pt.value,
+                    value: pt.value ?? 0,
                     completed: pt.completed,
                     total: pt.total,
                     isFuture: pt.isFuture,
@@ -294,19 +287,20 @@ export function WeeklyInsightsCard({
                     cy={pt.y}
                     r={8}
                     fill="none"
-                    stroke="#3E4F20"
+                    stroke={pt.isFuture ? '#8FA387' : '#3E4F20'}
                     strokeWidth="2.5"
                   />
                 )}
 
-                {/* Main dot */}
+                {/* Main dot: Hollow grey for upcoming days, solid green for active days */}
                 <circle
                   cx={pt.x}
                   cy={pt.y}
-                  r={isSelected ? 5.5 : 4}
-                  fill={isSelected ? '#3E4F20' : '#738541'}
-                  stroke="#FFFFFF"
-                  strokeWidth="2"
+                  r={isSelected ? 5.5 : pt.isFuture ? 3.5 : 4}
+                  fill={pt.isFuture ? '#F6F3EB' : isSelected ? '#3E4F20' : '#738541'}
+                  stroke={pt.isFuture ? '#9CA88E' : '#FFFFFF'}
+                  strokeWidth={pt.isFuture ? 1.5 : 2}
+                  strokeDasharray={pt.isFuture ? '2 2' : undefined}
                   className="transition-all hover:r-6"
                 />
 
@@ -316,7 +310,11 @@ export function WeeklyInsightsCard({
                   y={height - 4}
                   textAnchor="middle"
                   className={`text-[11px] font-bold transition-colors ${
-                    isSelected ? 'fill-[#2C3E14] dark:fill-emerald-400' : 'fill-[#767C6B] dark:fill-slate-400'
+                    pt.isFuture
+                      ? 'fill-[#9BAF90] dark:fill-slate-500 font-normal italic'
+                      : isSelected
+                      ? 'fill-[#2C3E14] dark:fill-emerald-400 font-extrabold'
+                      : 'fill-[#767C6B] dark:fill-slate-400'
                   }`}
                 >
                   {pt.day}
@@ -338,7 +336,9 @@ export function WeeklyInsightsCard({
             <span className="truncate">
               {format(hoveredPoint.date, 'EEE, MMM d')}:{' '}
               {hoveredPoint.isFuture ? (
-                <span className="text-[#8FA387] dark:text-[#A8BCA0] font-medium italic">Upcoming day</span>
+                <span className="text-[#8FA387] dark:text-[#A8BCA0] font-medium italic">Upcoming day (Not yet)</span>
+              ) : hoveredPoint.total === 0 ? (
+                <span className="text-[#8FA387] dark:text-[#A8BCA0] font-medium italic">No habits scheduled</span>
               ) : (
                 <span className="text-leaf-1 dark:text-emerald-400 font-bold tabular-nums">
                   {hoveredPoint.value}% ({hoveredPoint.completed}/{hoveredPoint.total} habits)

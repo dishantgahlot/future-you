@@ -88,12 +88,65 @@ export function Twin() {
         { label: 'Month 6', baseline: 54, projected: 92 },
       ]
 
+  // Helper to compute habit adherence for a group of habits
+  const computeGroupAdherence = (groupHabits: any[]) => {
+    if (groupHabits.length === 0) return { hasData: false, score: 0, habitNames: [] }
+    const groupIds = new Set(groupHabits.map((h) => h.id))
+    const groupLogs = allLogs.filter((l) => groupIds.has(l.habit_id))
+    if (groupLogs.length === 0) return { hasData: false, score: 0, habitNames: groupHabits.map((h) => h.name) }
+
+    let progressSum = 0
+    groupLogs.forEach((l) => {
+      const h = groupHabits.find((gh) => gh.id === l.habit_id)
+      const target = l.target_value || h?.target_value || 1
+      const actual = l.actual_value !== undefined ? l.actual_value : l.completion_status ? target : 0
+      progressSum += target > 0 ? Math.min(actual / target, 1) : 0
+    })
+    const score = Math.round((progressSum / groupLogs.length) * 100)
+    const habitNames = Array.from(new Set(groupHabits.map((h) => h.name)))
+    return { hasData: true, score, habitNames }
+  }
+
+  const physicalGroup = habits.filter((h) => {
+    const cat = (h.category || '').toLowerCase()
+    const name = (h.name || '').toLowerCase()
+    return (
+      ['health', 'fitness', 'sleep', 'physical'].includes(cat) ||
+      /sleep|walk|run|water|hydrat|gym|workout|rest|stretch|exercise|vitality/i.test(name)
+    )
+  })
+
+  const cognitiveGroup = habits.filter((h) => {
+    const cat = (h.category || '').toLowerCase()
+    const name = (h.name || '').toLowerCase()
+    return (
+      ['learning', 'study', 'work', 'focus', 'productivity', 'education'].includes(cat) ||
+      /study|read|code|deep work|writ|learn|math|focus|book|course/i.test(name)
+    )
+  })
+
+  const digitalGroup = habits.filter((h) => {
+    const cat = (h.category || '').toLowerCase()
+    const name = (h.name || '').toLowerCase()
+    return (
+      ['digital', 'screen', 'mindfulness', 'mental_health'].includes(cat) ||
+      /screen|phone|social|scroll|unplug|disconnect|detox|limit/i.test(name)
+    )
+  })
+
+  const physicalMetrics = computeGroupAdherence(physicalGroup)
+  const cognitiveMetrics = computeGroupAdherence(cognitiveGroup)
+  const digitalMetrics = computeGroupAdherence(digitalGroup)
+
   const pillars = [
     {
       title: 'Physical Vitality',
       subtitle: 'Rest, Sleep & Morning Energy',
-      currentScore: 68,
-      projectedScore: is5Year ? 94 : 86,
+      hasData: physicalMetrics.hasData,
+      currentScore: physicalMetrics.score,
+      projectedScore: is5Year ? Math.min(physicalMetrics.score + 26, 96) : Math.min(physicalMetrics.score + 18, 88),
+      supportingHabitNames: physicalMetrics.habitNames,
+      emptyMessage: 'No sleep or physical health habits tracked yet. Add routines in Habit Studio to generate this projection.',
       icon: faMoon,
       outcome: is5Year
         ? 'Deep, uninterrupted sleep with high daytime energy and balanced hormones.'
@@ -102,8 +155,11 @@ export function Twin() {
     {
       title: 'Cognitive Stamina',
       subtitle: 'Deep Work & Focused Study',
-      currentScore: 60,
-      projectedScore: is5Year ? 92 : 84,
+      hasData: cognitiveMetrics.hasData,
+      currentScore: cognitiveMetrics.score,
+      projectedScore: is5Year ? Math.min(cognitiveMetrics.score + 28, 95) : Math.min(cognitiveMetrics.score + 20, 86),
+      supportingHabitNames: cognitiveMetrics.habitNames,
+      emptyMessage: 'No focused study or deep work habits tracked yet. Add learning routines to generate this projection.',
       icon: faBookOpen,
       outcome: is5Year
         ? 'Mastery over complex tasks with 4 hours of effortless daily flow state.'
@@ -112,8 +168,11 @@ export function Twin() {
     {
       title: 'Digital Balance',
       subtitle: 'Intentional Screen & Phone Habits',
-      currentScore: 55,
-      projectedScore: is5Year ? 90 : 80,
+      hasData: digitalMetrics.hasData,
+      currentScore: digitalMetrics.score,
+      projectedScore: is5Year ? Math.min(digitalMetrics.score + 30, 94) : Math.min(digitalMetrics.score + 22, 82),
+      supportingHabitNames: digitalMetrics.habitNames,
+      emptyMessage: 'No screen-time or digital boundary habits tracked yet. Add digital balance habits to generate this projection.',
       icon: faMobileScreen,
       outcome: is5Year
         ? 'Recreational screen time kept below 1.5h, freeing hours for creative pursuits.'
@@ -306,37 +365,64 @@ export function Twin() {
         {pillars.map((pil) => (
           <div
             key={pil.title}
-            className="bg-white dark:bg-[#0D1814] border border-[#E8E2D5] dark:border-[#223326] rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col justify-between min-h-[170px] relative group transition-colors"
+            className="bg-white dark:bg-[#0D1814] border border-[#E8E2D5] dark:border-[#223326] rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col justify-between min-h-[190px] relative group transition-colors"
           >
             <div>
               <div className="flex items-start justify-between mb-2">
-                <div>
-                  <h4 className="font-serif font-bold text-base text-[#1D2516] dark:text-[#F5F2EB]">
-                    {pil.title}
-                  </h4>
+                <div className="min-w-0 pr-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h4 className="font-serif font-bold text-base text-[#1D2516] dark:text-[#F5F2EB]">
+                      {pil.title}
+                    </h4>
+                    {pil.hasData ? (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#EEF4E8] dark:bg-[#1D2D23] text-[#415525] dark:text-[#B6CDB0] border border-[#CCD8B8] dark:border-[#2E4334]">
+                        Active habits
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-[#F4EFEA] dark:bg-[#1F2722] text-[#8C7A6B] dark:text-[#A89F91] border border-[#E0D7CC] dark:border-[#333E36]">
+                        Not enough data yet
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-[#6F6759] dark:text-[#9BAF90] font-medium mt-0.5">
                     {pil.subtitle}
                   </p>
                 </div>
 
-                <div className="text-xl sm:text-2xl text-[#8C8271]/80 dark:text-[#6F7F69] group-hover:text-[#52633E] dark:group-hover:text-[#9EB868] transition-colors">
+                <div className="text-xl sm:text-2xl text-[#8C8271]/80 dark:text-[#6F7F69] group-hover:text-[#52633E] dark:group-hover:text-[#9EB868] transition-colors flex-shrink-0">
                   <FontAwesomeIcon icon={pil.icon} />
                 </div>
               </div>
 
-              {/* Progress Level */}
-              <div className="space-y-1 my-2">
-                <div className="flex items-center justify-between text-xs font-bold tabular-nums">
-                  <span className="text-[#6F6759] dark:text-[#9BAF90]">Now: {pil.currentScore}%</span>
-                  <span className="text-[#415525] dark:text-[#B6CDB0]">Projected: {pil.projectedScore}%</span>
+              {/* Progress Level or Not Enough Data */}
+              {pil.hasData ? (
+                <div className="space-y-1 my-2">
+                  <div className="flex items-center justify-between text-xs font-bold tabular-nums">
+                    <span className="text-[#6F6759] dark:text-[#9BAF90]">Now: {pil.currentScore}%</span>
+                    <span className="text-[#415525] dark:text-[#B6CDB0]">Projected: {pil.projectedScore}%</span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-[#E8E2D4] dark:bg-[#1E3027] overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-[#738541]"
+                      style={{ width: `${pil.projectedScore}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-[#6F6759] dark:text-[#9BAF90] font-medium pt-0.5 leading-snug">
+                    <span className="font-semibold text-[#415525] dark:text-[#B6CDB0]">Estimate based on current habits:</span>{' '}
+                    {pil.supportingHabitNames.join(', ')} ({pil.currentScore}% adherence)
+                  </p>
                 </div>
-                <div className="w-full h-1.5 rounded-full bg-[#E8E2D4] dark:bg-[#1E3027] overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-[#738541]"
-                    style={{ width: `${pil.projectedScore}%` }}
-                  />
+              ) : (
+                <div className="my-2.5 p-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#15231C] border border-dashed border-[#DDD7CA] dark:border-[#223326] space-y-1">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-[#8C7A6B] dark:text-[#A89F91]">Score: —</span>
+                    <span className="text-[11px] font-semibold text-[#8C7A6B] dark:text-[#A89F91]">Not enough data yet</span>
+                  </div>
+                  <p className="text-[11px] text-[#7A8C74] dark:text-[#83967D] leading-tight">
+                    {pil.emptyMessage}
+                  </p>
                 </div>
-              </div>
+              )}
 
               <p className="text-xs text-[#52633E] dark:text-[#9BAF90] font-medium leading-relaxed mt-2.5">
                 {pil.outcome}

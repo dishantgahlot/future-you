@@ -78,24 +78,12 @@ export function Profile() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          {statusMsg && (
-            <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#EAEFE2] dark:bg-[#1D2D23] border border-[#CCD8B8] dark:border-[#2E4334] text-xs font-semibold text-[#4E6228] dark:text-[#B6CDB0] animate-fade-in">
-              <FontAwesomeIcon icon={faCircleCheck} className="w-3.5 h-3.5 text-[#738541] dark:text-[#9EB868]" />
-              <span>{statusMsg}</span>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setShowLogoutModal(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/80 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 text-xs font-semibold transition-all cursor-pointer shadow-2xs"
-            title="Sign out of your account"
-          >
-            <FontAwesomeIcon icon={faRightFromBracket} className="w-3.5 h-3.5" />
-            <span>Log Out</span>
-          </button>
-        </div>
+        {statusMsg && (
+          <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#EAEFE2] dark:bg-[#1D2D23] border border-[#CCD8B8] dark:border-[#2E4334] text-xs font-semibold text-[#4E6228] dark:text-[#B6CDB0] animate-fade-in">
+            <FontAwesomeIcon icon={faCircleCheck} className="w-3.5 h-3.5 text-[#738541] dark:text-[#9EB868]" />
+            <span>{statusMsg}</span>
+          </div>
+        )}
       </div>
 
       {/* 2. Interactive "Pick Your Avatar" Section */}

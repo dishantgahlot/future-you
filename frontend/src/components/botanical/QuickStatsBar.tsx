@@ -2,11 +2,12 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faFire, faCircleCheck, faCalendarCheck } from '@fortawesome/free-solid-svg-icons'
-import { parseISO, differenceInCalendarDays, format, getDaysInMonth } from 'date-fns'
+import { parseISO, differenceInCalendarDays } from 'date-fns'
 import type { Habit, HabitLog } from '../../types'
 import { calculateUserBadges } from '../../utils/achievementBadges'
 import { GitHubBadgeMedallion } from '../profile/GitHubBadgeItem'
 import { getLoggedInDates } from '../../utils/habitStorage'
+import { calculateMonthlyAttendance } from '../../utils/adherence'
 
 interface QuickStatsBarProps {
   allLogs: HabitLog[]
@@ -65,23 +66,16 @@ export function QuickStatsBar({
   }, [allLogs])
 
   // 3. Monthly Attendance Percentage (resets every month)
-  // Calculated based on the number of days in the month and how many days the user has logged in
+  // Calculated based on elapsed days in the month up to today, excluding future days
   const { monthlyAttendancePercent, loggedInDaysCount, daysInMonth, monthLabel } = useMemo(() => {
-    const daysCount = getDaysInMonth(selectedDate)
-    const monthPrefix = format(selectedDate, 'yyyy-MM')
-    const monthShort = format(selectedDate, 'MMM')
-
     const loggedDates = getLoggedInDates()
-    const thisMonthDates = loggedDates.filter((d) => d.startsWith(monthPrefix))
-    const loggedCount = thisMonthDates.length
-
-    const percent = daysCount > 0 ? Math.round((loggedCount / daysCount) * 100) : 0
+    const res = calculateMonthlyAttendance(selectedDate, loggedDates)
 
     return {
-      monthlyAttendancePercent: percent,
-      loggedInDaysCount: loggedCount,
-      daysInMonth: daysCount,
-      monthLabel: monthShort,
+      monthlyAttendancePercent: res.percent,
+      loggedInDaysCount: res.loggedCount,
+      daysInMonth: res.elapsedDays,
+      monthLabel: res.monthLabel,
     }
   }, [selectedDate, allLogs])
 

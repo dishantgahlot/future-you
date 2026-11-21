@@ -580,7 +580,10 @@ export function Journal() {
 
                   {/* Card Footer Metadata */}
                   <div className="flex items-center gap-2 pt-3 mt-3.5 border-t border-[#ECE7DC]/80 dark:border-[#1E2E27] text-[11px] text-[#7A8C74] dark:text-[#8FA387]">
-                    <span>{entry.content.split(/\s+/).filter(Boolean).length} words</span>
+                    {(() => {
+                      const count = entry.content.split(/\s+/).filter(Boolean).length
+                      return <span>{count} {count === 1 ? 'word' : 'words'}</span>
+                    })()}
                     {entry.updatedAt && (
                       <>
                         <span>·</span>

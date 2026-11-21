@@ -10,6 +10,7 @@ import {
   resetDayTarget,
   calculateHabitStreak,
   copyHabitsToDate,
+  autoRecurHabitsForDate,
   getLocalHabits,
   saveLocalHabits,
   getAllLocalLogs,
@@ -409,6 +410,123 @@ describe('Streak Calculation & Habit Copy Workflow', () => {
       const isPastDate = '2026-11-19' < '2026-11-20'
       const allowMutation = !isPastDate
       expect(allowMutation).toBe(false)
+    })
+  })
+
+  describe('P0 - FIX 1: Auto-Recurring Daily Habits', () => {
+    it('automatically recurs active daily habits to a new day with 0 initial progress', () => {
+      // User with 3 habits on 18, 19, 20 Nov
+      const habits18to20: Habit[] = [
+        {
+          id: 'h-18-1',
+          user_id: 'test-user',
+          name: 'Morning Hydration',
+          description: null,
+          category: 'health',
+          frequency: 'daily',
+          target_value: 8,
+          unit: 'glasses',
+          color: '#738541',
+          icon: 'droplet',
+          is_active: true,
+          target_date: '2026-11-18',
+          created_at: '2026-11-18T07:00:00.000Z',
+          updated_at: '2026-11-18T07:00:00.000Z',
+        },
+        {
+          id: 'h-19-1',
+          user_id: 'test-user',
+          name: 'Morning Hydration',
+          description: null,
+          category: 'health',
+          frequency: 'daily',
+          target_value: 8,
+          unit: 'glasses',
+          color: '#738541',
+          icon: 'droplet',
+          is_active: true,
+          target_date: '2026-11-19',
+          created_at: '2026-11-19T07:00:00.000Z',
+          updated_at: '2026-11-19T07:00:00.000Z',
+        },
+        {
+          id: 'h-20-1',
+          user_id: 'test-user',
+          name: 'Morning Hydration',
+          description: null,
+          category: 'health',
+          frequency: 'daily',
+          target_value: 8,
+          unit: 'glasses',
+          color: '#738541',
+          icon: 'droplet',
+          is_active: true,
+          target_date: '2026-11-20',
+          created_at: '2026-11-20T07:00:00.000Z',
+          updated_at: '2026-11-20T07:00:00.000Z',
+        },
+        {
+          id: 'h-20-2',
+          user_id: 'test-user',
+          name: 'Read 20 mins',
+          description: null,
+          category: 'learning',
+          frequency: 'daily',
+          target_value: 20,
+          unit: 'mins',
+          color: '#738541',
+          icon: 'book',
+          is_active: true,
+          target_date: '2026-11-20',
+          created_at: '2026-11-20T08:00:00.000Z',
+          updated_at: '2026-11-20T08:00:00.000Z',
+        },
+        {
+          id: 'h-20-3',
+          user_id: 'test-user',
+          name: 'Evening Walk',
+          description: null,
+          category: 'fitness',
+          frequency: 'daily',
+          target_value: 30,
+          unit: 'mins',
+          color: '#738541',
+          icon: 'person-running',
+          is_active: true,
+          target_date: '2026-11-20',
+          created_at: '2026-11-20T18:00:00.000Z',
+          updated_at: '2026-11-20T18:00:00.000Z',
+        },
+      ]
+
+      saveLocalHabits(habits18to20, 'test-user')
+
+      // Before auto-recur: 21 Nov has 0 habits
+      const initial21Habits = getHabitsForDate(getLocalHabits('test-user'), '2026-11-21')
+      expect(initial21Habits.length).toBe(0)
+
+      // Call autoRecurHabitsForDate for 21 Nov
+      const created21Habits = autoRecurHabitsForDate('2026-11-21', 'test-user')
+      expect(created21Habits.length).toBe(3)
+
+      const habitsOn21 = getHabitsForDate(getLocalHabits('test-user'), '2026-11-21')
+      expect(habitsOn21.length).toBe(3)
+      expect(habitsOn21.map((h) => h.name).sort()).toEqual(['Evening Walk', 'Morning Hydration', 'Read 20 mins'])
+
+      // Check that all 3 start at 0 initial progress on 21 Nov
+      const logs = getAllLocalLogs('test-user')
+      habitsOn21.forEach((h) => {
+        const log = findLogForHabitAndDate(logs, h.id, '2026-11-21')
+        expect(log).toBeDefined()
+        expect(log?.actual_value).toBe(0)
+        expect(log?.completion_status).toBe(false)
+      })
+
+      // Calling again does not duplicate habits
+      const secondCall = autoRecurHabitsForDate('2026-11-21', 'test-user')
+      expect(secondCall.length).toBe(3)
+      const afterSecond = getHabitsForDate(getLocalHabits('test-user'), '2026-11-21')
+      expect(afterSecond.length).toBe(3)
     })
   })
 })

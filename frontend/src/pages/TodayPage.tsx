@@ -11,6 +11,7 @@ import {
   getActiveUserId,
   getHabitsForDate,
   isLogForDate,
+  autoRecurHabitsForDate,
 } from '../utils/habitStorage'
 import {
   createHabit,
@@ -62,6 +63,18 @@ export function TodayPage() {
   useEffect(() => {
     loadRemoteData()
   }, [loadRemoteData])
+
+  // Automatically recur daily habits for today on load
+  useEffect(() => {
+    const uid = user?.id || getActiveUserId()
+    if (isToday) {
+      const recurred = autoRecurHabitsForDate(selectedDateStr, uid)
+      if (recurred.length > 0) {
+        setHabits(getLocalHabits(uid))
+        setAllLogs(getAllLocalLogs(uid))
+      }
+    }
+  }, [isToday, selectedDateStr, user?.id])
 
   // Listen to mobile nav quick add event
   useEffect(() => {

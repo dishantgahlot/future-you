@@ -98,4 +98,30 @@ describe('Achievement Badges Dynamic Calculation Suite', () => {
     expect(slumberBadge).toBeDefined()
     expect(slumberBadge?.progress).toBe(5)
   })
+
+  it('P1 - FIX 5: derives badge unlock dates dynamically from actual habit logs instead of hardcoded dates', () => {
+    // User with first active day on Nov 18 and streak across 18, 19, 20 Nov
+    const userLogs: HabitLog[] = [
+      { id: 'l1', habit_id: 'h1', user_id: 'u1', log_date: '2026-11-18', value: 8, completion_status: true },
+      { id: 'l2', habit_id: 'h1', user_id: 'u1', log_date: '2026-11-19', value: 8, completion_status: true },
+      { id: 'l3', habit_id: 'h1', user_id: 'u1', log_date: '2026-11-20', value: 8, completion_status: true },
+    ]
+
+    const result = calculateUserBadges(mockHabits, userLogs, 3)
+
+    // Quickdraw Sprout derives from first log (Nov 18, 2026), NOT Nov 7
+    const sproutBadge = result.badges.find(b => b.id === 'badge-early-sprout')
+    expect(sproutBadge?.isUnlocked).toBe(true)
+    expect(sproutBadge?.unlockedDate).toBe('Nov 18, 2026')
+
+    // Streak Shark derives from 3rd day of streak (Nov 20, 2026), NOT Nov 12
+    const streakBadge = result.badges.find(b => b.id === 'badge-streak-shark')
+    expect(streakBadge?.isUnlocked).toBe(true)
+    expect(streakBadge?.unlockedDate).toBe('Nov 20, 2026')
+
+    // Badges requiring 5+ logs remain locked without fake unlock dates
+    const brainBadge = result.badges.find(b => b.id === 'badge-galaxy-brain')
+    expect(brainBadge?.isUnlocked).toBe(false)
+    expect(brainBadge?.unlockedDate).toBeUndefined()
+  })
 })

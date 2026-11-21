@@ -113,10 +113,12 @@ export function getLoggedInDates(userId?: string): string[] {
   }
 }
 
-// Automatically record today's login session on app load
+// Automatically record today's login session and auto-recur daily habits on app load
 try {
   if (typeof window !== 'undefined') {
     recordLoginDate()
+    const todayStr = new Date().toISOString().slice(0, 10)
+    autoRecurHabitsForDate(todayStr)
   }
 } catch {}
 
@@ -258,6 +260,95 @@ export function copyHabitsToDate(
   })
 
   return newCopiedHabits
+}
+
+/**
+ * Automatically creates today's instance of every active daily habit
+ * if targetDateStr (default today) does not yet have any habits.
+ * Scans backwards for the most recent past date that has habits, selects active daily habits,
+ * and instantiates them for targetDateStr with 0 initial progress.
+ */
+export function autoRecurHabitsForDate(
+  targetDateStr?: string,
+  userId?: string
+): Habit[] {
+  const uid = userId || getActiveUserId()
+  const todayClean = (targetDateStr || new Date().toISOString().slice(0, 10)).slice(0, 10)
+
+  const allHabits = getLocalHabits(uid)
+  const allLogs = getAllLocalLogs(uid)
+
+  // 1. If habits already exist for target date, do nothing
+  const existingForDate = getHabitsForDate(allHabits, todayClean, allLogs)
+  if (existingForDate.length > 0) {
+    return existingForDate
+  }
+
+  // 2. Find the most recent date with habits before targetDateStr
+  const pastDates = Array.from(
+    new Set(allHabits.map((h) => getHabitDate(h, allLogs)).filter((d) => d && d < todayClean))
+  ).sort()
+
+  if (pastDates.length === 0) {
+    return []
+  }
+
+  // Most recent past day with habits
+  const latestPastDate = pastDates[pastDates.length - 1]
+  const sourceHabits = getHabitsForDate(allHabits, latestPastDate, allLogs)
+
+  // Filter for active daily habits (daily or default daily if unspecified)
+  const dailyHabits = sourceHabits.filter(
+    (h) => (h.frequency === 'daily' || !h.frequency) && h.is_active !== false
+  )
+
+  if (dailyHabits.length === 0) {
+    return []
+  }
+
+  // 3. Create fresh instances anchored to todayClean
+  const newInstances: Habit[] = dailyHabits.map((sh) => ({
+    ...sh,
+    id: crypto.randomUUID(),
+    user_id: uid,
+    target_date: todayClean,
+    created_at: `${todayClean}T12:00:00.000Z`,
+    updated_at: new Date().toISOString(),
+    is_active: true,
+  }))
+
+  const updatedHabits = [...allHabits, ...newInstances]
+  saveLocalHabits(updatedHabits, uid)
+
+  // 4. Initialize day logs with 0 progress
+  newInstances.forEach((h) => {
+    saveLocalLog(h.id, todayClean, 0, h.target_value || 1, undefined, uid)
+  })
+
+  // 5. Asynchronously push to Supabase if connected
+  try {
+    if (typeof window !== 'undefined') {
+      import('../services/api').then(({ createHabit }) => {
+        newInstances.forEach((nh) => {
+          createHabit({
+            id: nh.id,
+            name: nh.name,
+            description: nh.description || '',
+            category: nh.category,
+            frequency: nh.frequency,
+            target_value: nh.target_value,
+            unit: nh.unit,
+            color: nh.color,
+            color_theme: (nh as any).color_theme || 'cream',
+            icon: nh.icon,
+            target_date: nh.target_date,
+          }).catch(() => {})
+        })
+      }).catch(() => {})
+    }
+  } catch {}
+
+  return newInstances
 }
 
 export function getLocalHabits(userId?: string): Habit[] {

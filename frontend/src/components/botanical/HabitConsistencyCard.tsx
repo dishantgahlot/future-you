@@ -5,9 +5,10 @@ import {
   faFire,
   faCalendarCheck,
 } from '@fortawesome/free-solid-svg-icons'
-import { format, subDays, eachDayOfInterval, startOfWeek, endOfWeek, getDaysInMonth } from 'date-fns'
+import { format, subDays, eachDayOfInterval, startOfWeek, endOfWeek } from 'date-fns'
 import type { Habit, HabitLog } from '../../types'
 import { getLoggedInDates } from '../../utils/habitStorage'
+import { isFutureDate, calculateMonthlyAttendance } from '../../utils/adherence'
 
 interface HabitConsistencyCardProps {
   allLogs: HabitLog[]
@@ -42,6 +43,7 @@ export function HabitConsistencyCard({
     completedCount: number
     totalCount: number
     percent: number
+    isFuture?: boolean
   } | null>(null)
 
   // Floating tooltip state directly above the hovered square
@@ -54,6 +56,7 @@ export function HabitConsistencyCard({
     completedCount: number
     totalCount: number
     percent: number
+    isFuture?: boolean
   } | null>(null)
 
   // Map of completed habits & true progress percent per date
@@ -109,35 +112,26 @@ export function HabitConsistencyCard({
     return gridWeeks
   }, [gridWeeks, weeksRange])
 
-  // Month labels cleanly positioned across the displayed weeks
+  // Month labels cleanly positioned across the displayed weeks without repeating
   const monthPositions = useMemo(() => {
     const positions: { monthName: string; weekIndex: number }[] = []
-    let lastMonth = -1
+    const seenMonths = new Set<string>()
     let lastWeekIdx = -10
     const minGap = weeksRange === '16w' ? 2 : 3
 
     displayedWeeks.forEach((week, wIdx) => {
-      // First column gets its month label
-      if (wIdx === 0) {
-        const firstDay = week[0]
-        lastMonth = firstDay.getMonth()
-        lastWeekIdx = 0
-        positions.push({
-          monthName: format(firstDay, 'MMM'),
-          weekIndex: 0,
-        })
-        return
-      }
-
-      // Find the first occurrence of subsequent months with minimum gap
-      const firstOfMonth = week.find((d) => d.getDate() <= 7 && d.getMonth() !== lastMonth)
-      if (firstOfMonth && wIdx - lastWeekIdx >= minGap) {
-        lastMonth = firstOfMonth.getMonth()
-        lastWeekIdx = wIdx
-        positions.push({
-          monthName: format(firstOfMonth, 'MMM'),
-          weekIndex: wIdx,
-        })
+      // Find the first day of month (days 1-7) in this week
+      const firstOfMonth = week.find((d) => d.getDate() <= 7)
+      if (firstOfMonth) {
+        const mName = format(firstOfMonth, 'MMM')
+        if (!seenMonths.has(mName) && wIdx - lastWeekIdx >= minGap) {
+          seenMonths.add(mName)
+          lastWeekIdx = wIdx
+          positions.push({
+            monthName: mName,
+            weekIndex: wIdx,
+          })
+        }
       }
     })
     return positions
@@ -161,25 +155,22 @@ export function HabitConsistencyCard({
     return count
   }, [adherenceByDate])
 
-  // Monthly Attendance percentage (resets every month based on days in month and days logged in)
+  // Monthly Attendance percentage (calculated relative to elapsed days in month, excluding future dates)
   const { monthlyAttendancePercent, monthLabel } = useMemo(() => {
-    const totalDays = getDaysInMonth(selectedDate)
-    const monthPrefix = format(selectedDate, 'yyyy-MM')
-    const monthShort = format(selectedDate, 'MMM')
-
     const loggedDates = getLoggedInDates()
-    const activeThisMonth = loggedDates.filter((d) => d.startsWith(monthPrefix))
-    const percent = totalDays > 0 ? Math.round((activeThisMonth.length / totalDays) * 100) : 0
-
+    const res = calculateMonthlyAttendance(selectedDate, loggedDates)
     return {
-      monthlyAttendancePercent: percent,
-      monthLabel: monthShort,
+      monthlyAttendancePercent: res.percent,
+      monthLabel: res.monthLabel,
     }
   }, [selectedDate, allLogs])
 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd')
 
-  const getCellColor = (percent: number, completed: number) => {
+  const getCellColor = (percent: number, completed: number, isFuture: boolean) => {
+    if (isFuture) {
+      return 'bg-[#F2EFE9] dark:bg-[#15231C] border border-dashed border-[#DDD7CA] dark:border-[#223326] opacity-60 cursor-default'
+    }
     if (percent === 0 && completed === 0) {
       return 'bg-[#ECE7DC] dark:!bg-[#CBD5E1] dark:bg-[#CBD5E1] habit-cell-empty hover:bg-[#DDD8CB] dark:hover:!bg-[#E2E8F0]' // 0% (Comfortable off-white, reduced glare in dark mode)
     }
@@ -216,6 +207,7 @@ export function HabitConsistencyCard({
     // Caret arrow points exactly at cellCenterX relative to boxLeft
     const arrowX = cellCenterX - boxLeft
     const clampedArrowX = Math.max(16, Math.min(tooltipWidth - 16, arrowX))
+    const isFuture = isFutureDate(day)
 
     setHoveredCell({
       boxLeft,
@@ -223,17 +215,19 @@ export function HabitConsistencyCard({
       arrowX: clampedArrowX,
       tooltipWidth,
       displayDate: format(day, 'MMM d, yyyy'),
-      completedCount: dayData.completed,
-      totalCount,
-      percent: dayData.percent,
+      completedCount: isFuture ? 0 : dayData.completed,
+      totalCount: isFuture ? 0 : totalCount,
+      percent: isFuture ? 0 : dayData.percent,
+      isFuture,
     })
 
     setHoveredDay({
       dateStr: format(day, 'yyyy-MM-dd'),
       displayDate: format(day, 'EEE, MMM d, yyyy'),
-      completedCount: dayData.completed,
-      totalCount,
-      percent: dayData.percent,
+      completedCount: isFuture ? 0 : dayData.completed,
+      totalCount: isFuture ? 0 : totalCount,
+      percent: isFuture ? 0 : dayData.percent,
+      isFuture,
     })
   }
 
@@ -348,12 +342,15 @@ export function HabitConsistencyCard({
                     const dayData = adherenceByDate.get(dateStr) || { percent: 0, completed: 0 }
                     const isSelected = dateStr === selectedDateStr
                     const total = habits.length || 6
+                    const isFuture = isFutureDate(day)
 
                     return (
                       <button
                         key={dateStr}
                         type="button"
+                        disabled={isFuture}
                         onClick={() => {
+                          if (isFuture) return
                           onSelectDate(day)
                           setHoveredDay({
                             dateStr: format(day, 'yyyy-MM-dd'),
@@ -361,21 +358,31 @@ export function HabitConsistencyCard({
                             completedCount: dayData.completed,
                             totalCount: total,
                             percent: dayData.percent,
+                            isFuture: false,
                           })
                         }}
                         onMouseEnter={(e) => handleCellHover(e, day, dayData, total)}
                         onMouseLeave={handleCellLeave}
-                        aria-label={`${format(day, 'MMM d')}: ${dayData.completed} completed (${dayData.percent}%)`}
-                        className={`flex-1 min-w-0 aspect-square transition-all duration-75 cursor-pointer relative shadow-2xs ${
+                        aria-label={
+                          isFuture
+                            ? `${format(day, 'MMM d')}: Upcoming day (Not yet)`
+                            : `${format(day, 'MMM d')}: ${dayData.completed} completed (${dayData.percent}%)`
+                        }
+                        className={`flex-1 min-w-0 aspect-square transition-all duration-75 relative shadow-2xs ${
+                          isFuture ? 'cursor-default' : 'cursor-pointer'
+                        } ${
                           weeksRange === '52w'
                             ? 'rounded-[1.5px] sm:rounded-[3.5px]'
                             : 'rounded-[3px] sm:rounded-[4px]'
                         } ${getCellColor(
                           dayData.percent,
-                          dayData.completed
+                          dayData.completed,
+                          isFuture
                         )} ${
                           isSelected
                             ? 'ring-2 ring-[#1D2516] dark:ring-[#22C55E] ring-offset-1 sm:ring-offset-2 dark:ring-offset-[#0D1814] scale-110 sm:scale-115 shadow-md z-10'
+                            : isFuture
+                            ? ''
                             : 'hover:scale-125 hover:z-20 hover:shadow-xs'
                         }`}
                       />
@@ -392,12 +399,16 @@ export function HabitConsistencyCard({
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-3 mt-3 border-t border-[#ECE7DC] dark:border-[#223326] text-xs">
           {hoveredDay ? (
             <div className="flex items-center gap-1.5 text-[#1D2516] dark:text-[#F5F2EB] font-semibold text-xs">
-              <span className="w-2.5 h-2.5 rounded-[2.5px] bg-[#738541] dark:bg-[#22C55E]" />
+              <span className={`w-2.5 h-2.5 rounded-[2.5px] ${hoveredDay.isFuture ? 'bg-[#DDD7CA] dark:bg-[#26382C]' : 'bg-[#738541] dark:bg-[#22C55E]'}`} />
               <span>
                 {hoveredDay.displayDate}:{' '}
-                <strong className="text-[#415525] dark:text-[#22C55E]">
-                  {hoveredDay.completedCount}/{hoveredDay.totalCount} habits completed ({hoveredDay.percent}%)
-                </strong>
+                {hoveredDay.isFuture ? (
+                  <span className="text-[#8E9B85] italic font-normal">Upcoming (not yet elapsed)</span>
+                ) : (
+                  <strong className="text-[#415525] dark:text-[#22C55E]">
+                    {hoveredDay.completedCount}/{hoveredDay.totalCount} habits completed ({hoveredDay.percent}%)
+                  </strong>
+                )}
               </span>
             </div>
           ) : (
@@ -430,12 +441,21 @@ export function HabitConsistencyCard({
           className="absolute -translate-y-full z-50 pointer-events-none transition-all duration-75 animate-fade-in"
         >
           <div className="relative bg-[#1D2516] dark:bg-[#15231C] text-[#F6F3EB] dark:text-[#F5F2EB] text-xs py-2 px-3 rounded-xl shadow-xl flex items-center justify-center gap-1.5 border border-[#3E4F20]/60 dark:border-[#223326] whitespace-nowrap">
-            <span className="font-bold text-[#A9C378] dark:text-[#34D399]">
-              {hoveredCell.completedCount > 0
-                ? `${hoveredCell.completedCount} completed`
-                : '0 completed'}
-            </span>
-            <span className="text-[#D8D2C4] dark:text-[#9BAF90]">on {hoveredCell.displayDate}</span>
+            {hoveredCell.isFuture ? (
+              <>
+                <span className="font-bold text-[#A3B899]">Upcoming (Not yet)</span>
+                <span className="text-[#D8D2C4] dark:text-[#9BAF90]">on {hoveredCell.displayDate}</span>
+              </>
+            ) : (
+              <>
+                <span className="font-bold text-[#A9C378] dark:text-[#34D399]">
+                  {hoveredCell.completedCount > 0
+                    ? `${hoveredCell.completedCount} completed`
+                    : '0 completed'}
+                </span>
+                <span className="text-[#D8D2C4] dark:text-[#9BAF90]">on {hoveredCell.displayDate}</span>
+              </>
+            )}
 
             {/* Downward Caret Arrow Pointing Exactly at the Hovered Cell */}
             <div

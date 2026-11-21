@@ -25,9 +25,10 @@ import {
   faSpa,
   faAppleWhole,
 } from '@fortawesome/free-solid-svg-icons'
-import { format, startOfWeek, addDays, isSameDay, setDate } from 'date-fns'
+import { format, startOfWeek, isSameDay } from 'date-fns'
 import type { Habit, HabitLog } from '../../types'
 import { aiApi } from '../../services/api'
+import { calculateWeekAdherence, calculateMonthAdherence } from '../../utils/adherence'
 
 function getHabitFAIcon(name: string, cat?: string) {
   const n = (name || '').toLowerCase()
@@ -129,135 +130,30 @@ export function InsightsModal({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose])
 
-  // --- Compute Weekly Data ---
+  // --- Compute Weekly Data using shared adherence engine ---
   const weekStart = useMemo(() => {
     return startOfWeek(selectedDate, { weekStartsOn: 1 })
   }, [selectedDate])
 
-  const totalHabits = habits.length || 6
+  const weekData = useMemo(() => {
+    return calculateWeekAdherence(weekStart, habits, allLogs)
+  }, [weekStart, habits, allLogs])
 
-  const weeklyPoints = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const dayDate = addDays(weekStart, i)
-      const dayStr = format(dayDate, 'yyyy-MM-dd')
-      
-      let progressSum = 0
-      let completedCount = 0
+  const weeklyPoints = weekData.points
+  const weeklyAvg = weekData.weeklyAvg
 
-      habits.forEach((h) => {
-        const log = allLogs.find((l) => l.habit_id === h.id && l.log_date === dayStr)
-        const target = log?.target_value || h.target_value || 1
-        const actual =
-          log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
-        progressSum += Math.min(actual / target, 1)
-        if (actual >= target && target > 0) completedCount++
-      })
+  // --- Compute Monthly Data (4 Weeks) using shared adherence engine ---
+  const monthData = useMemo(() => {
+    return calculateMonthAdherence(selectedDate, habits, allLogs)
+  }, [selectedDate, habits, allLogs])
 
-      const percent = habits.length > 0 ? Math.round((progressSum / habits.length) * 100) : 0
-
-      return {
-        day: format(dayDate, 'EEE'),
-        fullDate: dayDate,
-        dateStr: dayStr,
-        value: percent,
-        completed: completedCount,
-        total: totalHabits,
-      }
-    })
-  }, [weekStart, allLogs, habits, totalHabits])
-
-  const weeklyAvg = useMemo(() => {
-    const now = new Date()
-    now.setHours(23, 59, 59, 999)
-    const elapsedPoints = weeklyPoints.filter((p) => p.fullDate <= now)
-    const pts = elapsedPoints.length > 0 ? elapsedPoints : weeklyPoints
-    const sum = pts.reduce((acc, p) => acc + p.value, 0)
-    return Math.round(sum / pts.length)
-  }, [weeklyPoints])
-
-  // --- Compute Monthly Data (4 Weeks) ---
-  const monthlyWeeks = useMemo(() => {
-    const now = new Date()
-    const isCurrentMonth = format(selectedDate, 'yyyy-MM') === format(now, 'yyyy-MM')
-    const isFutureMonth = format(selectedDate, 'yyyy-MM') > format(now, 'yyyy-MM')
-    const currentDay = now.getDate()
-
-    return [
-      { label: 'W1', startDay: 1, endDay: 7, dateRange: '1st – 7th' },
-      { label: 'W2', startDay: 8, endDay: 14, dateRange: '8th – 14th' },
-      { label: 'W3', startDay: 15, endDay: 21, dateRange: '15th – 21st' },
-      { label: 'W4', startDay: 22, endDay: 28, dateRange: '22nd – 28th' },
-    ].map((w) => {
-      let progressSum = 0
-      let completedInWeek = 0
-      let daysLogged = 0
-      const totalDaysInSlice = w.endDay - w.startDay + 1
-
-      let elapsedDays = totalDaysInSlice
-      let isFuture = false
-
-      if (isCurrentMonth) {
-        if (currentDay < w.startDay) {
-          elapsedDays = 0
-          isFuture = true
-        } else if (currentDay <= w.endDay) {
-          elapsedDays = currentDay - w.startDay + 1
-        }
-      } else if (isFutureMonth) {
-        elapsedDays = 0
-        isFuture = true
-      }
-
-      const maxDay = isFuture ? w.startDay - 1 : Math.min(w.endDay, isCurrentMonth ? currentDay : w.endDay)
-
-      for (let day = w.startDay; day <= maxDay; day++) {
-        const d = setDate(selectedDate, day)
-        const dateStr = format(d, 'yyyy-MM-dd')
-        
-        if (habits.length > 0) {
-          let daySum = 0
-          let dayHasLogs = false
-          habits.forEach((h) => {
-            const log = allLogs.find((l) => l.habit_id === h.id && l.log_date === dateStr)
-            const target = log?.target_value || h.target_value || 1
-            const actual =
-              log?.actual_value !== undefined ? log.actual_value : log?.completion_status ? target : 0
-            daySum += Math.min(actual / target, 1)
-            if (actual >= target && target > 0) completedInWeek++
-            if (log) dayHasLogs = true
-          })
-          progressSum += daySum / habits.length
-          if (dayHasLogs) daysLogged++
-        }
-      }
-
-      const value = elapsedDays > 0 ? Math.round((progressSum / elapsedDays) * 100) : 0
-      const totalExpected = elapsedDays * totalHabits
-
-      return {
-        ...w,
-        value,
-        completed: completedInWeek,
-        totalExpected,
-        daysLogged,
-        elapsedDays,
-        isFuture,
-      }
-    })
-  }, [selectedDate, allLogs, habits, totalHabits])
-
-  const monthlyAvg = useMemo(() => {
-    if (monthlyWeeks.length === 0) return 0
-    const activeWeeks = monthlyWeeks.filter((w) => !w.isFuture && w.elapsedDays > 0)
-    const pts = activeWeeks.length > 0 ? activeWeeks : monthlyWeeks.slice(0, 1)
-    const sum = pts.reduce((acc, w) => acc + w.value, 0)
-    return Math.round(sum / pts.length)
-  }, [monthlyWeeks])
+  const monthlyWeeks = monthData.weeks
+  const monthlyAvg = monthData.monthlyAvg
 
   // Top Habit / Performance Stats
   const topHabit = habits[0]?.name || 'Daily Habits'
   const bestDay = useMemo(() => {
-    return [...weeklyPoints].sort((a, b) => b.value - a.value)[0]
+    return [...weeklyPoints].filter(p => !p.isFuture && p.value !== null).sort((a, b) => (b.value ?? 0) - (a.value ?? 0))[0]
   }, [weeklyPoints])
 
   // Personalized breakdown of every habit for today / selected date
@@ -381,7 +277,7 @@ ${habitDetails}
 
   const coords = weeklyPoints.map((p, i) => {
     const x = padLeft + (i / (weeklyPoints.length - 1)) * graphWidth
-    const y = padTop + graphHeight - (p.value / 100) * graphHeight
+    const y = padTop + graphHeight - ((p.value ?? 0) / 100) * graphHeight
     return { ...p, x, y }
   })
 
@@ -647,16 +543,22 @@ ${habitDetails}
 
                           {monthlyWeeks.map((bar) => (
                             <div key={bar.label} className="flex flex-col items-center z-10 w-16 sm:w-20">
-                              <span className="text-xs font-bold text-[#2C3E14] dark:text-emerald-400 mb-1.5">
-                                {bar.value}%
+                              <span className={`text-xs font-bold mb-1.5 ${bar.isFuture ? 'text-[#9BAF90] dark:text-slate-500 italic' : 'text-[#2C3E14] dark:text-emerald-400'}`}>
+                                {bar.isFuture ? '—' : bar.value === null ? '0%' : `${bar.value}%`}
                               </span>
                               <div className="w-full h-38 flex items-end justify-center">
                                 <div
-                                  className="w-full rounded-t-xl bg-[#738541] dark:bg-emerald-500 shadow-xs transition-all hover:brightness-95"
-                                  style={{ height: `${Math.max(bar.value, 6)}%` }}
+                                  className={`w-full rounded-t-xl shadow-xs transition-all ${
+                                    bar.isFuture
+                                      ? 'bg-[#E5DFD1] dark:bg-[#1A261E] border border-dashed border-[#CCD8B8] dark:border-[#2E4334] opacity-50'
+                                      : bar.value === null
+                                      ? 'bg-[#EAE4D7] dark:bg-[#1E2E24] opacity-40'
+                                      : 'bg-[#738541] dark:bg-emerald-500 hover:brightness-95'
+                                  }`}
+                                  style={{ height: `${bar.isFuture || bar.value === null ? 4 : Math.max(bar.value, 6)}%` }}
                                 />
                               </div>
-                              <span className="text-xs font-bold text-[#1D2516] dark:text-white mt-2">
+                              <span className={`text-xs font-bold mt-2 ${bar.isFuture ? 'text-[#9BAF90] dark:text-slate-500 italic' : 'text-[#1D2516] dark:text-white'}`}>
                                 {bar.label}
                               </span>
                               <span className="text-[10px] text-[#767C6B] dark:text-slate-400 font-semibold">

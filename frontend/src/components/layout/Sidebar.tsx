@@ -26,7 +26,7 @@ const navigation = [
   { name: 'Habits', href: '/habits', icon: faSquareCheck },
   { name: 'Insights', href: '/insights', icon: faChartSimple },
   { name: 'Future Me', href: '/twin', icon: faCompass },
-  { name: 'What-If', href: '/scenarios', icon: faCodeBranch },
+  { name: 'Chat with Future You', href: '/scenarios', icon: faCodeBranch },
   { name: 'Journal', href: '/journal', icon: faBookOpen },
   { name: 'Badges', href: '/badges', icon: faAward },
   { name: 'Settings', href: '/profile', icon: faGear },

@@ -19,6 +19,9 @@ import { useAuth } from './contexts/AuthContext'
 import { Twin } from './pages/Twin'
 import { Journal } from './pages/Journal'
 import { Badges } from './pages/Badges'
+import { Landing } from './pages/Landing'
+import { Terms } from './pages/Terms'
+import { Privacy } from './pages/Privacy'
 
 function AppRoutes() {
   const { user, loading } = useAuth()
@@ -33,6 +36,9 @@ function AppRoutes() {
 
   return (
     <Routes>
+      <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/privacy" element={<Privacy />} />
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
       <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
       <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} />
@@ -53,8 +59,7 @@ function AppRoutes() {
           <Route path="/future-letters" element={<FutureLetters />} />
         </Route>
       </Route>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

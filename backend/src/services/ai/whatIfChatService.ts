@@ -149,7 +149,7 @@ export async function getWhatIfSessionMessages(userId: string, sessionId: string
         metrics: m.metrics,
         suggestedFollowUps: m.suggested_follow_ups,
         model: m.model,
-        timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: '',
       }))
     }
   } catch (err) {
@@ -221,7 +221,7 @@ export async function getWhatIfChatHistory(userId: string, limit = 50): Promise<
         metrics: m.metrics,
         suggestedFollowUps: m.suggested_follow_ups,
         model: m.model,
-        timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: '',
       }))
     }
   } catch (err) {
@@ -258,7 +258,7 @@ export async function saveWhatIfMessage(params: {
     metrics,
     suggestedFollowUps,
     model,
-    timestamp: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    timestamp: '',
   }
 
   if (!memoryWhatIfMessages[userId]) {
@@ -409,6 +409,51 @@ export function extractDateFromQuery(message: string, currentYear = 2026): strin
   }
 
   return null
+}
+
+/**
+ * Resolves the single, unique calendar date (YYYY-MM-DD) that a habit belongs to.
+ * Mirrors frontend habitStorage.ts so chat and dashboard use the exact same data model.
+ */
+function getHabitDate(h: any, logs: any[] = []): string {
+  if (!h) return ''
+  if (h.target_date) {
+    const d = String(h.target_date).trim().slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d
+  }
+  if (h.date) {
+    const d = String(h.date).trim().slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d
+  }
+  const hId = String(h.id || '')
+  if (logs && Array.isArray(logs)) {
+    const habitLogs = logs.filter((l: any) => String(l.habit_id || l.habitId || '') === hId)
+    if (habitLogs.length > 0) {
+      const activeLog = habitLogs.find(
+        (l: any) => (l.actual_value !== undefined && Number(l.actual_value) > 0) || l.completion_status
+      )
+      if (activeLog) {
+        const d = String(activeLog.log_date || activeLog.date || '').slice(0, 10)
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d
+      }
+      const validLogs = habitLogs
+        .map((l: any) => String(l.log_date || l.date || '').slice(0, 10))
+        .filter((d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+      if (validLogs.length > 0) return validLogs[0]
+    }
+  }
+  if (h.created_at) {
+    const m = String(h.created_at).match(/^\d{4}-\d{2}-\d{2}/)
+    if (m) return m[0]
+  }
+  return ''
+}
+
+function getHabitsForDate(habits: any[], dateStr: string, logs: any[] = []): any[] {
+  if (!habits || !Array.isArray(habits)) return []
+  if (!dateStr) return habits
+  const clean = dateStr.slice(0, 10)
+  return habits.filter((h: any) => getHabitDate(h, logs) === clean)
 }
 
 /**
@@ -720,76 +765,53 @@ export async function simulateWhatIfScenario(
   }
 
   const computeDaySummary = (dateStr: string) => {
+    const cleanDate = dateStr.slice(0, 10)
+    const dayHabits = getHabitsForDate(habits, cleanDate, logs)
+
+    if (dayHabits.length === 0) {
+      return {
+        dateStr: cleanDate,
+        overallProgress: 0,
+        completedCount: 0,
+        inProgressCount: 0,
+        missedCount: 0,
+        totalHabits: 0,
+        habits: [] as any[],
+        hasAnyLogs: false,
+      }
+    }
+
     let completedCount = 0
     let inProgressCount = 0
     let missedCount = 0
     let progressSum = 0
 
-    // Filter habits strictly relevant to dateStr
-    const relevantHabits = habits.filter((h: any) => {
-      // 1. Explicit target_date or date
-      const targetDate = String(h.target_date || h.date || '').slice(0, 10)
-      if (targetDate && targetDate === dateStr) return true
-
-      // 2. Has log on dateStr
-      const hId = String(h.id)
-      const hasLog = logs.some((l: any) => {
+    const habitDetails = dayHabits.map((h: any) => {
+      const hId = String(h.id || '')
+      const log = logs.find((l: any) => {
         const rawDate = String(l.log_date || l.date || '')
-        return String(l.habit_id || l.habitId || '') === hId && rawDate.slice(0, 10) === dateStr
-      })
-      if (hasLog) return true
-
-      // 3. Fallback created_at
-      const createdDate = String(h.created_at || '').slice(0, 10)
-      if (createdDate && createdDate === dateStr) return true
-
-      return false
-    })
-
-    const effectiveHabits =
-      relevantHabits.length > 0
-        ? relevantHabits
-        : habits.every((h: any) => !h.created_at)
-        ? habits
-        : []
-
-    const habitDetails = effectiveHabits.map((h: any) => {
-      const hId = String(h.id)
-      const habitLogs = logs.filter((l: any) => String(l.habit_id || l.habitId || '') === hId)
-      const log = habitLogs.find((l: any) => {
-        const rawDate = String(l.log_date || l.date || '')
-        return rawDate.slice(0, 10) === dateStr
+        return String(l.habit_id || l.habitId || '') === hId && rawDate.slice(0, 10) === cleanDate
       })
       const target = Number(h.target_value || h.targetValue) || 1
-
       let actual = 0
-      let pct = 0
 
       if (log) {
         if (log.actual_value !== undefined && log.actual_value !== null) {
           actual = Number(log.actual_value)
         } else if (log.value !== undefined && log.value !== null) {
           actual = Number(log.value)
-        }
-
-        if (log.progress_percentage !== undefined && log.progress_percentage !== null) {
-          pct = Number(log.progress_percentage)
-        } else if (target > 0) {
-          pct = Math.min(Math.round((actual / target) * 100 * 10) / 10, 100)
-        }
-
-        // Completion status handling
-        if (log.completion_status || pct >= 100) {
-          if (pct < 100) pct = 100
-          if (actual < target) actual = target
+        } else if (log.completion_status) {
+          actual = target
         }
       }
 
-      const isCompleted = pct >= 100 || Boolean(log?.completion_status) || (actual >= target && target > 0)
-      const isInProgress = !isCompleted && (pct > 0 || actual > 0)
-      const isMissed = !isCompleted && !isInProgress
+      const ratio = target > 0 ? Math.min(actual / target, 1) : 0
+      const pct = Math.round(ratio * 100)
+      const isCompleted = actual >= target && target > 0
+      const isInProgress = !isCompleted && actual > 0
+      const isMissed = actual === 0
 
-      progressSum += pct
+      progressSum += ratio
       if (isCompleted) completedCount++
       else if (isInProgress) inProgressCount++
       else missedCount++
@@ -801,7 +823,7 @@ export async function simulateWhatIfScenario(
         target,
         actual,
         unit: h.unit || 'times',
-        pct: Math.round(pct * 10) / 10,
+        pct,
         isCompleted,
         isInProgress,
         isMissed,
@@ -809,35 +831,78 @@ export async function simulateWhatIfScenario(
       }
     })
 
-    const overallProgress = effectiveHabits.length > 0 ? Math.round(progressSum / effectiveHabits.length) : 0
+    const overallProgress = Math.round((progressSum / dayHabits.length) * 100)
     return {
-      dateStr,
+      dateStr: cleanDate,
       overallProgress,
       completedCount,
       inProgressCount,
       missedCount,
+      totalHabits: dayHabits.length,
       habits: habitDetails,
       hasAnyLogs: habitDetails.some((h: any) => h.hasLog || h.actual > 0),
     }
   }
 
+  const todaySummary = computeDaySummary(todayStr)
   const yesterdaySummary = computeDaySummary(yesterdayStr)
   const targetDaySummary = computeDaySummary(resolvedTargetDateStr)
 
-  // Last 7 days summary array (day - 6 to today)
-  const recentDaysSummary = Array.from({ length: 7 }).map((_, i) => {
+  // Current and best streaks (matching Dashboard & QuickStatsBar)
+  const activeDates = Array.from(
+    new Set(
+      logs
+        .filter((l: any) => l.completion_status || (l.actual_value !== undefined && Number(l.actual_value) > 0))
+        .map((l: any) => String(l.log_date || l.date || '').slice(0, 10))
+    )
+  ).filter((d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= todayStr).sort()
+
+  let currentStreak = 0
+  let bestStreak = 0
+  if (activeDates.length > 0) {
+    let maxStreak = 1
+    let tempStreak = 1
+    for (let i = 1; i < activeDates.length; i++) {
+      const prev = new Date(activeDates[i - 1]).getTime()
+      const curr = new Date(activeDates[i]).getTime()
+      const diffDays = Math.round((curr - prev) / 86400000)
+      if (diffDays === 1) {
+        tempStreak++
+        maxStreak = Math.max(maxStreak, tempStreak)
+      } else if (diffDays > 1) {
+        tempStreak = 1
+      }
+    }
+    const lastActive = new Date(activeDates[activeDates.length - 1]).getTime()
+    const todayTime = new Date(todayStr).getTime()
+    const daysSince = Math.round((todayTime - lastActive) / 86400000)
+    currentStreak = daysSince <= 1 ? tempStreak : 0
+    bestStreak = maxStreak
+  }
+
+  // 7-day weekly adherence using only elapsed days with active habits (matching Dashboard & Insights)
+  const past7DaysSummaries = Array.from({ length: 7 }).map((_, i) => {
     const d = new Date(now.getTime() - (6 - i) * 86400000)
     const dStr = [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
-    const summary = computeDaySummary(dStr)
-    const isYest = dStr === yesterdayStr
-    const isTod = dStr === todayStr
+    return computeDaySummary(dStr)
+  })
+  const elapsedDaysWithHabits = past7DaysSummaries.filter((d) => d.totalHabits > 0 && d.dateStr <= todayStr)
+  const trueWeeklyRate = elapsedDaysWithHabits.length > 0
+    ? Math.round(elapsedDaysWithHabits.reduce((acc, d) => acc + d.overallProgress, 0) / elapsedDaysWithHabits.length)
+    : 0
+
+  // Last 7 days summary array (day - 6 to today)
+  const recentDaysSummary = past7DaysSummaries.map((summary) => {
+    const d = new Date(summary.dateStr)
+    const isYest = summary.dateStr === yesterdayStr
+    const isTod = summary.dateStr === todayStr
     const dayLabel = isTod ? 'Today' : isYest ? 'Yesterday' : daysOfWeek[d.getDay()]
     return {
-      dateStr: dStr,
+      dateStr: summary.dateStr,
       dayLabel,
       overallProgress: summary.overallProgress,
       completedCount: summary.completedCount,
-      totalCount: habits.length,
+      totalCount: summary.totalHabits,
       habits: summary.habits,
     }
   })
@@ -875,48 +940,55 @@ export async function simulateWhatIfScenario(
 
 3. ON-DEMAND LIVE DATABASE AWARENESS (ZERO GUESSWORK):
    - You have live real-time access to ${userName}'s habit database below.
-   - When asked about today's progress, cite their exact numbers: ${todayCompletedCount} completed, ${todayInProgressCount} in progress, ${todayPendingCount} pending.
-   - Recognize partial completions (${habits.map((h: any) => h.name).join(', ')}) as meaningful momentum.
+   - When asked about today's progress, cite their exact numbers: ${todaySummary.completedCount} completed, ${todaySummary.inProgressCount} in progress, ${todaySummary.missedCount} pending out of ${todaySummary.totalHabits} habits.
+   - If today has 0 habits configured yet, state clearly: "Today's slate is fresh with 0 habits configured yet for today." Never claim 0 of 9 or make up numbers.
+   - When asked about streak, cite their exact current streak: ${currentStreak} days (best streak: ${bestStreak} days).
+   - When asked about weekly adherence, cite: ${trueWeeklyRate}% (matching their dashboard weekly average).
 
 4. PREVIOUS DAY & HISTORICAL DATA INQUIRIES (CRITICAL):
    - When ${userName} asks to see previous day data, what they did yesterday, how much was completed on a previous day, or asks a What-If question about a past day:
      * Mention the date clearly (${resolvedTargetDateStr} or yesterday ${yesterdayStr}).
      * Explicitly list EVERY habit from that day: habit name, actual vs target amount, percentage completed, and completion status (Completed / In Progress / Missed).
-     * Provide the total day completion percentage (${targetDaySummary.overallProgress}%).
+     * Provide the total day completion percentage (${targetDaySummary.overallProgress}% out of ${targetDaySummary.totalHabits} active habits on that day).
      * Run the What-If simulation: Project what would happen if ${userName} had completed 100% of those habits or fixed missed ones, how that shifts rolling adherence and 6-month trajectory, and how the 70% rule preserved momentum.
      * Pivot into an actionable, encouraging next step for TODAY.
 
 === LIVE DATABASE CONTEXT FOR ${userName.toUpperCase()} ===
+[CURRENT STREAK & WEEKLY ADHERENCE (EXACT MATCH WITH DASHBOARD)]:
+- Current Streak: ${currentStreak} days
+- Best Streak: ${bestStreak} days
+- Rolling Weekly Adherence: ${trueWeeklyRate}%
+
 [TODAY'S LIVE STATUS - ${todayStr}]:
-- Overall Today Progress: ${todayOverallProgress}%
-- Habits Completed Today: ${todayCompletedCount} of ${habits.length}
-- Habits In Progress Today: ${todayInProgressCount}
-- Habits Pending / Not Started: ${todayPendingCount}
+${todaySummary.totalHabits === 0 ? `- Today's Status: 0 habits configured yet for today. Today's slate is fresh (0/0 completed).` : `- Overall Today Progress: ${todaySummary.overallProgress}%
+- Habits Completed Today: ${todaySummary.completedCount} of ${todaySummary.totalHabits}
+- Habits In Progress Today: ${todaySummary.inProgressCount}
+- Habits Pending / Not Started: ${todaySummary.missedCount}
 - Detailed Today Status By Habit:
-${habitAnalytics.map((h) => `  * **${h.name}**: Today's Progress: **${h.todayProgressPct}%** (${h.todayActual}/${h.target} ${h.unit}) | Status: ${h.todayCompleted ? 'COMPLETED' : h.todayInProgress ? 'IN PROGRESS' : 'NOT STARTED / PENDING'}`).join('\n')}
+${todaySummary.habits.map((h: any) => `  * **${h.name}**: Today's Progress: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) | Status: ${h.isCompleted ? 'COMPLETED' : h.isInProgress ? 'IN PROGRESS' : 'NOT STARTED / PENDING'}`).join('\n')}`}
 
 [YESTERDAY'S HISTORICAL RECORD - ${yesterdayStr}]:
 - Overall Yesterday Progress: ${yesterdaySummary.overallProgress}%
-- Habits Completed: ${yesterdaySummary.completedCount} of ${habits.length}
+- Habits Completed: ${yesterdaySummary.completedCount} of ${yesterdaySummary.totalHabits}
 - Habits In Progress: ${yesterdaySummary.inProgressCount}
 - Habits Missed / Not Completed: ${yesterdaySummary.missedCount}
 - Detailed Breakdown For Yesterday:
-${yesterdaySummary.habits.map((h: any) => `  * **${h.name}**: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) | Status: ${h.isCompleted ? 'COMPLETED' : h.isInProgress ? 'IN PROGRESS (70% Win)' : 'MISSED / NOT STARTED'}`).join('\n')}
+${yesterdaySummary.habits.length > 0 ? yesterdaySummary.habits.map((h: any) => `  * **${h.name}**: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) | Status: ${h.isCompleted ? 'COMPLETED' : h.isInProgress ? 'IN PROGRESS (70% Win)' : 'MISSED / NOT STARTED'}`).join('\n') : '  * No habits were active on this day.'}
 ${resolvedTargetDateStr !== yesterdayStr && resolvedTargetDateStr !== todayStr ? `
 [REQUESTED HISTORICAL DAY DATA - ${resolvedTargetDateStr}]:
 - Overall Progress: ${targetDaySummary.overallProgress}%
-- Habits Completed: ${targetDaySummary.completedCount} of ${habits.length}
+- Habits Completed: ${targetDaySummary.completedCount} of ${targetDaySummary.totalHabits}
 - Habits In Progress: ${targetDaySummary.inProgressCount}
 - Habits Missed: ${targetDaySummary.missedCount}
 - Detailed Breakdown For ${resolvedTargetDateStr}:
-${targetDaySummary.habits.map((h: any) => `  * **${h.name}**: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) | Status: ${h.isCompleted ? 'COMPLETED' : h.isInProgress ? 'IN PROGRESS' : 'MISSED / NOT STARTED'}`).join('\n')}
+${targetDaySummary.habits.length > 0 ? targetDaySummary.habits.map((h: any) => `  * **${h.name}**: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) | Status: ${h.isCompleted ? 'COMPLETED' : h.isInProgress ? 'IN PROGRESS' : 'MISSED / NOT STARTED'}`).join('\n') : '  * No habits were active on this day.'}
 ` : ''}
 [RECENT 7-DAY TIMELINE LOGS]:
 ${recentDaysSummary.map((d: any) => `- ${d.dayLabel} (${d.dateStr}): ${d.overallProgress}% overall (${d.completedCount}/${d.totalCount} completed)`).join('\n')}
 
 [WEEKLY & MONTHLY ADHERENCE (REAL LOGGED DATA)]:
-- Last 7-Day Adherence: ${overallWeeklyRate}% (${habitAnalytics.map((h) => `${h.name}: ${h.weeklyCompletedDays}/7 days [${h.weeklyRate}%]`).join(', ')})
-- Last 30-Day Adherence: ${overallMonthlyRate}% (${habitAnalytics.map((h) => `${h.name}: ${h.monthlyCompletedDays}/30 days [${h.monthlyRate}%]`).join(', ')})
+- Last 7-Day Adherence: ${trueWeeklyRate}%
+- Last 30-Day Adherence: ${overallMonthlyRate}%
 - Weekday Adherence: ${weekdayRate}% | Weekend Adherence: ${weekendRate}%
 - Active Habits Overall Consistency:
 ${habitAnalytics.map((h) => `  * **${h.name}** (${h.category}): 7-day adherence: ${h.weeklyRate}% | 30-day adherence: ${h.monthlyRate}% | Overall full completion: ${h.adherenceRate}%`).join('\n')}
@@ -930,6 +1002,7 @@ ${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.weeklyRate}% 7-da
 === TONE & FORMAT ===
 - Speak directly as Future You ("I", "we", "our trajectory").
 - Warm, grounded, intelligent, concise, and structured.
+- Never cut off mid-sentence; always complete your thoughts.
 - Use clean Markdown with bolding, bullet points, and code blocks where helpful.`
 
     // Format conversation history up to 6 previous turns
@@ -948,8 +1021,8 @@ ${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.weeklyRate}% 7-da
         model: targetModel,
         systemInstruction,
         noCache: true, // Interactive chat must always generate fresh real-time responses
-        maxOutputTokens: 600,
-        timeout: 7000,
+        maxOutputTokens: 2048,
+        timeout: 15000,
       })
       const res = await client.generateContent(promptText)
 
@@ -1042,16 +1115,19 @@ ${leadingHabits.slice(0, 2).map((h) => `  * **${h.name}**: ${h.weeklyRate}% 7-da
     weekendRate,
     weekdayRate,
     todayStr,
-    todayOverallProgress,
-    todayCompletedCount,
-    todayInProgressCount,
-    todayPendingCount,
-    overallWeeklyRate,
+    todaySummary.overallProgress,
+    todaySummary.completedCount,
+    todaySummary.inProgressCount,
+    todaySummary.missedCount,
+    trueWeeklyRate,
     overallMonthlyRate,
     yesterdaySummary,
     targetDaySummary,
     resolvedTargetDateStr,
-    yesterdayStr
+    yesterdayStr,
+    todaySummary,
+    currentStreak,
+    bestStreak
   )
   const fallbackResponse: WhatIfChatResponse = {
     ...baseFallback,
@@ -1151,7 +1227,10 @@ function generateDatabaseAwareFallback(
   yesterdaySummary?: any,
   targetDaySummary?: any,
   resolvedTargetDateStr?: string,
-  yesterdayStr?: string
+  yesterdayStr?: string,
+  todaySummary?: any,
+  currentStreak?: number,
+  bestStreak?: number
 ): Omit<WhatIfChatResponse, 'sessionId' | 'sessionTitle'> {
   const q = message.toLowerCase().trim()
 
@@ -1200,9 +1279,7 @@ function generateDatabaseAwareFallback(
 
   // DOMAIN PREVIOUS DAY: HISTORICAL HABIT DATA & WHAT-IF SIMULATION
   else if (isAskingPreviousDay && (targetDaySummary || yesterdaySummary)) {
-    const focusSummary = (targetDaySummary && targetDaySummary.habits && targetDaySummary.habits.length > 0)
-      ? targetDaySummary
-      : (yesterdaySummary || targetDaySummary)
+    const focusSummary = targetDaySummary || yesterdaySummary
     const isYest = focusSummary.dateStr === yesterdayStr || q.includes('yesterday')
     const dateLabel = isYest ? `Yesterday (${focusSummary.dateStr})` : `Historical Record (${focusSummary.dateStr})`
 
@@ -1210,10 +1287,11 @@ function generateDatabaseAwareFallback(
     const inProgressHabits = focusSummary.habits.filter((h: any) => h.isInProgress)
     const completedHabits = focusSummary.habits.filter((h: any) => h.isCompleted)
     const isWhatIf = q.includes('what if') || q.includes('if i ') || q.includes('scenario') || q.includes('would') || q.includes('suppose')
+    const totalTracked = focusSummary.totalHabits !== undefined ? focusSummary.totalHabits : focusSummary.habits.length
 
     reply = `• **Previous Day Habit Record: ${dateLabel}**:
   - **Overall Day Completion**: **${focusSummary.overallProgress}%**
-  - **Summary**: **${focusSummary.completedCount}** completed, **${focusSummary.inProgressCount}** in progress, and **${focusSummary.missedCount}** missed out of **${focusSummary.habits.length}** tracked habits.
+  - **Summary**: **${focusSummary.completedCount}** completed, **${focusSummary.inProgressCount}** in progress, and **${focusSummary.missedCount}** missed out of **${totalTracked}** tracked habits.
 
 • **Habit-by-Habit Data & Execution**:
 ${focusSummary.habits.length > 0 ? focusSummary.habits.map((h: any) => `  * **${h.name}**: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) — *${h.isCompleted ? 'Completed' : h.isInProgress ? 'In Progress (70% Win)' : 'Missed / Not Started'}*`).join('\n') : '  * No habits were active on this date.'}
@@ -1239,15 +1317,30 @@ ${isWhatIf
 
   // DOMAIN 0: TODAY'S ACCURATE PROGRESS
   else if (q.includes('today') || (q.includes('progress') && !q.includes('week') && !q.includes('month') && !q.includes('report') && !q.includes('70%'))) {
-    reply = `• **Today's Live Habit Progress (${todayStr})**:
-  - **Overall Day Execution**: **${todayOverallProgress}%**
-  - **Summary**: **${todayCompletedCount}** completed, **${todayInProgressCount}** in progress, **${todayPendingCount}** pending out of **${allHabits.length}** tracked habits.
+    const todayHabits = todaySummary?.habits || []
+    const todayTotal = todaySummary !== undefined ? todaySummary.totalHabits : allHabits.length
 
-• **Habit-by-Habit Breakdown for Today**:
-${allHabits.map((h) => `  * **${h.name}**: **${h.todayProgressPct}%** (${h.todayActual}/${h.target} ${h.unit}) — *${h.todayCompleted ? 'Completed' : h.todayInProgress ? 'In Progress' : 'Not Started'}*`).join('\n')}
+    if (todayTotal === 0) {
+      reply = `• **Today's Live Habit Progress (${todayStr})**:
+  - **Overall Day Execution**: **0%**
+  - **Summary**: Today's slate is fresh with **0 active habits** configured yet for today.
+  ${currentStreak ? `- **Active Streak**: **${currentStreak} days** streak intact! A fresh day awaits.` : ''}
 
 • **Immediate Next Action**:
-  - ${todayPendingCount > 0 ? `Kickstart a 5-minute micro-start for **${(allHabits.find(h => h.todayPending) || allHabits[0]).name}** to conquer initial inertia and lock in positive momentum.` : todayInProgressCount > 0 ? `Wrap up **${(allHabits.find(h => h.todayInProgress) || allHabits[0]).name}** to reach 100% daily completion!` : `All tracked habits are completed for today! Outstanding discipline and momentum.`}`
+  - Add or auto-recur your daily routines in Habit Studio to start tracking today's progress.`
+    } else {
+      reply = `• **Today's Live Habit Progress (${todayStr})**:
+  - **Overall Day Execution**: **${todayOverallProgress}%**
+  - **Summary**: **${todayCompletedCount}** completed, **${todayInProgressCount}** in progress, **${todayPendingCount}** pending out of **${todayTotal}** tracked habits.
+  ${currentStreak ? `- **Current Streak**: **${currentStreak} days** (Best: ${bestStreak || currentStreak} days)` : ''}
+
+• **Habit-by-Habit Breakdown for Today**:
+${todayHabits.map((h: any) => `  * **${h.name}**: **${h.pct}%** (${h.actual}/${h.target} ${h.unit}) — *${h.isCompleted ? 'Completed' : h.isInProgress ? 'In Progress' : 'Not Started'}*`).join('\n')}
+
+• **Immediate Next Action**:
+  - ${todayPendingCount > 0 ? `Kickstart a 5-minute micro-start for **${(todayHabits.find((h: any) => h.isMissed) || todayHabits[0])?.name || 'your routine'}** to conquer initial inertia and lock in positive momentum.` : todayInProgressCount > 0 ? `Wrap up **${(todayHabits.find((h: any) => h.isInProgress) || todayHabits[0])?.name || 'your routine'}** to reach 100% daily completion!` : `All tracked habits are completed for today! Outstanding discipline and momentum.`}`
+    }
+
     suggestedFollowUps = [
       'Where am I lagging the most right now?',
       'What if I stay disciplined for 6 months?',

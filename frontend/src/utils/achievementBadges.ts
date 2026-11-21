@@ -9,6 +9,7 @@ import {
   faTrophy,
 } from '@fortawesome/free-solid-svg-icons'
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core'
+import { format, parseISO } from 'date-fns'
 import type { Habit, HabitLog } from '../types'
 
 export type BadgeTier = 'bronze' | 'silver' | 'gold' | 'amethyst'
@@ -82,27 +83,6 @@ export function calculateUserBadges(
   const completedLogs = logs.filter((l) => l.completion_status)
   const totalCompleted = completedLogs.length
 
-  // Categorized log counts
-  const sleepLogs = completedLogs.filter((l) => {
-    const h = habits.find((hb) => hb.id === l.habit_id)
-    return h?.category === 'sleep' || h?.name.toLowerCase().includes('sleep')
-  }).length
-
-  const fitnessLogs = completedLogs.filter((l) => {
-    const h = habits.find((hb) => hb.id === l.habit_id)
-    return h?.category === 'fitness' || h?.name.toLowerCase().includes('exercise') || h?.name.toLowerCase().includes('workout')
-  }).length
-
-  const learningLogs = completedLogs.filter((l) => {
-    const h = habits.find((hb) => hb.id === l.habit_id)
-    return h?.category === 'learning' || h?.category === 'productivity' || h?.name.toLowerCase().includes('study')
-  }).length
-
-  const hydrationLogs = completedLogs.filter((l) => {
-    const h = habits.find((hb) => hb.id === l.habit_id)
-    return h?.category === 'health' || h?.name.toLowerCase().includes('hydrat') || h?.name.toLowerCase().includes('water')
-  }).length
-
   // Check if any date has 100% completion across active habits
   const activeHabitIds = new Set(habits.filter((h) => h.is_active).map((h) => h.id))
   const logsByDate = new Map<string, Set<string>>()
@@ -122,6 +102,83 @@ export function calculateUserBadges(
     })
   }
 
+  const formatLogDate = (dateStr?: string) => {
+    if (!dateStr) return undefined
+    try {
+      return format(parseISO(dateStr), 'MMM d, yyyy')
+    } catch {
+      return undefined
+    }
+  }
+
+  // 1. Sorted completed logs for sequential unlock calculations
+  const sortedCompletedLogs = [...completedLogs].sort((a, b) => a.log_date.localeCompare(b.log_date))
+  const firstCompletedDate = sortedCompletedLogs[0]?.log_date
+  const firstUnlockedDate = formatLogDate(firstCompletedDate)
+
+  // 2. Active consecutive streak dates
+  const activeDates = Array.from(
+    new Set(completedLogs.map((l) => l.log_date))
+  ).sort()
+
+  let streak3Date: string | undefined = undefined
+  let tempStreak = 1
+  for (let i = 1; i < activeDates.length; i++) {
+    const prevDate = parseISO(activeDates[i - 1])
+    const currDate = parseISO(activeDates[i])
+    const diff = Math.round((currDate.getTime() - prevDate.getTime()) / 86400000)
+    if (diff === 1) {
+      tempStreak++
+      if (tempStreak >= 3 && !streak3Date) {
+        streak3Date = activeDates[i]
+      }
+    } else if (diff > 1) {
+      tempStreak = 1
+    }
+  }
+  const streak3UnlockedDate = formatLogDate(streak3Date || (currentStreak >= 3 ? activeDates[activeDates.length - 1] : undefined))
+
+  // 3. Category logs sorted
+  const sortedLearningLogs = completedLogs
+    .filter((l) => {
+      const h = habits.find((hb) => hb.id === l.habit_id)
+      return h?.category === 'learning' || h?.category === 'productivity' || h?.name.toLowerCase().includes('study')
+    })
+    .sort((a, b) => a.log_date.localeCompare(b.log_date))
+
+  const sortedFitnessLogs = completedLogs
+    .filter((l) => {
+      const h = habits.find((hb) => hb.id === l.habit_id)
+      return h?.category === 'fitness' || h?.name.toLowerCase().includes('exercise') || h?.name.toLowerCase().includes('workout')
+    })
+    .sort((a, b) => a.log_date.localeCompare(b.log_date))
+
+  const sortedSleepLogs = completedLogs
+    .filter((l) => {
+      const h = habits.find((hb) => hb.id === l.habit_id)
+      return h?.category === 'sleep' || h?.name.toLowerCase().includes('sleep')
+    })
+    .sort((a, b) => a.log_date.localeCompare(b.log_date))
+
+  const sortedHydrationLogs = completedLogs
+    .filter((l) => {
+      const h = habits.find((hb) => hb.id === l.habit_id)
+      return h?.category === 'health' || h?.name.toLowerCase().includes('hydrat') || h?.name.toLowerCase().includes('water')
+    })
+    .sort((a, b) => a.log_date.localeCompare(b.log_date))
+
+  // 4. Perfect days
+  let firstPerfectDate: string | undefined = undefined
+  if (activeHabitIds.size > 0) {
+    const sortedDates = Array.from(logsByDate.keys()).sort()
+    for (const d of sortedDates) {
+      if (logsByDate.get(d)!.size >= activeHabitIds.size) {
+        firstPerfectDate = d
+        break
+      }
+    }
+  }
+
   const badges: AchievementBadge[] = [
     // 1. Quickdraw / Early Sprout
     {
@@ -136,7 +193,7 @@ export function calculateUserBadges(
       isUnlocked: totalCompleted >= 1,
       progress: Math.min(totalCompleted, 1),
       maxProgress: 1,
-      unlockedDate: totalCompleted >= 1 ? 'Nov 7, 2026' : undefined,
+      unlockedDate: totalCompleted >= 1 ? firstUnlockedDate : undefined,
       colors: TIER_COLORS.bronze,
     },
     // 2. Streak Shark (Consistency Streak)
@@ -152,7 +209,7 @@ export function calculateUserBadges(
       isUnlocked: currentStreak >= 3,
       progress: Math.min(currentStreak, 7),
       maxProgress: 7,
-      unlockedDate: currentStreak >= 3 ? 'Nov 12, 2026' : undefined,
+      unlockedDate: currentStreak >= 3 ? streak3UnlockedDate : undefined,
       colors: currentStreak >= 7 ? TIER_COLORS.gold : TIER_COLORS.silver,
     },
     // 3. Galaxy Brain (Focus & Study)
@@ -165,10 +222,10 @@ export function calculateUserBadges(
       tierLabel: 'Amethyst',
       multiplier: 'x2',
       icon: faBrain,
-      isUnlocked: learningLogs >= 5,
-      progress: Math.min(learningLogs, 5),
+      isUnlocked: sortedLearningLogs.length >= 5,
+      progress: Math.min(sortedLearningLogs.length, 5),
       maxProgress: 5,
-      unlockedDate: learningLogs >= 5 ? 'Nov 14, 2026' : undefined,
+      unlockedDate: sortedLearningLogs.length >= 5 ? formatLogDate(sortedLearningLogs[4].log_date) : undefined,
       colors: TIER_COLORS.amethyst,
     },
     // 4. Arctic Iron (Fitness Discipline)
@@ -181,10 +238,10 @@ export function calculateUserBadges(
       tierLabel: 'Silver',
       multiplier: 'x2',
       icon: faDumbbell,
-      isUnlocked: fitnessLogs >= 5,
-      progress: Math.min(fitnessLogs, 5),
+      isUnlocked: sortedFitnessLogs.length >= 5,
+      progress: Math.min(sortedFitnessLogs.length, 5),
       maxProgress: 5,
-      unlockedDate: fitnessLogs >= 5 ? 'Nov 14, 2026' : undefined,
+      unlockedDate: sortedFitnessLogs.length >= 5 ? formatLogDate(sortedFitnessLogs[4].log_date) : undefined,
       colors: TIER_COLORS.silver,
     },
     // 5. Night Owl Tamer (Restorative Sleep)
@@ -196,10 +253,10 @@ export function calculateUserBadges(
       tier: 'amethyst',
       tierLabel: 'Amethyst',
       icon: faMoon,
-      isUnlocked: sleepLogs >= 5,
-      progress: Math.min(sleepLogs, 5),
+      isUnlocked: sortedSleepLogs.length >= 5,
+      progress: Math.min(sortedSleepLogs.length, 5),
       maxProgress: 5,
-      unlockedDate: sleepLogs >= 5 ? 'Nov 15, 2026' : undefined,
+      unlockedDate: sortedSleepLogs.length >= 5 ? formatLogDate(sortedSleepLogs[4].log_date) : undefined,
       colors: TIER_COLORS.amethyst,
     },
     // 6. Aqua Vitality (Hydration)
@@ -211,10 +268,10 @@ export function calculateUserBadges(
       tier: 'bronze',
       tierLabel: 'Bronze',
       icon: faDroplet,
-      isUnlocked: hydrationLogs >= 5,
-      progress: Math.min(hydrationLogs, 5),
+      isUnlocked: sortedHydrationLogs.length >= 5,
+      progress: Math.min(sortedHydrationLogs.length, 5),
       maxProgress: 5,
-      unlockedDate: hydrationLogs >= 5 ? 'Nov 15, 2026' : undefined,
+      unlockedDate: sortedHydrationLogs.length >= 5 ? formatLogDate(sortedHydrationLogs[4].log_date) : undefined,
       colors: TIER_COLORS.bronze,
     },
     // 7. Starstruck Perfectionist (All Habits Complete)
@@ -230,7 +287,7 @@ export function calculateUserBadges(
       isUnlocked: perfectDaysCount >= 1,
       progress: Math.min(perfectDaysCount, 3),
       maxProgress: 3,
-      unlockedDate: perfectDaysCount >= 1 ? 'Nov 16, 2026' : undefined,
+      unlockedDate: perfectDaysCount >= 1 ? formatLogDate(firstPerfectDate) : undefined,
       colors: TIER_COLORS.gold,
     },
     // 8. Century Club (100 Logs)
@@ -245,7 +302,7 @@ export function calculateUserBadges(
       isUnlocked: totalCompleted >= 100,
       progress: Math.min(totalCompleted, 100),
       maxProgress: 100,
-      unlockedDate: totalCompleted >= 100 ? 'Nov 16, 2026' : undefined,
+      unlockedDate: totalCompleted >= 100 ? formatLogDate(sortedCompletedLogs[99]?.log_date) : undefined,
       colors: TIER_COLORS.gold,
     },
   ]

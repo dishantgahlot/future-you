@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { format, subDays } from 'date-fns'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faPaperPlane,
@@ -16,9 +17,11 @@ import {
   faChevronLeft,
   faMessage,
   faLightbulb,
+  faCalendarDays,
 } from '@fortawesome/free-solid-svg-icons'
 import { useUserProfile } from '../contexts/UserProfileContext'
 import { useAuth } from '../contexts/AuthContext'
+import { useAppDate } from '../contexts/DateContext'
 import { getLocalHabits, getAllLocalLogs } from '../utils/habitStorage'
 import { syncUserData } from '../services/dataSync'
 import { aiApi } from '../services/api'
@@ -41,12 +44,12 @@ interface SavedSession {
 
 // Curated starter scenarios designed for the Future You persona & app context
 const STARTER_SCENARIOS = [
+  'What if I keep my current 3-day streak for 30 days?',
+  'What if I hit 100% adherence this week?',
   'What was my habit data and completion yesterday?',
-  'What if I completed 100% of my habits yesterday?',
   'How is my habit trajectory looking today?',
   'Where am I lagging the most, and how do I fix it?',
-  'I hit 70% progress today—how does Future You view this?',
-  'Why do my weekends drop off, and how do we bridge the gap?',
+  'How does the 70% rule prevent burnout?',
 ]
 
 function formatSessionTime(isoString?: string) {
@@ -54,16 +57,12 @@ function formatSessionTime(isoString?: string) {
   const date = new Date(isoString)
   if (isNaN(date.getTime())) return ''
   const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  if (diffDays === 0) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  } else if (diffDays === 1) {
-    return 'Yesterday'
-  } else if (diffDays < 7) {
-    return `${diffDays}d ago`
-  }
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  const nowStr = now.toISOString().slice(0, 10)
+  const dateStr = date.toISOString().slice(0, 10)
+  const yest = new Date(now.getTime() - 86400000).toISOString().slice(0, 10)
+  if (dateStr === nowStr) return 'Today'
+  if (dateStr === yest) return 'Yesterday'
+  return dateStr
 }
 
 function renderFormattedText(text: string) {
@@ -165,6 +164,19 @@ export function Simulator() {
 
   const [searchParams] = useSearchParams()
   const queryDate = searchParams.get('date')
+
+  const { todayStr } = useAppDate()
+  const yesterdayStr = useMemo(() => {
+    const y = subDays(new Date(), 1)
+    return format(y, 'yyyy-MM-dd')
+  }, [])
+
+  const [targetDateStr, setTargetDateStr] = useState<string>(() => {
+    if (queryDate && /^\d{4}-\d{2}-\d{2}$/.test(queryDate)) {
+      return queryDate
+    }
+    return todayStr
+  })
 
   const [habits, setHabits] = useState(() => getLocalHabits(user?.id))
 
@@ -337,7 +349,7 @@ export function Simulator() {
       id: `u-${Date.now()}`,
       role: 'user',
       content: query,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: '',
     }
 
     setMessages((prev) => [...prev, userMsg])
@@ -368,7 +380,7 @@ export function Simulator() {
         habits: liveHabits,
         logs: liveLogs,
         userName,
-        targetDate: queryDate || undefined,
+        targetDate: targetDateStr || queryDate || undefined,
       })
 
       const replyText =
@@ -380,7 +392,7 @@ export function Simulator() {
         id: `m-${Date.now()}`,
         role: 'model',
         content: replyText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: '',
       }
       setMessages((prev) => [...prev, botMsg])
 
@@ -397,7 +409,7 @@ export function Simulator() {
         id: `err-${Date.now()}`,
         role: 'model',
         content: `• **Error**: Could not connect with AI agent (${err?.message || 'Network error'}). Please try again.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: '',
       }
       setMessages((prev) => [...prev, errorMsg])
     } finally {
@@ -423,14 +435,14 @@ export function Simulator() {
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 sm:gap-2">
               <h1 className="font-serif font-bold text-base sm:text-lg text-[#1D2516] dark:text-[#F5F2EB] tracking-tight truncate">
-                Future You Persona
+                Chat with Future You
               </h1>
               <span className="hidden xs:inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#EEF4E8] dark:bg-[#16271D] text-[#4A6225] dark:text-[#A8D968] border border-[#CCD8B8] dark:border-[#22352B]">
-                AI Persona
+                Scenario Simulator
               </span>
             </div>
             <p className="text-[10px] sm:text-[11px] text-[#7A8C74] dark:text-[#83967D] flex items-center gap-1.5 flex-wrap truncate">
-              <span>Personal Growth Persona · {habits.length} habits tracked</span>
+              <span>Personal Growth Persona & What-If Simulator · {habits.length} habits tracked</span>
             </p>
           </div>
         </div>
@@ -445,6 +457,60 @@ export function Simulator() {
             <span className="hidden xs:inline">New Chat</span>
             <span className="xs:hidden">New</span>
           </button>
+        </div>
+      </div>
+
+      {/* 1.5 Date Switcher: Today, Yesterday, and Custom Calendar */}
+      <div className="bg-[#FAF7F0] dark:bg-[#0E1714] rounded-2xl border border-[#E8E2D5] dark:border-[#1E2E27] p-2.5 sm:p-3 shadow-xs flex flex-wrap items-center justify-between gap-2.5 transition-colors">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#DFEACF] dark:bg-[#16271D] text-[#3D5220] dark:text-[#A8D968] text-xs font-bold shrink-0">
+            <FontAwesomeIcon icon={faCalendarDays} className="text-[11px]" />
+            <span>Simulate Date:</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setTargetDateStr(todayStr)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              targetDateStr === todayStr
+                ? 'bg-[#4A6225] text-white shadow-2xs'
+                : 'bg-white dark:bg-[#16271D] text-[#556244] dark:text-[#A8D968] hover:bg-[#EAE2D2] dark:hover:bg-[#1F3526] border border-[#E0D7C6] dark:border-[#22352B]'
+            }`}
+          >
+            Today
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setTargetDateStr(yesterdayStr)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              targetDateStr === yesterdayStr
+                ? 'bg-[#4A6225] text-white shadow-2xs'
+                : 'bg-white dark:bg-[#16271D] text-[#556244] dark:text-[#A8D968] hover:bg-[#EAE2D2] dark:hover:bg-[#1F3526] border border-[#E0D7C6] dark:border-[#22352B]'
+            }`}
+          >
+            Yesterday
+          </button>
+
+          {/* Custom Calendar to select */}
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white dark:bg-[#16271D] border border-[#E0D7C6] dark:border-[#22352B] text-xs text-[#556244] dark:text-[#A8D968]">
+            <input
+              type="date"
+              value={targetDateStr}
+              max={todayStr}
+              onChange={(e) => {
+                if (e.target.value) setTargetDateStr(e.target.value)
+              }}
+              className="bg-transparent text-xs font-semibold text-[#1D2516] dark:text-[#F5F2EB] focus:outline-none cursor-pointer"
+            />
+          </div>
+        </div>
+
+        <div className="text-[11px] font-medium text-[#7A8C74] dark:text-[#83967D]">
+          Simulating habits for:{' '}
+          <span className="font-semibold text-[#1D2516] dark:text-[#F5F2EB]">
+            {targetDateStr === todayStr ? 'Today' : targetDateStr === yesterdayStr ? 'Yesterday' : targetDateStr}
+          </span>
         </div>
       </div>
 
@@ -690,13 +756,15 @@ export function Simulator() {
                           renderFormattedText(msg.content)
                         )}
                       </div>
-                      <span
-                        className={`text-[10px] text-[#8A847A] dark:text-[#6E8268] px-1 ${
-                          isUser ? 'text-right' : 'text-left'
-                        }`}
-                      >
-                        {msg.timestamp}
-                      </span>
+                      {msg.timestamp ? (
+                        <span
+                          className={`text-[10px] text-[#8A847A] dark:text-[#6E8268] px-1 ${
+                            isUser ? 'text-right' : 'text-left'
+                          }`}
+                        >
+                          {msg.timestamp}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 )
