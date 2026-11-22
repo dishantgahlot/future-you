@@ -15,7 +15,7 @@ A hackathon project to visualize your future self based on today's habits. Built
 ### Backend
 - **Node.js** + **Express** + **TypeScript**
 - **Supabase** for PostgreSQL database & Auth
-- **Groq SDK** for AI predictions
+- **Gemini 3.2 flash ** for AI predictions
 - **Zod** for validation
 - **Helmet, CORS, Morgan** for security & logging
 
